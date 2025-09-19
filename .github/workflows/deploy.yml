@@ -2,8 +2,8 @@ name: Deploy Vite React app to GitHub Pages
 
 on:
   push:
-    branches: [ "main" ]   # 👈 se ejecuta cada vez que hagas push a la rama main
-  workflow_dispatch:        # 👈 también puedes ejecutarlo manualmente desde GitHub
+    branches: [ "main" ]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -19,12 +19,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout código
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4   # ⬅️ actualizado
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4  # ⬅️ actualizado
         with:
-          node-version: 18   # 👈 versión recomendada para Vite
+          node-version: 18
 
       - name: Instalar dependencias
         run: npm install
@@ -36,9 +36,9 @@ jobs:
         run: cp dist/index.html dist/404.html
 
       - name: Subir artefacto
-        uses: actions/upload-pages-artifact@v1
+        uses: actions/upload-pages-artifact@v3  # ⬅️ actualizado
         with:
-          path: ./dist       # 👈 carpeta generada por Vite al hacer build
+          path: ./dist
 
   deploy:
     environment:
@@ -49,4 +49,4 @@ jobs:
     steps:
       - name: Desplegar a GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4   # ⬅️ actualizado
