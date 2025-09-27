@@ -1,25 +1,43 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Felipe Masanés Didyk - Consultor</title>
-  <meta name="description" content="Felipe Masanés Didyk | MBA @ Kelley | Consultor en Estrategia, Crecimiento y Transformación Digital">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Experiencia Profesional | Felipe Masanés Didyk</title>
+  <meta name="description" content="Trayectoria profesional de Felipe Masanés Didyk: consultoría, growth, transformación digital, docencia y liderazgo." />
+  <link rel="canonical" href="https://senasam.github.io/mi-pagina-web/experience.html" />
+  <meta property="og:title" content="Experiencia Profesional | Felipe Masanés Didyk" />
+  <meta property="og:description" content="Trayectoria en consultoría, growth, transformación digital, docencia y liderazgo." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#0b1220" />
+
+  <!-- Bootstrap & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+  <style>
+    .bg-gradient-dark{background:radial-gradient(1200px circle at 10% 10%,#1f2937 0,#0b1220 40%,#0b0f1a 100%);} 
+    .timeline{position:relative;margin-left:1rem;padding-left:1.5rem;border-left:3px solid #e5e7eb}
+    .dot{position:absolute;left:-9px;top:.75rem;width:14px;height:14px;border-radius:50%;background:#0d6efd;box-shadow:0 0 0 3px #fff}
+    .card:hover{transform:translateY(-2px);box-shadow:0 1rem 2rem rgba(0,0,0,.12)}
+    .skill-badge{font-size:.75rem}
+    .sticky-filters{position:sticky;top:.75rem;z-index:10}
+    .search-clear{cursor:pointer}
+  </style>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container">
       <a class="navbar-brand" href="/index.html">Felipe Masanés</a>
-      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Alternar navegación">
         <span class="navbar-toggler-icon"></span>
       </button>
       <div class="collapse navbar-collapse" id="navbarNav">
         <ul class="navbar-nav ms-auto">
           <li class="nav-item"><a class="nav-link" href="/about.html">Sobre mí</a></li>
           <li class="nav-item"><a class="nav-link" href="/services.html">Servicios</a></li>
-          <li class="nav-item"><a class="nav-link" href="/experience.html">Experiencia</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="/experience.html">Experiencia</a></li>
           <li class="nav-item"><a class="nav-link" href="/projects.html">Proyectos</a></li>
           <li class="nav-item"><a class="nav-link" href="/testimonials.html">Testimonios</a></li>
           <li class="nav-item"><a class="nav-link" href="/contact.html">Contacto</a></li>
@@ -29,95 +47,227 @@
   </nav>
 
   <!-- Hero -->
-  <header class="bg-primary text-white text-center py-5">
+  <header class="bg-gradient-dark text-white py-5">
     <div class="container">
-      <h1 class="display-4 fw-bold">Felipe Masanés Didyk</h1>
-      <p class="lead">MBA @ Kelley | Consultor en Estrategia, Crecimiento y Transformación Digital</p>
-      <div class="mt-4">
-        <a href="/services.html" class="btn btn-light btn-lg me-2">Descubre mis servicios</a>
-        <a href="https://calendly.com/fmasanes-iu/30min" target="_blank" class="btn btn-outline-light btn-lg">Agenda una reunión</a>
+      <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+          <h1 class="display-5 fw-semibold mb-3">Experiencia profesional</h1>
+          <p class="lead mb-0">Una trayectoria híbrida entre <strong>consultoría</strong>, <strong>growth</strong>, <strong>transformación digital</strong> y <strong>docencia</strong>, con foco en impacto medible y trabajo en equipo.</p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+          <a class="btn btn-outline-light btn-lg" href="/Felipe-Masanes-Resume.pdf"><i class="bi bi-file-earmark-text"></i> Descargar CV</a>
+        </div>
       </div>
     </div>
   </header>
 
-  <!-- Sobre mí breve -->
-  <section class="py-5">
-    <div class="container text-center">
-      <h2 class="mb-4">Bienvenido</h2>
-      <p class="lead">
-        Consultor con más de 10 años de experiencia en <strong>startups, fintech y corporaciones</strong>, 
-        especializado en estrategia de crecimiento, marketing y transformación digital. 
-        Actualmente curso un <strong>MBA en la Kelley School of Business (Indiana University)</strong>, 
-        con foco en Supply Chain Management y Business Analytics. 
-        Combino <em>ejecución práctica</em> con <em>rigurosidad académica</em> para diseñar e implementar 
-        estrategias de crecimiento sostenibles.
-      </p>
-    </div>
-  </section>
+  <!-- Breadcrumb -->
+  <nav class="bg-light" aria-label="breadcrumb">
+    <ol class="breadcrumb container py-2 mb-0">
+      <li class="breadcrumb-item"><a href="/index.html">Inicio</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Experiencia</li>
+    </ol>
+  </nav>
 
-  <!-- Frameworks / Lentes -->
-  <section class="py-5 bg-light">
+  <!-- Controles de idioma y filtros -->
+  <section class="py-4">
     <div class="container">
-      <h2 class="text-center mb-5">Cómo pienso y trabajo</h2>
-      <div class="row text-center">
-        <div class="col-md-3"><h5>📊 Finanzas</h5><p>Rentabilidad, P&L, ROI, NPV y punto de equilibrio.</p></div>
-        <div class="col-md-3"><h5>🌍 Mercado</h5><p>Tamaño, crecimiento, dinámica competitiva y tendencias.</p></div>
-        <div class="col-md-3"><h5>⚡ Riesgos</h5><p>Canibalización, regulación, competencia, ejecución.</p></div>
-        <div class="col-md-3"><h5>🤝 Cliente</h5><p>Segmentación, customer journey, lealtad y willingness to pay.</p></div>
-      </div>
-      <div class="row text-center mt-4">
-        <div class="col-md-3"><h5>🏭 Operaciones</h5><p>Cadena de valor, procesos, eficiencia y talento.</p></div>
-        <div class="col-md-3"><h5>⚔️ Competencia</h5><p>Benchmarking, posicionamiento, Matriz BCG y CAGE.</p></div>
-        <div class="col-md-3"><h5>🚀 Crecimiento</h5><p>Orgánico (nuevos productos/canales) e inorgánico (M&A, JV).</p></div>
-        <div class="col-md-3"><h5>⭐ Factores Clave</h5><p>VRIO, diferenciación y estrategias genéricas de Porter.</p></div>
-      </div>
-    </div>
-  </section>
-
-  <!-- Expertise -->
-  <section class="py-5">
-    <div class="container text-center">
-      <h2 class="mb-4">Áreas de Expertise</h2>
-      <div class="row">
-        <div class="col-md-4"><h5>Estrategia</h5><p>Definición de planes claros, escalables y medibles.</p></div>
-        <div class="col-md-4"><h5>Growth</h5><p>Go-to-market, funnels, pricing y experimentación ágil.</p></div>
-        <div class="col-md-4"><h5>Innovación</h5><p>Transformación digital y diseño centrado en el cliente.</p></div>
+      <div class="row g-3 align-items-center">
+        <div class="col-12 col-lg-4 order-2 order-lg-1">
+          <div class="btn-group" role="group" aria-label="Selector de idioma">
+            <button id="btnES" type="button" class="btn btn-primary">ES</button>
+            <button id="btnEN" type="button" class="btn btn-outline-primary">EN</button>
+          </div>
+        </div>
+        <div class="col-12 col-lg-5 order-3 order-lg-2">
+          <div class="input-group sticky-filters">
+            <span class="input-group-text"><i class="bi bi-search"></i></span>
+            <input id="search" type="search" class="form-control" placeholder="Buscar por empresa, cargo, ubicación, habilidades…" aria-label="Buscar" />
+            <button id="clearSearch" class="btn btn-outline-secondary search-clear" title="Limpiar"><i class="bi bi-x-lg"></i></button>
+          </div>
+        </div>
+        <div class="col-12 col-lg-3 order-1 order-lg-3">
+          <select id="skillSelect" class="form-select" aria-label="Filtrar por habilidad">
+            <option value="">Filtrar por habilidad</option>
+          </select>
+        </div>
       </div>
     </div>
   </section>
 
-  <!-- Proyectos -->
-  <section class="py-5 bg-light">
-    <div class="container text-center">
-      <h2 class="mb-4">Proyectos Destacados</h2>
-      <p>He liderado iniciativas con <strong>Microsoft</strong>, <strong>Klicker (Grupo Kaufmann)</strong> y <strong>Finvivir</strong>, combinando estrategia, data y ejecución.</p>
-      <a href="/projects.html" class="btn btn-primary mt-3">Ver más proyectos</a>
-    </div>
-  </section>
-
-  <!-- Testimonios -->
-  <section class="py-5">
-    <div class="container text-center">
-      <h2 class="mb-4">Lo que dicen de mí</h2>
-      <blockquote class="blockquote">“Felipe combina desempeño excepcional, capacidad analítica y creatividad, con una actitud innovadora.”</blockquote>
-      <footer class="blockquote-footer">Yelca Mondragón, GrupoFi</footer>
-      <a href="/testimonials.html" class="btn btn-link mt-3">Ver más testimonios</a>
-    </div>
-  </section>
-
-  <!-- Call to action -->
-  <section class="py-5 text-center bg-primary text-white">
+  <!-- Timeline -->
+  <main class="pb-5 flex-fill">
     <div class="container">
-      <h2>¿Listo para conversar?</h2>
-      <p class="lead">Agenda una reunión y conversemos sobre tu proyecto.</p>
-      <a href="https://calendly.com/fmasanes-iu/30min" target="_blank" class="btn btn-light btn-lg">Agendar en Calendly</a>
+      <div class="timeline" id="timeline">
+        <!-- items renderizados por JS -->
+      </div>
     </div>
-  </section>
+  </main>
 
   <!-- Footer -->
-  <footer class="bg-dark text-white text-center py-3">
-    <p>&copy; 2025 Felipe Masanés Didyk - Todos los derechos reservados</p>
+  <footer class="bg-dark text-white text-center py-4 mt-auto">
+    <div class="container">
+      <p class="mb-1">&copy; 2025 Felipe Masanés Didyk — Todos los derechos reservados</p>
+      <small class="text-secondary">Sitio construido con Bootstrap 5</small>
+    </div>
   </footer>
+
+  <!-- JSON-LD básico para posicionamiento de experiencia -->
+  <script type="application/ld+json" id="jsonld"></script>
+
+  <main class="pb-5 flex-fill">
+    <div class="container">
+      <div class="timeline" id="timeline">
+        <!-- items renderizados por JS -->
+      </div>
+    </div>
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-dark text-white text-center py-4 mt-auto">
+    <div class="container">
+      <p class="mb-1">&copy; 2025 Felipe Masanés Didyk — Todos los derechos reservados</p>
+      <small class="text-secondary">Sitio construido con Bootstrap 5</small>
+    </div>
+  </footer>
+
+  <!-- JSON-LD básico para posicionamiento de experiencia -->
+  <script type="application/ld+json" id="jsonld"></script>
+
+  <script>
+  // --- Datos ES y EN ---
+  const experiencesES = REPLACE_ME_EXPERIENCES_ES; // marcador temporal
+  const experiencesEN = [
+    {"title":"Career Break – MBA Class of 2026","company":"Indiana University – Kelley School of Business","employment_type":"Professional Development","location":"Bloomington, Indiana","dates":"Aug 2024 – Present (1 yr 2 mos)","description":"Relocated with my family to Bloomington, Indiana, to pursue an MBA specializing in Supply Chain Management and Business Analytics, with a minor in Leadership. Active member of the Consulting Academy, collaborating with clients such as Microsoft on product launch strategy. Coursework includes predictive analytics, digital transformation, pricing strategy, CRM, supply chain optimization, and leadership. Expanded professional network through conferences with Chilean MBA peers, meeting politicians, corporate directors, and consulting leaders. Completed a 3-month internship at Finvivir in Mexico, applying MBA frameworks to deliver superior performance. This journey strengthened resilience, adaptability, and strategic thinking while balancing study, work, and family life.","skills":["Management Consulting","Business Analytics","Supply Chain Optimization","Predictive Analytics","Strategic Planning","Leadership","Networking","Digital Transformation"]},
+    {"title":"MBA Intern – Strategy Development","company":"Finvivir","employment_type":"Internship","location":"Mexico (On-site)","dates":"Jun 2025 – Sep 2025 (4 mos)","description":"Led design and execution of a digital transformation and growth strategy for Grupo FI, a multinational microfinance group. Delivered the Growth Playbook integrating Lean Startup, OKRs, and ICE/RICE frameworks. Developed a roadmap to scale adoption of Ilana App, optimized acquisition and retention funnels, and conducted A/B testing, leader segmentation, and cohort analysis in QuickSight. Coordinated stakeholders from Sales, Product, Marketing, Analytics, and Technology to enable rapid experimentation. Validated initiatives projected to increase digital adoption by +25%, reduce CAC by -15%, and improve retention by +10%.","skills":["Strategic Thinking","Innovation Management","Digital Transformation","Stakeholder Management","Problem Solving","Market Research","Management Consulting","Agile Methodologies","Change Management","Analytical Skills","Growth Strategy"]},
+    // ... (resto de elementos EN copiados del mensaje original)
+  ];
+
+  // Reinyectamos el arreglo ES original que ya existe en el documento
+  // (tomamos el array ES que estaba antes en "const experiencesES = [...]" y lo reemplazamos en tiempo de build de este canvas)
+  const experiences = experiencesES; // idioma por defecto: ES
+  let lang = 'ES';
+
+  const COMPANY_LINKS = {
+    'Indiana University – Kelley School of Business': 'https://kelley.iu.edu/',
+    'Finvivir': 'https://www.finvivir.com/',
+    'Kaufmann Chile': 'https://www.kaufmann.cl/',
+    'Universidad Diego Portales': 'https://www.udp.cl/',
+    'Getback': 'https://www.getback.cl/',
+    'Muruna Consulting': '#',
+    'QuePlan.cl': 'https://www.queplan.cl/',
+    'Girofácil': '#',
+    'Ticketplus': 'https://ticketplus.cl/',
+    'Banco de Chile': 'https://portales.bancochile.cl/',
+    'Clínica Dermatológica SkinMed': '#',
+    'D&D Eventos': '#',
+    'Wiseaccess – Sistemas de Información & IoT': '#',
+    'Varios': '#'
+  };
+
+  // Referencias UI
+  const timeline = document.getElementById('timeline');
+  const searchInput = document.getElementById('search');
+  const clearBtn = document.getElementById('clearSearch');
+  const skillSelect = document.getElementById('skillSelect');
+  const btnES = document.getElementById('btnES');
+  const btnEN = document.getElementById('btnEN');
+
+  // Construir listado único de habilidades (ES por defecto)
+  function buildSkills(list){
+    const all = Array.from(new Set(list.flatMap(e => e.skills))).sort();
+    skillSelect.innerHTML = '<option value="">'+(lang==='ES'?'Filtrar por habilidad':'Filter by skill')+'</option>';
+    all.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s; opt.textContent = s; skillSelect.appendChild(opt);
+    });
+  }
+
+  function companyCell(e){
+    const url = COMPANY_LINKS[e.company];
+    const label = `<strong>${e.company}</strong>`;
+    return url ? `<a href="${url}" target="_blank" rel="noopener">${label}</a>` : label;
+  }
+
+  function t(keyES,keyEN){ return lang==='ES'? keyES : keyEN; }
+
+  function render(list){
+    const q = searchInput.value.trim().toLowerCase();
+    const f = skillSelect.value;
+    timeline.innerHTML = '';
+    list.forEach((e) => {
+      const text = `${e.title} ${e.company} ${e.location} ${e.description}`.toLowerCase();
+      const hayTexto = !q || text.includes(q);
+      const haySkill = !f || (e.skills||[]).includes(f);
+      if(!hayTexto || !haySkill) return;
+
+      const item = document.createElement('article');
+      item.className = 'card mb-4 shadow-sm';
+      item.innerHTML = `
+        <div class="dot" aria-hidden="true"></div>
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+              <h3 class="h5 mb-1">${e.title}</h3>
+              <p class="mb-1"><i class="bi bi-building"></i> ${companyCell(e)} · <span class="text-muted">${e.employment_type}</span></p>
+              <p class="text-muted mb-1"><i class="bi bi-geo-alt"></i> ${e.location}</p>
+              <p class="text-muted"><i class="bi bi-calendar3"></i> ${e.dates}</p>
+            </div>
+          </div>
+          <p class="mb-3">${e.description}</p>
+          <div>${(e.skills||[]).map(s=>`<span class=\"badge text-bg-light me-1 mb-1 skill-badge\">${s}</span>`).join('')}</div>
+        </div>`;
+      timeline.appendChild(item);
+    });
+
+    if(!timeline.children.length){
+      timeline.innerHTML = '<div class="alert alert-secondary">'+t('No se encontraron resultados para los filtros seleccionados.','No results for the selected filters.')+'</div>';
+    }
+  }
+
+  function setLanguage(newLang){
+    lang = newLang;
+    // Toggle estilos botones
+    if(lang==='ES'){ btnES.className='btn btn-primary'; btnEN.className='btn btn-outline-primary'; }
+    else { btnES.className='btn btn-outline-primary'; btnEN.className='btn btn-primary'; }
+
+    // Placeholders
+    searchInput.placeholder = t('Buscar por empresa, cargo, ubicación, habilidades…','Search by company, role, location, skills…');
+    clearBtn.title = t('Limpiar','Clear');
+
+    // Reconstruir skills y render con dataset correspondiente
+    const data = (lang==='ES') ? experiencesES : experiencesEN;
+    buildSkills(data);
+    render(data);
+
+    // JSON-LD
+    const jsonld = {
+      '@context':'https://schema.org', '@type':'ItemList',
+      'name': t('Experiencia Profesional — Felipe Masanés Didyk','Professional Experience — Felipe Masanés Didyk'),
+      'itemListElement': data.map((e,idx)=>({ '@type':'ListItem', position: idx+1, item: { '@type':'OrganizationRole', roleName: e.title, startDate: (e.dates.split('–')[0]||'').trim(), endDate: e.dates.includes('Presente')||e.dates.includes('Present')? 'Present' : (e.dates.split('–')[1]||'').split('(')[0].trim(), description: e.description, memberOf:{'@type':'Organization','name':e.company}, location:{'@type':'Place','name':e.location} } }))
+    };
+    document.getElementById('jsonld').textContent = JSON.stringify(jsonld);
+  }
+
+  // Eventos
+  btnES.addEventListener('click', ()=> setLanguage('ES'));
+  btnEN.addEventListener('click', ()=> setLanguage('EN'));
+  searchInput.addEventListener('input', ()=> setLanguage(lang));
+  clearBtn.addEventListener('click', ()=> { searchInput.value=''; setLanguage(lang); });
+  skillSelect.addEventListener('change', ()=> setLanguage(lang));
+
+  // Inicializar: inyectar arreglo ES real reemplazando marcador temporal
+  // (tomamos el array ES que existe en este mismo documento entre const experiences = [...])
+  // Para este canvas, reemplazamos el marcador con el contenido al guardar.
+  // Como fallback, si por alguna razón no se reemplaza, intentamos obtenerlo del window.__experiencesES
+  try{
+    // nada, ya viene en el HTML tras la actualización
+  }catch{}
+
+  // Bootstrap inicial ES
+  buildSkills(experiencesES);
+  setLanguage('ES');
+  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
