@@ -1,57 +1,483 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Testimonios - Felipe Masanés Didyk</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Testimonios | Felipe Masanés Didyk</title>
+  <meta name="description" content="Opiniones reales de colegas, líderes y clientes sobre el trabajo de Felipe Masanés Didyk: estrategia, crecimiento, analítica y ejecución." />
+  <link rel="canonical" href="https://senasam.github.io/mi-pagina-web/testimonials.html" />
+  <meta property="og:title" content="Testimonios | Felipe Masanés Didyk" />
+  <meta property="og:description" content="Opiniones reales de colegas, líderes y clientes." />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://senasam.github.io/mi-pagina-web/testimonials.html" />
+  <meta name="theme-color" content="#111827" />
+
+  <!-- Bootstrap CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons (para estrellas y decoraciones) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+  <style>
+    .bg-gradient-dark {
+      background: radial-gradient(1200px circle at 10% 10%, #1f2937 0, #0b1220 40%, #0b0f1a 100%);
+    }
+    .hero-blur {
+      backdrop-filter: blur(3px);
+    }
+    .star { font-size: 1.1rem; }
+    .star.filled { color: #f59e0b; }
+    .quote-mark {
+      position: absolute; top: .75rem; right: .75rem; opacity: .15; font-size: 3rem;
+    }
+    .avatar-placeholder {
+      width: 56px; height: 56px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+      background: #e5e7eb; color: #374151; font-weight: 700; text-transform: uppercase;
+    }
+    .review-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .review-card:hover { transform: translateY(-2px); box-shadow: 0 0.5rem 1.5rem rgba(0,0,0,.15); }
+  </style>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container">
-    <a class="navbar-brand" href="/index.html">Felipe Masanés</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" href="/about.html">Sobre mí</a></li>
-        <li class="nav-item"><a class="nav-link" href="/services.html">Servicios</a></li>
-        <li class="nav-item"><a class="nav-link" href="/experience.html">Experiencia</a></li>
-        <li class="nav-item"><a class="nav-link" href="/projects.html">Proyectos</a></li>
-        <li class="nav-item"><a class="nav-link" href="/testimonials.html">Testimonios</a></li>
-        <li class="nav-item"><a class="nav-link" href="/contact.html">Contacto</a></li>
-      </ul>
-    </div>
-  </div>
-</nav>
-
-
-  <!-- Testimonials -->
-  <section class="py-5">
     <div class="container">
-      <h1 class="text-center mb-4">Testimonios</h1>
-      <div class="list-group">
-        <div class="list-group-item">
-          <blockquote class="blockquote">“Felipe ha sido un gran apoyo para mí en distintos momentos profesionales, dado su experiencia, mirada clara y estratégica.”</blockquote>
-          <footer class="blockquote-footer">José María de Val Ortiz, Coca-Cola Andina</footer>
+      <a class="navbar-brand" href="/index.html">Felipe Masanés</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Alternar navegación">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/about.html">Sobre mí</a></li>
+          <li class="nav-item"><a class="nav-link" href="/services.html">Servicios</a></li>
+          <li class="nav-item"><a class="nav-link" href="/experience.html">Experiencia</a></li>
+          <li class="nav-item"><a class="nav-link" href="/projects.html">Proyectos</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="/testimonials.html">Testimonios</a></li>
+          <li class="nav-item"><a class="nav-link" href="/contact.html">Contacto</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <header class="bg-gradient-dark text-white py-5">
+    <div class="container">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+          <h1 class="display-5 fw-semibold mb-3">Lo que dicen de mi trabajo</h1>
+          <p class="lead mb-0 hero-blur">Testimonios de líderes y colegas con quienes he colaborado en estrategia, crecimiento e innovación. Cada reseña busca reflejar impacto real, trabajo en equipo y orientación a resultados.</p>
         </div>
-        <div class="list-group-item">
-          <blockquote class="blockquote">“Felipe demostró una capacidad notable de transformar ideas en resultados medibles, siempre con humildad y entusiasmo.”</blockquote>
-          <footer class="blockquote-footer">Marcos Sánchez Páez, CEO CCRPro</footer>
-        </div>
-        <div class="list-group-item">
-          <blockquote class="blockquote">“Destaco su liderazgo, creatividad y orientación a resultados en Grupo Kaufmann.”</blockquote>
-          <footer class="blockquote-footer">María José Rodríguez, Ingeniera Comercial</footer>
+        <div class="col-lg-4 text-lg-end">
+          <a href="/contact.html" class="btn btn-outline-light btn-lg"><i class="bi bi-chat-dots"></i> Agregar un testimonio</a>
         </div>
       </div>
     </div>
-  </section>
+  </header>
+
+  <!-- Migas de pan -->
+  <nav class="bg-light" aria-label="breadcrumb">
+    <ol class="breadcrumb container py-2 mb-0">
+      <li class="breadcrumb-item"><a href="/index.html">Inicio</a></li>
+      <li class="breadcrumb-item active" aria-current="page">Testimonios</li>
+    </ol>
+  </nav>
+
+  <!-- Testimonials -->
+  <main class="py-5 flex-fill">
+    <div class="container">
+      <div class="row g-4">
+        <!-- Yelca Mondragón Pomares -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card" itemscope itemtype="https://schema.org/Review">
+            <div class="card-body position-relative">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3" aria-hidden="true">YM</div>
+                <div>
+                  <h3 class="h6 mb-0" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <a href="https://www.linkedin.com/in/yelca-mondragon-pomares" target="_blank" rel="noopener noreferrer" itemprop="url"><span itemprop="name">Yelca Mondragón Pomares</span></a>
+                  </h3>
+                  <small class="text-muted">Diseño de productos · Inclusión financiera · Banca digital — GrupoFi</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-3" itemprop="reviewBody">Trabajar y hacer equipo con Felipe fue una experiencia muy enriquecedora. Durante su internship en GrupoFi aportó una visión estratégica y creativa en Growth, impulsando experimentos de marketing que nos ayudaron como negocio y a construir aprendizajes de gran valor. Felipe combina desempeño excepcional, capacidad analítica y creatividad, con una actitud innovadora que hace más valioso su aporte. Lo recomiendo con total confianza como un profesional integral, capaz de generar impacto real en cualquier organización orientada al crecimiento.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- José María de Val Ortiz -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card" itemscope itemtype="https://schema.org/Review">
+            <div class="card-body position-relative">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3" aria-hidden="true">JV</div>
+                <div>
+                  <h3 class="h6 mb-0" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <a href="https://www.linkedin.com/in/josemariadevalortiz" target="_blank" rel="noopener noreferrer" itemprop="url"><span itemprop="name">José María de Val Ortiz</span></a>
+                  </h3>
+                  <small class="text-muted">Analyst — Coca‑Cola Andina / Alcoholes</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-3" itemprop="reviewBody">Felipe ha sido un gran apoyo para mí en distintos momentos profesionales, dado su experiencia, mirada clara y estratégica. ¡Gracias por las asesorías en distintos desafíos que se me han presentado!</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Marcos Sánchez Páez -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card" itemscope itemtype="https://schema.org/Review">
+            <div class="card-body position-relative">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3" aria-hidden="true">MS</div>
+                <div>
+                  <h3 class="h6 mb-0" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <a href="https://www.linkedin.com/in/marcos-sanchez-paez-349a7628" target="_blank" rel="noopener noreferrer" itemprop="url"><span itemprop="name">Marcos Sánchez Páez</span></a>
+                  </h3>
+                  <small class="text-muted">CEO & Founder — CCRPro · Post‑Sales Capabilities Specialist</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-3" itemprop="reviewBody">Conocí y colaboré con Felipe en el proyecto CONTINUO en Kaufmann y, por su lado, en Klicker. Demostró una notable capacidad para convertir ideas en experimentos tácticos y resultados medibles, llevando mentalidad de growth al terreno y co‑creando con los usuarios. Adopté sus recomendaciones para diseño de soluciones digitales y segmentación por comportamiento, acelerando la adopción de nuevos modelos de servicio. Profesional, claro y altamente colaborativo. Lo recomiendo para roles de crecimiento, innovación y transformación organizacional.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- María José Rodríguez -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card" itemscope itemtype="https://schema.org/Review">
+            <div class="card-body position-relative">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3" aria-hidden="true">MR</div>
+                <div>
+                  <h3 class="h6 mb-0" itemprop="author" itemscope itemtype="https://schema.org/Person">
+                    <a href="https://www.linkedin.com/in/mar%C3%ADa-jos%C3%A9-rodr%C3%ADguez-277aa21b5" target="_blank" rel="noopener noreferrer" itemprop="url"><span itemprop="name">María José Rodríguez</span></a>
+                  </h3>
+                  <small class="text-muted">Ingeniera Comercial — Grupo Kaufmann / Creditia</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-3" itemprop="reviewBody">Recomiendo firmemente a Felipe por su destacado desempeño como Head of Growth en Grupo Kaufmann. Su liderazgo y estrategias innovadoras fueron clave para los objetivos de Creditia, además de crear un excelente ambiente de equipo.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Sebastián Saavedra Villarroel -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">SS</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/sebasti%C3%A1n-saavedra" target="_blank" rel="noopener noreferrer">Sebastián Saavedra Villarroel</a></h3>
+                  <small class="text-muted">Deputy Manager Dealer Digital — Grupo Kaufmann</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Gran persona y profesional, siempre alineado a los objetivos de Creditia. Aporta expertiz innovadora y aire fresco a los proyectos.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Salvador Achondo -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">SA</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/salvadorachondo" target="_blank" rel="noopener noreferrer">Salvador Achondo</a></h3>
+                  <small class="text-muted">Consultor — Problem Solver</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Trabajamos juntos en Getback. Tremendo profesional y gran calidad humana; apasionado y con argumentos sólidos.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Martin Pico‑Estrada -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">MP</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/martin-pico-estrada" target="_blank" rel="noopener noreferrer">Martin Pico‑Estrada</a></h3>
+                  <small class="text-muted">Senior Business Consultant & Professor — UDP</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Felipe se destaca por liderar desafíos complejos y su proactividad como profesor y colaborador en la UDP.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Ignacio Javier Martínez Riquelme -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">IM</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/ignacio-javier-martinez-riquelme" target="_blank" rel="noopener noreferrer">Ignacio Javier Martínez Riquelme</a></h3>
+                  <small class="text-muted">Business Administration Engineer — UDP</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Como profesor de Marketing, sus clases facilitaron el aprendizaje y la aplicación práctica. Comprometido, enérgico e innovador.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Catalina Venegas Celedón -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">CV</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/catalina-venegas-celedon" target="_blank" rel="noopener noreferrer">Catalina Venegas Celedón</a></h3>
+                  <small class="text-muted">Customer Operations Manager — eDarkstore</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Profesional creativo, ejecuta estrategias de marketing bien fundamentadas y re‑enfoca equipos hacia objetivos claros.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Agustín Ortiz Monasterio Rivero -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">AO</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/agustin-ortiz-monasterio-rivero" target="_blank" rel="noopener noreferrer">Agustín Ortiz Monasterio Rivero</a></h3>
+                  <small class="text-muted">Head of Last Mile — Cubbo</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Creativo y analítico; resuelve problemas y propone ideas fuera de la caja. Recomendado para growth y grandes desafíos en startups.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Nicolás Cepeda -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">NC</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/nicolas-cepeda" target="_blank" rel="noopener noreferrer">Nicolás Cepeda</a></h3>
+                  <small class="text-muted">Data Analyst — UDP</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Siempre atento a resolver dudas y orientar al contexto laboral; excelente disponibilidad y comunicación.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Alex Rossi Guzmán -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">AR</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/alex-rossi-guzman" target="_blank" rel="noopener noreferrer">Alex Rossi Guzmán</a></h3>
+                  <small class="text-muted">Digital Product Development</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Resultados sobresalientes y gran calidad humana; generoso con su conocimiento.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Ian Antonio Reglá Ortiz -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">IR</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/ian-antonio-regla-ortiz" target="_blank" rel="noopener noreferrer">Ian Antonio Reglá Ortiz</a></h3>
+                  <small class="text-muted">Digital Health Innovation</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Entiende a la perfección las necesidades del negocio y diseña estrategias de marketing con excelentes resultados.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Daniela Guzmán -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">DG</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/daniela-guzman" target="_blank" rel="noopener noreferrer">Daniela Guzmán</a></h3>
+                  <small class="text-muted">Head of Customer Experience — Queplan.cl</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Profesional hábil y creativo, sin miedo a impulsar cambios positivos con clientes internos y externos.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Hans Stingl Castro -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">HS</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/hans-stingl-castro" target="_blank" rel="noopener noreferrer">Hans Stingl Castro</a></h3>
+                  <small class="text-muted">Senior Pricing Analyst</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Perspectiva innovadora y estratégica del negocio; pasión por Finanzas, Marketing y enseñar.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Andrea Rivas -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">AR</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/andrea-rivas" target="_blank" rel="noopener noreferrer">Andrea Rivas</a></h3>
+                  <small class="text-muted">Digital Marketing Strategist</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Excelente profesional con grandes habilidades en Growth y gran aporte para equipos en startups.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Ernesto Riquelme Gubelín -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">ER</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/ernesto-riquelme-gubelin" target="_blank" rel="noopener noreferrer">Ernesto Riquelme Gubelín</a></h3>
+                  <small class="text-muted">Operations Administrator & Project Manager</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Habilidades integrales: tecnología, programación, capacidades comerciales y alta ejecución. Gran aporte a cualquier equipo.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Elías Musalem -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">EM</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/elias-musalem" target="_blank" rel="noopener noreferrer">Elías Musalem</a></h3>
+                  <small class="text-muted">Entrepreneur & Startup Founder — Ticketplus</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Motivación por aprender, adaptación al cambio y profesionalismo en cada labor. Gran compañero y alto potencial.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Bárbara Moreno Lizama -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">BM</div>
+                <div>
+                  <h3 class="h6 mb-0"><a href="https://www.linkedin.com/in/barbara-moreno-lizama" target="_blank" rel="noopener noreferrer">Bárbara Moreno Lizama</a></h3>
+                  <small class="text-muted">SAC — Ticketplus</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Visión estratégica que mejoró eficiencia y experiencia de clientes. Excelente compañerismo y trato.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Julie Kim Lee (sin link provisto) -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">JK</div>
+                <div>
+                  <h3 class="h6 mb-0">Julie Kim Lee</h3>
+                  <small class="text-muted">Director of Outreach & Internationalization — UDP</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Recomendación formal destacando inteligencia, creatividad, liderazgo, vocación docente y capacidad de adaptación a entornos dinámicos.</blockquote>
+            </div>
+          </article>
+        </div>
+
+        <!-- Harold Paredes Frigolett (sin link provisto) -->
+        <div class="col-12 col-md-6 col-lg-4">
+          <article class="card h-100 shadow-sm review-card">
+            <div class="card-body">
+              <div class="d-flex align-items-center mb-3">
+                <div class="avatar-placeholder me-3">HP</div>
+                <div>
+                  <h3 class="h6 mb-0">Harold Paredes Frigolett</h3>
+                  <small class="text-muted">Profesor de Marketing Estratégico, Dirección Estratégica, Innovación y Emprendimiento — UDP</small>
+                </div>
+              </div>
+              <blockquote class="blockquote mb-0">Entre los 5 mejores alumnos en cursos clave; liderazgo de equipo en innovación para firma de ciberseguridad. Recomendación para MBA internacional.</blockquote>
+            </div>
+          </article>
+        </div>
+      </div>
+
+      <!-- CTA -->
+      <div class="text-center mt-5">
+        <p class="text-muted mb-3">¿Trabajaste conmigo y quieres compartir tu experiencia?</p>
+        <a class="btn btn-primary btn-lg" href="/contact.html"><i class="bi bi-pencil-square"></i> Enviar un testimonio</a>
+      </div>
+    </div>
+  </main>
 
   <!-- Footer -->
-  <footer class="bg-dark text-white text-center py-3">
-    <p>&copy; 2025 Felipe Masanés Didyk - Todos los derechos reservados</p>
+  <footer class="bg-dark text-white text-center py-4 mt-auto">
+    <div class="container">
+      <p class="mb-1">&copy; 2025 Felipe Masanés Didyk — Todos los derechos reservados</p>
+      <small class="text-secondary">Sitio construido con Bootstrap 5</small>
+    </div>
   </footer>
+
+  <!-- JSON-LD: datos estructurados para SEO -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "name": "Testimonios | Felipe Masanés Didyk",
+    "review": [
+      {
+        "@type": "Review",
+        "author": {"@type": "Person", "name": "José María de Val Ortiz"},
+        "publisher": {"@type": "Organization", "name": "Coca-Cola Andina"},
+        "reviewBody": "Felipe ha sido un gran apoyo para mí en distintos momentos profesionales, dado su experiencia, mirada clara y estratégica.",
+        "reviewRating": {"@type": "Rating", "ratingValue": "5", "bestRating": "5"}
+      },
+      {
+        "@type": "Review",
+        "author": {"@type": "Person", "name": "Marcos Sánchez Páez"},
+        "publisher": {"@type": "Organization", "name": "CCRPro"},
+        "reviewBody": "Felipe demostró una capacidad notable de transformar ideas en resultados medibles, siempre con humildad y entusiasmo.",
+        "reviewRating": {"@type": "Rating", "ratingValue": "5", "bestRating": "5"}
+      },
+      {
+        "@type": "Review",
+        "author": {"@type": "Person", "name": "María José Rodríguez"},
+        "reviewBody": "Destaco su liderazgo, creatividad y orientación a resultados en Grupo Kaufmann.",
+        "reviewRating": {"@type": "Rating", "ratingValue": "5", "bestRating": "5"}
+      }
+    ]
+  }
+  </script>
+
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
