@@ -3,48 +3,69 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sobre mí - Felipe Masanés Didyk</title>
+  <title data-i18n="about-meta-title">Sobre mí - Felipe Masanés Didyk</title>
+  <meta name="description" content="Conoce a Felipe Masanés Didyk: consultor en estrategia, crecimiento e innovación, MBA @ Kelley y hermano del investigador académico Martín Masanés Didyk.">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container">
-    <a class="navbar-brand" href="/index.html">Felipe Masanés</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" href="/about.html">Sobre mí</a></li>
-        <li class="nav-item"><a class="nav-link" href="/services.html">Servicios</a></li>
-        <li class="nav-item"><a class="nav-link" href="/experience.html">Experiencia</a></li>
-        <li class="nav-item"><a class="nav-link" href="/projects.html">Proyectos</a></li>
-        <li class="nav-item"><a class="nav-link" href="/testimonials.html">Testimonios</a></li>
-        <li class="nav-item"><a class="nav-link" href="/contact.html">Contacto</a></li>
-      </ul>
+    <div class="container">
+      <a class="navbar-brand" href="/index.html">Felipe Masanés</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="/about.html" data-i18n="about">Sobre mí</a></li>
+          <li class="nav-item"><a class="nav-link" href="/services.html" data-i18n="services">Servicios</a></li>
+          <li class="nav-item"><a class="nav-link" href="/experience.html" data-i18n="experience">Experiencia</a></li>
+          <li class="nav-item"><a class="nav-link" href="/projects.html" data-i18n="projects">Proyectos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/testimonials.html" data-i18n="testimonials">Testimonios</a></li>
+          <li class="nav-item"><a class="nav-link" href="/contact.html" data-i18n="contact">Contacto</a></li>
+        </ul>
+        <!-- Selector de idioma -->
+        <div class="ms-3">
+          <button id="btnES" class="btn btn-sm btn-primary">ES</button>
+          <button id="btnEN" class="btn btn-sm btn-outline-light">EN</button>
+        </div>
+      </div>
     </div>
-  </div>
-</nav>
-
+  </nav>
 
   <!-- About -->
   <section class="py-5">
     <div class="container">
-      <h1 class="text-center mb-4">Sobre mí</h1>
-      <p class="lead text-center">
-        Soy <strong>Felipe Ignacio Masanés Didyk</strong>, consultor en estrategia, marketing y crecimiento empresarial.  
-        Mi trayectoria combina la experiencia práctica en startups, fintech y corporaciones, con la formación académica de un MBA en la Kelley School of Business (Indiana University).
-      </p>
-      <p>
-        Me apasiona resolver problemas complejos y transformar organizaciones mediante innovación, analítica y pensamiento estratégico.  
-        He trabajado en proyectos de <em>go-to-market</em>, optimización de funnels, implementación de CRM, modelos de pricing, 
-        y consultoría estratégica con clientes como Microsoft, Kaufmann y BCI.
-      </p>
-      <p>
-        A lo largo de mi carrera he complementado el ámbito profesional con docencia universitaria, mentorías y voluntariado en educación.  
-        Creo firmemente en la capacidad de las personas y organizaciones para crecer cuando se combinan visión, disciplina y creatividad.
-      </p>
+      <div class="row align-items-center g-4">
+        <!-- Foto -->
+        <div class="col-md-5 text-center">
+          <img src="/assets/profile.jpg" alt="Foto de Felipe Masanés Didyk" class="img-fluid rounded shadow">
+        </div>
+        <!-- Texto -->
+        <div class="col-md-7">
+          <h1 class="mb-4" data-i18n="about-title">Sobre mí</h1>
+          <p class="lead" data-i18n="about-lead">
+            Soy <strong>Felipe Ignacio Masanés Didyk</strong>, consultor en estrategia, crecimiento e innovación digital. 
+            Actualmente curso un <strong>MBA en la Kelley School of Business (Indiana University)</strong> con foco en 
+            Supply Chain Management, Business Analytics y Liderazgo.
+          </p>
+          <p data-i18n="about-exp">
+            Mi trayectoria combina <em>10+ años de experiencia</em> en startups, fintech y corporaciones con la docencia y el pensamiento estratégico. 
+            He trabajado en proyectos de <em>go-to-market</em>, optimización de funnels, CRM, modelos de pricing, 
+            y consultoría para organizaciones como <strong>Microsoft</strong>, <strong>Kaufmann</strong> y <strong>BCI</strong>.
+          </p>
+          <p data-i18n="about-academic">
+            También me vinculo con el mundo académico: en mi familia, comparto esa vocación con mi hermano 
+            <a href="https://martinmasanesdidyk.com/" target="_blank" rel="noopener">Martín Masanés Didyk</a>, 
+            investigador y académico en economía aplicada.
+          </p>
+          <p data-i18n="about-purpose">
+            Creo firmemente en la capacidad de las personas y organizaciones para crecer cuando se combinan visión, disciplina y creatividad.  
+            Mi propósito es generar impacto positivo, conectando <em>estrategia</em>, <em>datos</em> y <em>ejecución</em>.
+          </p>
+          <a href="/contact.html" class="btn btn-primary mt-3" data-i18n="about-cta">Conversemos</a>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -52,6 +73,54 @@
   <footer class="bg-dark text-white text-center py-3">
     <p>&copy; 2025 Felipe Masanés Didyk - Todos los derechos reservados</p>
   </footer>
+
+  <!-- JS -->
+  <script>
+    const translations = {
+      EN: {
+        "about-meta-title": "About me - Felipe Masanés Didyk",
+        about: "About me",
+        services: "Services",
+        experience: "Experience",
+        projects: "Projects",
+        testimonials: "Testimonials",
+        contact: "Contact",
+        "about-title": "About me",
+        "about-lead": "I am <strong>Felipe Ignacio Masanés Didyk</strong>, a consultant in strategy, growth, and digital innovation. Currently pursuing an <strong>MBA at Kelley School of Business (Indiana University)</strong> with a focus on Supply Chain Management, Business Analytics, and Leadership.",
+        "about-exp": "My career combines <em>10+ years of experience</em> in startups, fintech, and corporations with teaching and strategic thinking. I have worked on projects such as <em>go-to-market</em>, funnel optimization, CRM, pricing models, and consulting for organizations like <strong>Microsoft</strong>, <strong>Kaufmann</strong>, and <strong>BCI</strong>.",
+        "about-academic": "I also maintain ties with academia: in my family, I share this vocation with my brother <a href='https://martinmasanesdidyk.com/' target='_blank' rel='noopener'>Martín Masanés Didyk</a>, a researcher and academic in applied economics.",
+        "about-purpose": "I firmly believe in the ability of people and organizations to grow when vision, discipline, and creativity are combined. My purpose is to generate positive impact by connecting <em>strategy</em>, <em>data</em>, and <em>execution</em>.",
+        "about-cta": "Let’s connect"
+      }
+    };
+
+    const btnES = document.getElementById("btnES");
+    const btnEN = document.getElementById("btnEN");
+
+    // Guardar español original
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+      el.setAttribute("data-i18n-original", el.innerHTML);
+    });
+
+    function setLanguage(lang) {
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (lang === "EN") {
+          el.innerHTML = translations.EN[key] || el.innerHTML;
+        } else {
+          el.innerHTML = el.getAttribute("data-i18n-original") || el.innerHTML;
+        }
+      });
+
+      btnES.classList.toggle("btn-primary", lang === "ES");
+      btnES.classList.toggle("btn-outline-light", lang !== "ES");
+      btnEN.classList.toggle("btn-primary", lang === "EN");
+      btnEN.classList.toggle("btn-outline-light", lang !== "EN");
+    }
+
+    btnES.addEventListener("click", () => setLanguage("ES"));
+    btnEN.addEventListener("click", () => setLanguage("EN"));
+  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
