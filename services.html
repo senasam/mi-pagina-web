@@ -1,71 +1,169 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Servicios - Felipe Masanés Didyk</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Servicios | Felipe Masanés Didyk</title>
+  <meta name="description" content="Consultoría en management, estrategia de negocios y marketing. Servicios de crecimiento, transformación digital y analítica avanzada." />
+  <link rel="canonical" href="https://senasam.github.io/mi-pagina-web/services.html" />
+  <meta property="og:title" content="Servicios | Felipe Masanés Didyk" />
+  <meta property="og:description" content="Consultoría en estrategia, growth, transformación digital y marketing." />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#0b1220" />
+
+  <!-- Bootstrap & Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+
+  <style>
+    .bg-gradient-dark {background:radial-gradient(1200px circle at 10% 10%,#1f2937 0,#0b1220 40%,#0b0f1a 100%);}
+    .card:hover {transform:translateY(-3px); box-shadow:0 1rem 2rem rgba(0,0,0,.15);}
+    .service-icon {font-size:2.5rem; color:#0d6efd;}
+  </style>
 </head>
-<body>
+<body class="d-flex flex-column min-vh-100">
   <!-- Navbar -->
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-  <div class="container">
-    <a class="navbar-brand" href="/index.html">Felipe Masanés</a>
-    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-      <span class="navbar-toggler-icon"></span>
-    </button>
-    <div class="collapse navbar-collapse" id="navbarNav">
-      <ul class="navbar-nav ms-auto">
-        <li class="nav-item"><a class="nav-link" href="/about.html">Sobre mí</a></li>
-        <li class="nav-item"><a class="nav-link" href="/services.html">Servicios</a></li>
-        <li class="nav-item"><a class="nav-link" href="/experience.html">Experiencia</a></li>
-        <li class="nav-item"><a class="nav-link" href="/projects.html">Proyectos</a></li>
-        <li class="nav-item"><a class="nav-link" href="/testimonials.html">Testimonios</a></li>
-        <li class="nav-item"><a class="nav-link" href="/contact.html">Contacto</a></li>
-      </ul>
-    </div>
-  </div>
-</nav>
-
-
-  <!-- Services -->
-  <section class="py-5">
     <div class="container">
-      <h1 class="text-center mb-4">Servicios de Consultoría</h1>
-      <p class="text-center lead">Ofrezco acompañamiento estratégico y táctico para empresas y startups que buscan crecer y transformarse.</p>
-      <div class="row mt-5">
-        <div class="col-md-4">
-          <div class="card h-100 shadow-sm">
-            <div class="card-body">
-              <h5 class="card-title">Estrategia de Crecimiento</h5>
-              <p class="card-text">Diseño y ejecución de planes de expansión basados en data, frameworks de growth hacking y metodologías ágiles.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card h-100 shadow-sm">
-            <div class="card-body">
-              <h5 class="card-title">Transformación Digital</h5>
-              <p class="card-text">Implementación de procesos, herramientas y cultura digital para optimizar la operación y la experiencia del cliente.</p>
-            </div>
-          </div>
-        </div>
-        <div class="col-md-4">
-          <div class="card h-100 shadow-sm">
-            <div class="card-body">
-              <h5 class="card-title">Consultoría en Marketing</h5>
-              <p class="card-text">Go-to-market, pricing, segmentación, CRM, funnels de conversión y estrategias de marca adaptadas al contexto del cliente.</p>
-            </div>
-          </div>
-        </div>
+      <a class="navbar-brand" href="/index.html">Felipe Masanés</a>
+      <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+        <span class="navbar-toggler-icon"></span>
+      </button>
+      <div class="collapse navbar-collapse" id="navbarNav">
+        <ul class="navbar-nav ms-auto">
+          <li class="nav-item"><a class="nav-link" href="/about.html">Sobre mí</a></li>
+          <li class="nav-item"><a class="nav-link active" aria-current="page" href="/services.html">Servicios</a></li>
+          <li class="nav-item"><a class="nav-link" href="/experience.html">Experiencia</a></li>
+          <li class="nav-item"><a class="nav-link" href="/projects.html">Proyectos</a></li>
+          <li class="nav-item"><a class="nav-link" href="/testimonials.html">Testimonios</a></li>
+          <li class="nav-item"><a class="nav-link" href="/contact.html">Contacto</a></li>
+        </ul>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <header class="bg-gradient-dark text-white py-5">
+    <div class="container text-center">
+      <h1 class="display-5 fw-semibold" id="heroTitle">Servicios de Consultoría</h1>
+      <p class="lead mb-0" id="introText">Consultoría estratégica en management, negocios y marketing para impulsar crecimiento, transformación digital y resultados medibles.</p>
+    </div>
+  </header>
+
+  <!-- Language Switch -->
+  <section class="py-4">
+    <div class="container text-center">
+      <div class="btn-group" role="group" aria-label="Selector de idioma">
+        <button id="btnES" type="button" class="btn btn-primary">ES</button>
+        <button id="btnEN" type="button" class="btn btn-outline-primary">EN</button>
       </div>
     </div>
   </section>
 
+  <!-- Services Section -->
+  <main class="flex-fill py-5">
+    <div class="container">
+      <div class="row g-4" id="servicesGrid">
+        <!-- Servicios generados por JS -->
+      </div>
+    </div>
+  </main>
+
   <!-- Footer -->
-  <footer class="bg-dark text-white text-center py-3">
-    <p>&copy; 2025 Felipe Masanés Didyk - Todos los derechos reservados</p>
+  <footer class="bg-dark text-white text-center py-4 mt-auto">
+    <div class="container">
+      <p class="mb-1">&copy; 2025 Felipe Masanés Didyk — Todos los derechos reservados</p>
+      <small class="text-secondary">Sitio construido con Bootstrap 5</small>
+    </div>
   </footer>
+
+  <!-- JSON-LD Schema -->
+  <script type="application/ld+json" id="jsonld"></script>
+
+  <!-- Script -->
+  <script>
+    const servicesES = [
+      { icon:"bi-graph-up", title:"Management Consulting", desc:"Apoyo en la definición de estrategias organizacionales, eficiencia de procesos y toma de decisiones críticas." },
+      { icon:"bi-bullseye", title:"Go-to-Market & Pricing", desc:"Diseño de estrategias de entrada al mercado y modelos de pricing innovadores para maximizar rentabilidad y adopción." },
+      { icon:"bi-lightning-charge", title:"Growth Marketing", desc:"Ejecución de experimentos, funnels digitales y metodologías ágiles para acelerar adquisición, retención y expansión." },
+      { icon:"bi-database-check", title:"Business Analytics", desc:"Uso de analítica avanzada, segmentación y modelos predictivos para decisiones basadas en datos." },
+      { icon:"bi-people", title:"Customer Experience", desc:"Diseño de experiencias centradas en el cliente con implementación de CRM y programas de fidelización." },
+      { icon:"bi-search", title:"Market Research", desc:"Investigación de mercados, benchmarking competitivo y estudios de viabilidad para decisiones estratégicas." }
+    ];
+
+    const servicesEN = [
+      { icon:"bi-graph-up", title:"Management Consulting", desc:"Support in defining organizational strategies, process efficiency, and critical decision-making." },
+      { icon:"bi-bullseye", title:"Go-to-Market & Pricing", desc:"Design of market entry strategies and innovative pricing models to maximize profitability and adoption." },
+      { icon:"bi-lightning-charge", title:"Growth Marketing", desc:"Execution of experiments, digital funnels, and agile methodologies to accelerate acquisition, retention, and expansion." },
+      { icon:"bi-database-check", title:"Business Analytics", desc:"Use of advanced analytics, segmentation, and predictive models for data-driven decision-making." },
+      { icon:"bi-people", title:"Customer Experience", desc:"Design of customer-centric experiences with CRM implementation and loyalty programs." },
+      { icon:"bi-search", title:"Market Research", desc:"Market research, competitive benchmarking, and feasibility studies for strategic decisions." }
+    ];
+
+    let lang = "ES";
+
+    function renderServices(data){
+      const grid = document.getElementById("servicesGrid");
+      grid.innerHTML = "";
+      data.forEach(s=>{
+        const col = document.createElement("div");
+        col.className = "col-md-6 col-lg-4";
+        col.innerHTML = `
+          <div class="card h-100 text-center">
+            <div class="card-body">
+              <i class="bi ${s.icon} service-icon"></i>
+              <h5 class="card-title mt-3">${s.title}</h5>
+              <p class="card-text">${s.desc}</p>
+            </div>
+          </div>
+        `;
+        grid.appendChild(col);
+      });
+
+      // JSON-LD schema update
+      const jsonld = {
+        "@context":"https://schema.org",
+        "@type":"ProfessionalService",
+        "name": lang==="ES" ? "Servicios de Consultoría - Felipe Masanés Didyk" : "Consulting Services - Felipe Masanés Didyk",
+        "url":"https://senasam.github.io/mi-pagina-web/services.html",
+        "description": lang==="ES" ? "Consultoría en management, estrategia de negocios y marketing con foco en growth, transformación digital y analítica avanzada."
+                                   : "Consulting in management, business strategy, and marketing focused on growth, digital transformation, and advanced analytics.",
+        "areaServed":"Global",
+        "serviceType": data.map(s=>s.title),
+        "provider":{
+          "@type":"Person",
+          "name":"Felipe Ignacio Masanés Didyk",
+          "jobTitle":"MBA Candidate | Growth & Strategy Consultant",
+          "url":"https://www.linkedin.com/in/felipemasanesdidyk/"
+        }
+      };
+      document.getElementById("jsonld").textContent = JSON.stringify(jsonld);
+    }
+
+    // Language switch
+    function setLanguage(newLang){
+      lang = newLang;
+      if(lang==="ES"){
+        document.getElementById("btnES").className="btn btn-primary";
+        document.getElementById("btnEN").className="btn btn-outline-primary";
+        document.getElementById("heroTitle").textContent="Servicios de Consultoría";
+        document.getElementById("introText").textContent="Consultoría estratégica en management, negocios y marketing para impulsar crecimiento, transformación digital y resultados medibles.";
+        renderServices(servicesES);
+      } else {
+        document.getElementById("btnEN").className="btn btn-primary";
+        document.getElementById("btnES").className="btn btn-outline-primary";
+        document.getElementById("heroTitle").textContent="Consulting Services";
+        document.getElementById("introText").textContent="Strategic consulting in management, business, and marketing to drive growth, digital transformation, and measurable results.";
+        renderServices(servicesEN);
+      }
+    }
+
+    document.getElementById("btnES").addEventListener("click",()=>setLanguage("ES"));
+    document.getElementById("btnEN").addEventListener("click",()=>setLanguage("EN"));
+
+    // Inicialización
+    setLanguage("ES");
+  </script>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
