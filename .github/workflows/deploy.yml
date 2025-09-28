@@ -26,11 +26,11 @@ jobs:
         with:
           node-version: 20
 
-      - name: Instalar dependencias
-        run: npm install
+      - name: Instalar dependencias (incluyendo devDependencies)
+        run: npm ci
 
       - name: Construir el proyecto
-        run: npm run build
+        run: npx vite build
 
       - name: Subir artefacto
         uses: actions/upload-pages-artifact@v3
