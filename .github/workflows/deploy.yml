@@ -31,6 +31,8 @@ jobs:
 
       - name: Construir el proyecto
         run: npx vite build
+        env:
+          GITHUB_PAGES: "true"
 
       - name: Subir artefacto
         uses: actions/upload-pages-artifact@v3

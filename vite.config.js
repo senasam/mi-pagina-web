@@ -2,6 +2,6 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  base: "/mi-pagina-web/",
+  base: process.env.GITHUB_PAGES === "true" ? "/mi-pagina-web/" : "/",
   plugins: [react()],
 });
