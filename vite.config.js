@@ -1,13 +1,7 @@
-import { defineConfig } from 'vite'
-import { viteStaticCopy } from 'vite-plugin-static-copy'
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  base: '/mi-pagina-web/',
-  plugins: [
-    viteStaticCopy({
-      targets: [
-        { src: '*.html', dest: '' } // 👈 copia todos los .html a dist/
-      ]
-    })
-  ]
-})
+  base: "/mi-pagina-web/",
+  plugins: [react()],
+});
