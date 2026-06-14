@@ -30,6 +30,7 @@ import {
 const profile = {
   name: "Felipe Masanes-Didyk",
   role: "Strategy consultant and coach",
+  photo: "felipe-masanes-didyk-professional-photo.png",
   location: "Bloomington, Indiana",
   email: "fmasanes@iu.edu",
   personalEmail: "senasam@gmail.com",
@@ -438,12 +439,12 @@ export default function App() {
 
           <div
             className="hero-visual"
-            style={{ "--hero-image": `url(${asset("consulting-hero.png")})` }}
-            aria-label="Strategic consulting workspace"
+            style={{ "--hero-image": `url(${asset(profile.photo)})` }}
+            aria-label="Professional portrait of Felipe Masanes-Didyk"
           >
             <img
-              src={asset("consulting-hero.png")}
-              alt="Premium consulting workspace with strategy documents, notebook, and laptop"
+              src={asset(profile.photo)}
+              alt="Felipe Masanes-Didyk professional portrait"
               loading="eager"
               decoding="sync"
               fetchPriority="high"
