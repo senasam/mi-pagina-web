@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, lazy, Suspense } from "react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -42,13 +42,17 @@ const profile = {
 
 const asset = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\//, "")}`;
 
+const BlogListPage = lazy(() => import("./BlogListPage"));
+const BlogPostPage = lazy(() => import("./BlogPostPage"));
+
 const navigation = [
-  ["Servicios", "#services"],
-  ["Enfoque", "#approach"],
-  ["Evidencia", "#proof"],
-  ["Credenciales", "#credentials"],
-  ["Finanzas", "#finance"],
-  ["Contacto", "#contact"],
+  ["Servicios", "/#services"],
+  ["Enfoque", "/#approach"],
+  ["Evidencia", "/#proof"],
+  ["Blog", "/blog"],
+  ["Credenciales", "/#credentials"],
+  ["Finanzas", "/#finance"],
+  ["Contacto", "/#contact"],
 ];
 
 const services = [
@@ -367,8 +371,28 @@ function CredentialItem({ credential }) {
 
 export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const currentPath = window.location.pathname;
+  const normalizedPath = currentPath.replace(/\/$/, "") || "/";
+  const isBlogList = normalizedPath === "/blog";
+  const blogSlug = normalizedPath.startsWith("/blog/")
+    ? normalizedPath.replace("/blog/", "")
+    : null;
 
   const closeMobileNav = () => setMobileOpen(false);
+
+  if (isBlogList || blogSlug) {
+    return (
+      <div className="site-shell">
+        <Suspense fallback={<div className="loading">Cargando blog...</div>}>
+          {isBlogList ? (
+            <BlogListPage />
+          ) : (
+            <BlogPostPage slug={blogSlug} />
+          )}
+        </Suspense>
+      </div>
+    );
+  }
 
   return (
     <div className="site-shell">
