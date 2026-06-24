@@ -44,6 +44,7 @@ const asset = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\//, "")}`;
 
 const BlogListPage = lazy(() => import("./BlogListPage"));
 const BlogPostPage = lazy(() => import("./BlogPostPage"));
+import EndorsementCarousel from "./EndorsementCarousel";
 
 const navigation = [
   ["Servicios", "/#services"],
@@ -276,27 +277,6 @@ const coachingSteps = [
   {
     title: "Revisar y adaptar",
     body: "Evaluamos qué pasó, qué cambió y cuál debería ser el siguiente ajuste de mayor leverage.",
-  },
-];
-
-const endorsements = [
-  {
-    quote:
-      "Aportó una visión estratégica y creativa a Growth, impulsando marketing experiments que generaron aprendizajes valiosos.",
-    author: "Yelca Mondragon Pomares",
-    context: "Recomendación de GrupoFi",
-  },
-  {
-    quote:
-      "Felipe ha sido un gran apoyo para mí en distintos momentos profesionales, gracias a su visión clara y strategic mindset.",
-    author: "Jose Maria de Val Ortiz",
-    context: "Recomendación de cliente",
-  },
-  {
-    quote:
-      "Felipe demostró una notable capacidad para transformar ideas en tactical experiments y resultados medibles.",
-    author: "Marcos Sanchez Paez",
-    context: "Recomendación Kaufmann / Klicker",
   },
 ];
 
@@ -712,17 +692,7 @@ export default function App() {
             lead="Extractos seleccionados de recomendaciones del perfil, incluidos sin agregar logos de clientes ni claims no respaldados."
           />
 
-          <div className="endorsement-grid">
-            {endorsements.map((item) => (
-              <figure key={item.author}>
-                <blockquote>"{item.quote}"</blockquote>
-                <figcaption>
-                  <strong>{item.author}</strong>
-                  <span>{item.context}</span>
-                </figcaption>
-              </figure>
-            ))}
-          </div>
+          <EndorsementCarousel />
         </section>
 
         <section id="contact" className="contact-section">

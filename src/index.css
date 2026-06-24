@@ -101,20 +101,12 @@ img {
   border: 1px solid var(--ink);
   color: var(--ink);
 }
-
-.brand-mark span {
-  font-size: 0.78rem;
-  font-weight: 700;
-}
-
 .desktop-nav {
   display: flex;
+  align-items: center;
   justify-content: center;
-  gap: clamp(18px, 2vw, 30px);
-  color: var(--muted);
-  font-size: 0.88rem;
+  gap: 18px;
 }
-
 .desktop-nav a {
   padding: 10px 0;
   border-bottom: 1px solid transparent;
@@ -489,6 +481,49 @@ h3 {
 .approach-panels ul {
   display: grid;
   gap: 12px;
+.endorsement-carousel {
+  position: relative;
+  padding: 1rem 0;
+}
+.endorsement-carousel__controls {
+  position: absolute;
+  right: 0.5rem;
+  top: 0.5rem;
+  display: flex;
+  gap: 0.5rem;
+}
+.carousel-button {
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.08);
+  padding: 0.35rem;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.endorsement-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.endorsement-grid figure {
+  background: var(--paper, #fff);
+  padding: 16px;
+  border-radius: 8px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  min-height: 200px;
+  max-height: 240px;
+}
+.endorsement-grid blockquote {
+  margin: 0 0 0.5rem 0;
+  font-style: italic;
+  font-size: 1.05rem;
+  line-height: 1.25;
+}
+.endorsement-grid figcaption {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
   margin: auto 0 0;
   padding: 0;
   list-style: none;
