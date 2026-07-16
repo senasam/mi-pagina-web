@@ -42,17 +42,83 @@ const profile = {
 
 const asset = (path) => `${import.meta.env.BASE_URL}${path.replace(/^\//, "")}`;
 
-const BlogListPage = lazy(() => import("./BlogListPage"));
-const BlogPostPage = lazy(() => import("./BlogPostPage"));
 import EndorsementCarousel from "./EndorsementCarousel";
+import MessageGeneratorPage from "./MessageGeneratorPage";
+import ImpactBulletBuilderPage from "./ImpactBulletBuilderPage";
+import { ConsultingHubPage, ConsultingLessonPage } from "./ConsultingPages";
+import { CaseInterviewHubPage, CaseInterviewLessonPage } from "./CaseInterviewPages";
+import CaseToolsPage from "./CaseToolsPage";
+const AdaptabilityHubPage = lazy(() => import("./AdaptabilityPages").then((module) => ({ default: module.AdaptabilityHubPage })));
+const AdaptabilityLessonPage = lazy(() => import("./AdaptabilityPages").then((module) => ({ default: module.AdaptabilityLessonPage })));
+const AdaptabilityToolsPage = lazy(() => import("./AdaptabilityToolsPage"));
+const ProblemSolvingHubPage = lazy(() => import("./ProblemSolvingPages").then((module) => ({ default: module.ProblemSolvingHubPage })));
+const ProblemSolvingLessonPage = lazy(() => import("./ProblemSolvingPages").then((module) => ({ default: module.ProblemSolvingLessonPage })));
+const ProblemSolvingToolsPage = lazy(() => import("./ProblemSolvingToolsPage"));
+const CommunicationHubPage = lazy(() => import("./CommunicationPages").then((module) => ({ default: module.CommunicationHubPage })));
+const CommunicationLessonPage = lazy(() => import("./CommunicationPages").then((module) => ({ default: module.CommunicationLessonPage })));
+const CommunicationToolsPage = lazy(() => import("./CommunicationToolsPage"));
+const WellbeingHubPage = lazy(() => import("./WellbeingPages").then((module) => ({ default: module.WellbeingHubPage })));
+const WellbeingLessonPage = lazy(() => import("./WellbeingPages").then((module) => ({ default: module.WellbeingLessonPage })));
+const WellbeingToolsPage = lazy(() => import("./WellbeingToolsPage"));
+const AIBusinessHubPage = lazy(() => import("./AIBusinessPages").then((module) => ({ default: module.AIBusinessHubPage })));
+const AIBusinessLessonPage = lazy(() => import("./AIBusinessPages").then((module) => ({ default: module.AIBusinessLessonPage })));
+const AIBusinessToolsPage = lazy(() => import("./AIBusinessToolsPage"));
+const ReliableAIHubPage = lazy(() => import("./ReliableAIPages").then((module) => ({ default: module.ReliableAIHubPage })));
+const ReliableAILessonPage = lazy(() => import("./ReliableAIPages").then((module) => ({ default: module.ReliableAILessonPage })));
+const ReliableAIToolsPage = lazy(() => import("./ReliableAIToolsPage"));
+const OrgAIHubPage = lazy(() => import("./OrgAIPages").then((module) => ({ default: module.OrgAIHubPage })));
+const OrgAILessonPage = lazy(() => import("./OrgAIPages").then((module) => ({ default: module.OrgAILessonPage })));
+const OrgAIToolsPage = lazy(() => import("./OrgAIToolsPage"));
+const ResponsibleAIHubPage = lazy(() => import("./ResponsibleAIPages").then((module) => ({ default: module.ResponsibleAIHubPage })));
+const ResponsibleAILessonPage = lazy(() => import("./ResponsibleAIPages").then((module) => ({ default: module.ResponsibleAILessonPage })));
+const ResponsibleAIToolsPage = lazy(() => import("./ResponsibleAIToolsPage"));
+const AdoptionAIHubPage = lazy(() => import("./AdoptionAIPages").then((module) => ({ default: module.AdoptionAIHubPage })));
+const AdoptionAILessonPage = lazy(() => import("./AdoptionAIPages").then((module) => ({ default: module.AdoptionAILessonPage })));
+const AdoptionAIToolsPage = lazy(() => import("./AdoptionAIToolsPage"));
+const ComputationalHubPage = lazy(() => import("./ComputationalPages").then((module) => ({ default: module.ComputationalHubPage })));
+const ComputationalLessonPage = lazy(() => import("./ComputationalPages").then((module) => ({ default: module.ComputationalLessonPage })));
+const ComputationalToolsPage = lazy(() => import("./ComputationalToolsPage"));
+const DeepLearningHubPage = lazy(() => import("./DeepLearningPages").then((module) => ({ default: module.DeepLearningHubPage })));
+const DeepLearningLessonPage = lazy(() => import("./DeepLearningPages").then((module) => ({ default: module.DeepLearningLessonPage })));
+const DeepLearningToolsPage = lazy(() => import("./DeepLearningToolsPage"));
+const MarketingHubPage = lazy(() => import("./MarketingPages").then((module) => ({ default: module.MarketingHubPage })));
+const MarketingLessonPage = lazy(() => import("./MarketingPages").then((module) => ({ default: module.MarketingLessonPage })));
+const MarketingToolsPage = lazy(() => import("./MarketingPages").then((module) => ({ default: module.MarketingToolsPage })));
+const ProspectingHubPage = lazy(() => import("./ProspectingPages").then((module) => ({ default: module.ProspectingHubPage })));
+const ProspectingLessonPage = lazy(() => import("./ProspectingPages").then((module) => ({ default: module.ProspectingLessonPage })));
+const ProspectingToolsPage = lazy(() => import("./ProspectingPages").then((module) => ({ default: module.ProspectingToolsPage })));
+const InformationalHubPage = lazy(() => import("./InformationalInterviewPages").then((module) => ({ default: module.InformationalHubPage })));
+const InformationalLessonPage = lazy(() => import("./InformationalInterviewPages").then((module) => ({ default: module.InformationalLessonPage })));
+const InformationalCasesPage = lazy(() => import("./InformationalInterviewPages").then((module) => ({ default: module.InformationalCasesPage })));
+const InformationalResourcesPage = lazy(() => import("./InformationalInterviewPages").then((module) => ({ default: module.InformationalResourcesPage })));
+const InformationalToolsPage = lazy(() => import("./InformationalInterviewPages").then((module) => ({ default: module.InformationalToolsPage })));
+const ProfessionalBrandHubPage = lazy(() => import("./ProfessionalBrandPages").then((module) => ({ default: module.ProfessionalBrandHubPage })));
+const ProfessionalBrandLessonPage = lazy(() => import("./ProfessionalBrandPages").then((module) => ({ default: module.ProfessionalBrandLessonPage })));
+const ProfessionalBrandCasesPage = lazy(() => import("./ProfessionalBrandPages").then((module) => ({ default: module.ProfessionalBrandCasesPage })));
+const ProfessionalBrandResourcesPage = lazy(() => import("./ProfessionalBrandPages").then((module) => ({ default: module.ProfessionalBrandResourcesPage })));
+const ProfessionalBrandToolsPage = lazy(() => import("./ProfessionalBrandPages").then((module) => ({ default: module.ProfessionalBrandToolsPage })));
+const ListeningFeedbackHubPage = lazy(() => import("./ListeningFeedbackPages").then((module) => ({ default: module.ListeningFeedbackHubPage })));
+const ListeningFeedbackLessonPage = lazy(() => import("./ListeningFeedbackPages").then((module) => ({ default: module.ListeningFeedbackLessonPage })));
+const ListeningFeedbackCasesPage = lazy(() => import("./ListeningFeedbackPages").then((module) => ({ default: module.ListeningFeedbackCasesPage })));
+const ListeningFeedbackResourcesPage = lazy(() => import("./ListeningFeedbackPages").then((module) => ({ default: module.ListeningFeedbackResourcesPage })));
+const ListeningFeedbackToolsPage = lazy(() => import("./ListeningFeedbackPages").then((module) => ({ default: module.ListeningFeedbackToolsPage })));
+const CompanyResearchHubPage = lazy(() => import("./CompanyResearchPages").then((module) => ({ default: module.CompanyResearchHubPage })));
+const CompanyResearchLessonPage = lazy(() => import("./CompanyResearchPages").then((module) => ({ default: module.CompanyResearchLessonPage })));
+const CompanyResearchCasesPage = lazy(() => import("./CompanyResearchPages").then((module) => ({ default: module.CompanyResearchCasesPage })));
+const CompanyResearchResourcesPage = lazy(() => import("./CompanyResearchPages").then((module) => ({ default: module.CompanyResearchResourcesPage })));
+const CompanyResearchToolsPage = lazy(() => import("./CompanyResearchPages").then((module) => ({ default: module.CompanyResearchToolsPage })));
+const TeamworkHubPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkHubPage })));
+const TeamworkLessonPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkLessonPage })));
+const TeamworkCasesPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkCasesPage })));
+const TeamworkResourcesPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkResourcesPage })));
+const TeamworkToolsPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkToolsPage })));
+import { LearnPage, NetworkingHubPage, NetworkingLessonPage, NotFoundPage, ToolsPage } from "./LearningPages";
 
 const navigation = [
   ["Servicios", "/#services"],
-  ["Enfoque", "/#approach"],
-  ["Evidencia", "/#proof"],
-  ["Blog", "/blog"],
-  ["Credenciales", "/#credentials"],
-  ["Finanzas", "/#finance"],
+  ["Aprende", "/aprende"],
+  ["Herramientas", "/herramientas"],
+  ["Sobre mí", "/about.html"],
   ["Contacto", "/#contact"],
 ];
 
@@ -349,37 +415,208 @@ function CredentialItem({ credential }) {
   );
 }
 
+function LearnAndApplySection() {
+  const cards = [
+    { title: "Guías y rutas de aprendizaje", text: "Explora temas organizados para aprender a tu ritmo.", href: "/aprende" },
+    { title: "Plantillas y recursos", text: "Usa plantillas, checklists y hojas de trabajo para preparar conversaciones profesionales.", href: "/aprende/networking#recursos" },
+    { title: "Herramientas interactivas", text: "Usa recursos que convierten una idea en una primera acción.", href: "/herramientas" },
+  ];
+  return (
+    <section className="section learn-home-section">
+      <SectionHeader eyebrow="Aprende y aplica" title="Conocimiento útil, conectado con la práctica." lead="Explora guías, modelos y herramientas diseñadas para ayudarte a desarrollar habilidades, tomar mejores decisiones y avanzar con mayor claridad." />
+      <div className="learn-home-grid">
+        {cards.map((card) => <a className="learn-home-card" href={card.href} key={card.title}><h3>{card.title}</h3><p>{card.text}</p><span>Explorar <ArrowRight size={16} /></span></a>)}
+      </div>
+    </section>
+  );
+}
+
 export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const currentPath = window.location.pathname;
   const normalizedPath = currentPath.replace(/\/$/, "") || "/";
-  const isBlogList = normalizedPath === "/blog";
-  const blogSlug = normalizedPath.startsWith("/blog/")
-    ? normalizedPath.replace("/blog/", "")
+  const networkingLessonSlug = normalizedPath.startsWith("/aprende/networking/")
+    ? normalizedPath.replace("/aprende/networking/", "")
     : null;
+  const consultingLessonSlug = normalizedPath.startsWith("/aprende/consultoria/")
+    ? normalizedPath.replace("/aprende/consultoria/", "")
+    : null;
+  const caseLessonSlug = normalizedPath.startsWith("/aprende/consultoria/entrevistas-de-caso/")
+    ? normalizedPath.replace("/aprende/consultoria/entrevistas-de-caso/", "")
+    : null;
+  const adaptabilityLessonSlug = normalizedPath.startsWith("/aprende/adaptabilidad-resiliencia/")
+    ? normalizedPath.replace("/aprende/adaptabilidad-resiliencia/", "")
+    : null;
+  const problemSolvingLessonSlug = normalizedPath.startsWith("/aprende/resolucion-de-problemas/")
+    ? normalizedPath.replace("/aprende/resolucion-de-problemas/", "")
+    : null;
+  const communicationLessonSlug = normalizedPath.startsWith("/aprende/comunicacion-profesional/")
+    ? normalizedPath.replace("/aprende/comunicacion-profesional/", "")
+    : null;
+  const wellbeingLessonSlug = normalizedPath.startsWith("/aprende/relaciones-y-bienestar/")
+    ? normalizedPath.replace("/aprende/relaciones-y-bienestar/", "")
+    : null;
+  const aiBusinessLessonSlug = normalizedPath.startsWith("/aprende/ia-generativa-para-negocios/")
+    ? normalizedPath.replace("/aprende/ia-generativa-para-negocios/", "")
+    : null;
+  const reliableAILessonSlug = normalizedPath.startsWith("/aprende/sistemas-ia-confiables/")
+    ? normalizedPath.replace("/aprende/sistemas-ia-confiables/", "")
+    : null;
+  const orgAILessonSlug = normalizedPath.startsWith("/aprende/preparacion-organizacional-para-ia/")
+    ? normalizedPath.replace("/aprende/preparacion-organizacional-para-ia/", "")
+    : null;
+  const responsibleAILessonSlug = normalizedPath.startsWith("/aprende/ia-responsable-y-gobernanza/") ? normalizedPath.replace("/aprende/ia-responsable-y-gobernanza/", "") : null;
+  const adoptionAILessonSlug = normalizedPath.startsWith("/aprende/escalamiento-y-adopcion-de-ia/") ? normalizedPath.replace("/aprende/escalamiento-y-adopcion-de-ia/", "") : null;
+  const computationalLessonSlug = normalizedPath.startsWith("/aprende/pensamiento-computacional-y-datos/") ? normalizedPath.replace("/aprende/pensamiento-computacional-y-datos/", "") : null;
+  const deepLearningLessonSlug = normalizedPath.startsWith("/aprende/inteligencia-artificial-y-deep-learning/") ? normalizedPath.replace("/aprende/inteligencia-artificial-y-deep-learning/", "") : null;
+  const marketingLessonSlug = normalizedPath.startsWith("/aprende/marketing-digital/") ? normalizedPath.replace("/aprende/marketing-digital/", "") : null;
+  const prospectingLessonSlug = normalizedPath.startsWith("/aprende/prospeccion-b2b/") ? normalizedPath.replace("/aprende/prospeccion-b2b/", "") : null;
+  const informationalLessonSlug = normalizedPath.startsWith("/aprende/entrevistas-informativas/") ? normalizedPath.replace("/aprende/entrevistas-informativas/", "") : null;
+  const professionalBrandLessonSlug = normalizedPath.startsWith("/aprende/marca-profesional/") ? normalizedPath.replace("/aprende/marca-profesional/", "") : null;
+  const listeningFeedbackLessonSlug = normalizedPath.startsWith("/aprende/escucha-curiosidad-feedback/") ? normalizedPath.replace("/aprende/escucha-curiosidad-feedback/", "") : null;
+  const companyResearchLessonSlug = normalizedPath.startsWith("/aprende/investigacion-de-empresas/") ? normalizedPath.replace("/aprende/investigacion-de-empresas/", "") : null;
+  const teamworkLessonSlug = normalizedPath.startsWith("/aprende/trabajo-en-equipo/") ? normalizedPath.replace("/aprende/trabajo-en-equipo/", "") : null;
 
   const closeMobileNav = () => setMobileOpen(false);
 
-  if (isBlogList || blogSlug) {
-    return (
-      <div className="site-shell">
-        <Suspense fallback={<div className="loading">Cargando blog...</div>}>
-          {isBlogList ? (
-            <BlogListPage />
-          ) : (
-            <BlogPostPage slug={blogSlug} />
-          )}
-        </Suspense>
-      </div>
-    );
-  }
+  if (normalizedPath === "/aprende") return <LearnPage />;
+  if (normalizedPath === "/aprende/networking") return <NetworkingHubPage />;
+  if (networkingLessonSlug) return <NetworkingLessonPage slug={networkingLessonSlug} />;
+  if (normalizedPath === "/aprende/consultoria") return <ConsultingHubPage />;
+  if (normalizedPath === "/aprende/consultoria/entrevistas-de-caso") return <CaseInterviewHubPage />;
+  if (caseLessonSlug) return <CaseInterviewLessonPage slug={caseLessonSlug} />;
+  if (consultingLessonSlug) return <ConsultingLessonPage slug={consultingLessonSlug} />;
+  if (normalizedPath === "/aprende/adaptabilidad-resiliencia") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><AdaptabilityHubPage /></Suspense>;
+  if (adaptabilityLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><AdaptabilityLessonPage slug={adaptabilityLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/resolucion-de-problemas") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><ProblemSolvingHubPage /></Suspense>;
+  if (problemSolvingLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><ProblemSolvingLessonPage slug={problemSolvingLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/comunicacion-profesional") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><CommunicationHubPage /></Suspense>;
+  if (communicationLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><CommunicationLessonPage slug={communicationLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/relaciones-y-bienestar") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><WellbeingHubPage /></Suspense>;
+  if (wellbeingLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><WellbeingLessonPage slug={wellbeingLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/ia-generativa-para-negocios") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><AIBusinessHubPage /></Suspense>;
+  if (aiBusinessLessonSlug) return <Suspense fallback={<div className="loading">Cargando modulo...</div>}><AIBusinessLessonPage slug={aiBusinessLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/sistemas-ia-confiables") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><ReliableAIHubPage /></Suspense>;
+  if (reliableAILessonSlug) return <Suspense fallback={<div className="loading">Cargando modulo...</div>}><ReliableAILessonPage slug={reliableAILessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/preparacion-organizacional-para-ia") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><OrgAIHubPage /></Suspense>;
+  if (orgAILessonSlug) return <Suspense fallback={<div className="loading">Cargando modulo...</div>}><OrgAILessonPage slug={orgAILessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/ia-responsable-y-gobernanza") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><ResponsibleAIHubPage /></Suspense>;
+  if (responsibleAILessonSlug) return <Suspense fallback={<div className="loading">Cargando modulo...</div>}><ResponsibleAILessonPage slug={responsibleAILessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/escalamiento-y-adopcion-de-ia") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><AdoptionAIHubPage /></Suspense>;
+  if (adoptionAILessonSlug) return <Suspense fallback={<div className="loading">Cargando modulo...</div>}><AdoptionAILessonPage slug={adoptionAILessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/pensamiento-computacional-y-datos") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><ComputationalHubPage /></Suspense>;
+  if (computationalLessonSlug) return <Suspense fallback={<div className="loading">Cargando modulo...</div>}><ComputationalLessonPage slug={computationalLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/inteligencia-artificial-y-deep-learning") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><DeepLearningHubPage /></Suspense>;
+  if (deepLearningLessonSlug) return <Suspense fallback={<div className="loading">Cargando modulo...</div>}><DeepLearningLessonPage slug={deepLearningLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/marketing-digital") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><MarketingHubPage /></Suspense>;
+  if (normalizedPath === "/aprende/prospeccion-b2b") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><ProspectingHubPage /></Suspense>;
+  if (prospectingLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><ProspectingLessonPage slug={prospectingLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/entrevistas-informativas") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><InformationalHubPage /></Suspense>;
+  if (normalizedPath === "/aprende/entrevistas-informativas/casos") return <Suspense fallback={<div className="loading">Cargando casos...</div>}><InformationalCasesPage /></Suspense>;
+  if (normalizedPath === "/aprende/entrevistas-informativas/recursos") return <Suspense fallback={<div className="loading">Cargando recursos...</div>}><InformationalResourcesPage /></Suspense>;
+  if (informationalLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><InformationalLessonPage slug={informationalLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/marca-profesional") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><ProfessionalBrandHubPage /></Suspense>;
+  if (normalizedPath === "/aprende/marca-profesional/casos") return <Suspense fallback={<div className="loading">Cargando casos...</div>}><ProfessionalBrandCasesPage /></Suspense>;
+  if (normalizedPath === "/aprende/marca-profesional/recursos") return <Suspense fallback={<div className="loading">Cargando recursos...</div>}><ProfessionalBrandResourcesPage /></Suspense>;
+  if (professionalBrandLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><ProfessionalBrandLessonPage slug={professionalBrandLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/escucha-curiosidad-feedback") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><ListeningFeedbackHubPage /></Suspense>;
+  if (normalizedPath === "/aprende/escucha-curiosidad-feedback/casos") return <Suspense fallback={<div className="loading">Cargando casos...</div>}><ListeningFeedbackCasesPage /></Suspense>;
+  if (normalizedPath === "/aprende/escucha-curiosidad-feedback/recursos") return <Suspense fallback={<div className="loading">Cargando recursos...</div>}><ListeningFeedbackResourcesPage /></Suspense>;
+  if (listeningFeedbackLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><ListeningFeedbackLessonPage slug={listeningFeedbackLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/investigacion-de-empresas") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><CompanyResearchHubPage /></Suspense>;
+  if (normalizedPath === "/aprende/investigacion-de-empresas/casos") return <Suspense fallback={<div className="loading">Cargando casos...</div>}><CompanyResearchCasesPage /></Suspense>;
+  if (normalizedPath === "/aprende/investigacion-de-empresas/recursos") return <Suspense fallback={<div className="loading">Cargando recursos...</div>}><CompanyResearchResourcesPage /></Suspense>;
+  if (companyResearchLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><CompanyResearchLessonPage slug={companyResearchLessonSlug} /></Suspense>;
+  if (normalizedPath === "/aprende/trabajo-en-equipo") return <Suspense fallback={<div className="loading">Cargando ruta...</div>}><TeamworkHubPage /></Suspense>;
+  if (normalizedPath === "/aprende/trabajo-en-equipo/casos") return <Suspense fallback={<div className="loading">Cargando casos...</div>}><TeamworkCasesPage /></Suspense>;
+  if (normalizedPath === "/aprende/trabajo-en-equipo/recursos") return <Suspense fallback={<div className="loading">Cargando recursos...</div>}><TeamworkResourcesPage /></Suspense>;
+  if (teamworkLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><TeamworkLessonPage slug={teamworkLessonSlug} /></Suspense>;
+  if (marketingLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><MarketingLessonPage slug={marketingLessonSlug} /></Suspense>;
+  if (normalizedPath === "/herramientas") return <ToolsPage />;
+  if (normalizedPath === "/herramientas/generador-mensajes-networking") return <MessageGeneratorPage />;
+  if (normalizedPath === "/herramientas/constructor-bullets-consultoria") return <ImpactBulletBuilderPage />;
+  if (normalizedPath === "/herramientas/practica-market-sizing") return <CaseToolsPage kind="sizing" />;
+  if (normalizedPath === "/herramientas/disenador-experimentos-negocio") return <CaseToolsPage kind="experiment" />;
+  if (normalizedPath === "/herramientas/constructor-estructuras-caso") return <CaseToolsPage kind="structure" />;
+  if (normalizedPath === "/herramientas/seguimiento-practica-casos") return <CaseToolsPage kind="tracker" />;
+  if (normalizedPath === "/herramientas/constructor-intenciones-aprendizaje") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AdaptabilityToolsPage kind="intention" /></Suspense>;
+  if (normalizedPath === "/herramientas/reencuadrar-desafio") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AdaptabilityToolsPage kind="reframe" /></Suspense>;
+  if (normalizedPath === "/herramientas/planificador-habitos-aprendizaje") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AdaptabilityToolsPage kind="habit" /></Suspense>;
+  if (normalizedPath === "/herramientas/plan-adaptabilidad") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AdaptabilityToolsPage kind="plan" /></Suspense>;
+  if (normalizedPath === "/herramientas/diario-aprendizaje") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AdaptabilityToolsPage kind="journal" /></Suspense>;
+  if (normalizedPath === "/herramientas/diagnostico-tipo-problema") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProblemSolvingToolsPage kind="diagnostic" /></Suspense>;
+  if (normalizedPath === "/herramientas/definir-problema") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProblemSolvingToolsPage kind="definition" /></Suspense>;
+  if (normalizedPath === "/herramientas/constructor-arbol-problemas") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProblemSolvingToolsPage kind="tree" /></Suspense>;
+  if (normalizedPath === "/herramientas/priorizar-analisis") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProblemSolvingToolsPage kind="priority" /></Suspense>;
+  if (normalizedPath === "/herramientas/plan-trabajo-problema") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProblemSolvingToolsPage kind="workplan" /></Suspense>;
+  if (normalizedPath === "/herramientas/constructor-recomendaciones") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProblemSolvingToolsPage kind="recommendation" /></Suspense>;
+  if (normalizedPath === "/herramientas/revision-sesgos-decision") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProblemSolvingToolsPage kind="bias" /></Suspense>;
+  if (normalizedPath === "/herramientas/mapa-audiencia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="audience" /></Suspense>;
+  if (normalizedPath === "/herramientas/practica-escucha-activa") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="listening" /></Suspense>;
+  if (normalizedPath === "/herramientas/definir-proposito-comunicacion") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="purpose" /></Suspense>;
+  if (normalizedPath === "/herramientas/convertir-datos-en-insight") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="insight" /></Suspense>;
+  if (normalizedPath === "/herramientas/estructurar-mensaje") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="message" /></Suspense>;
+  if (normalizedPath === "/herramientas/constructor-narrativa-profesional") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="narrative" /></Suspense>;
+  if (normalizedPath === "/herramientas/preparar-presentacion") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="presentation" /></Suspense>;
+  if (normalizedPath === "/herramientas/planificar-reunion") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CommunicationToolsPage kind="meeting" /></Suspense>;
+  if (normalizedPath === "/herramientas/mapa-bienestar-contexto") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="context" /></Suspense>;
+  if (normalizedPath === "/herramientas/mapa-energia-recuperacion") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="energy" /></Suspense>;
+  if (normalizedPath === "/herramientas/plan-practica-sostenible") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="practice" /></Suspense>;
+  if (normalizedPath === "/herramientas/preparar-limite-profesional") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="boundary" /></Suspense>;
+  if (normalizedPath === "/herramientas/preparar-conversacion-relacion") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="relationship" /></Suspense>;
+  if (normalizedPath === "/herramientas/preparar-conversacion-dificil") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="difficult" /></Suspense>;
+  if (normalizedPath === "/herramientas/reflexion-seguridad-equipo") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="safety" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-practicas-equipo") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="team" /></Suspense>;
+  if (normalizedPath === "/herramientas/plan-relaciones-bienestar") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><WellbeingToolsPage kind="plan" /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluar-oportunidad-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="opportunity" /></Suspense>;
+  if (normalizedPath === "/herramientas/seleccionar-enfoque-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="pattern" /></Suspense>;
+  if (normalizedPath === "/herramientas/elegir-solucion-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="approach" /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluar-agente-negocio") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="agent" /></Suspense>;
+  if (normalizedPath === "/herramientas/calculadora-economia-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="economics" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-gobernanza-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="governance" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-piloto-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="pilot" /></Suspense>;
+  if (normalizedPath === "/herramientas/crear-plan-adopcion-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="adoption" /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluar-escala-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AIBusinessToolsPage kind="scale" /></Suspense>;
+  if (normalizedPath === "/herramientas/mapa-confiabilidad-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="reliability" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-plantilla-prompt") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="prompt" /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluar-fuentes-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="sources" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-flujo-rag") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="rag" /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluar-preparacion-datos-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="data" /></Suspense>;
+  if (normalizedPath === "/herramientas/revision-seguridad-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="security" /></Suspense>;
+  if (normalizedPath === "/herramientas/elegir-metodo-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="method" /></Suspense>;
+  if (normalizedPath === "/herramientas/plan-evaluacion-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="evaluation" /></Suspense>;
+  if (normalizedPath === "/herramientas/plan-ciclo-vida-modelo") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="lifecycle" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-operacion-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ReliableAIToolsPage kind="operations" /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluar-preparacion-organizacional-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="readiness" /></Suspense>;
+  if (normalizedPath === "/herramientas/alinear-iniciativa-ia-estrategia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="strategy" /></Suspense>;
+  if (normalizedPath === "/herramientas/portafolio-iniciativas-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="portfolio" /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluar-base-tecnologia-datos-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="foundation" /></Suspense>;
+  if (normalizedPath === "/herramientas/mapa-capacidades-organizacionales-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="capabilities" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-gobierno-organizacional-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="governance" /></Suspense>;
+  if (normalizedPath === "/herramientas/crear-hoja-ruta-organizacional-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="roadmap" /></Suspense>;
+  if (normalizedPath === "/herramientas/disenar-proceso-entrega-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="delivery" /></Suspense>;
+  if (normalizedPath === "/herramientas/plan-adopcion-organizacional-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="adoption" /></Suspense>;
+  if (normalizedPath === "/herramientas/monitorear-portafolio-ia") return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><OrgAIToolsPage kind="monitor" /></Suspense>;
+  {const responsibleTools={"/herramientas/mapa-impacto-ia":"impact","/herramientas/evaluar-uso-sensible-ia":"sensitive","/herramientas/revision-equidad-ia":"fairness","/herramientas/plan-proteccion-ia":"protection","/herramientas/evaluacion-impacto-ia":"assessment","/herramientas/disenar-supervision-humana-ia":"oversight","/herramientas/disenar-modelo-gobernanza-ia":"governance","/herramientas/inventario-gobernanza-ia":"inventory","/herramientas/revision-inclusion-ia":"inclusion","/herramientas/crear-nota-transparencia-ia":"transparency","/herramientas/evaluar-proveedor-ia":"vendor"};if(responsibleTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ResponsibleAIToolsPage kind={responsibleTools[normalizedPath]}/></Suspense>}
+  {const adoptionTools={"/herramientas/revision-escalamiento-ia":"scaling","/herramientas/alineamiento-escalamiento-ia":"alignment","/herramientas/disenar-modelo-operativo-ia":"operating","/herramientas/gestionar-portafolio-escalamiento-ia":"portfolio","/herramientas/evaluar-componente-reutilizable-ia":"component","/herramientas/plan-colaboracion-dominio-ia":"domain","/herramientas/plan-democratizacion-ia":"democratization","/herramientas/plan-aprendizaje-roles-ia":"learning","/herramientas/tablero-adopcion-ia":"dashboard","/herramientas/revisar-portafolio-agentes-ia":"agents","/herramientas/crear-hoja-ruta-escalamiento-ia":"roadmap"};if(adoptionTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><AdoptionAIToolsPage kind={adoptionTools[normalizedPath]}/></Suspense>}
+  {const computationalTools={"/herramientas/comparador-estrategias-optimizacion":"optimization","/herramientas/explorador-monte-carlo":"montecarlo","/herramientas/muestreo-e-intervalos":"sampling"};if(computationalTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ComputationalToolsPage kind={computationalTools[normalizedPath]}/></Suspense>}
+  {const deepTools={"/herramientas/explorador-red-neuronal":"network","/herramientas/interpretar-curvas-entrenamiento":"curve","/herramientas/elegir-estrategia-ia":"strategy"};if(deepTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><DeepLearningToolsPage kind={deepTools[normalizedPath]}/></Suspense>}
+  {const marketingTools={"/herramientas/diagnostico-marketing-digital":"diagnostic","/herramientas/crear-estrategia-marketing-digital":"strategy","/herramientas/mapa-recorrido-cliente":"journey","/herramientas/auditoria-presencia-digital":"audit","/herramientas/seleccionar-canales-marketing":"channels","/herramientas/plan-contenidos-marketing":"content","/herramientas/plan-medicion-marketing":"measurement","/herramientas/calculadora-metricas-marketing":"metrics"};if(marketingTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><MarketingToolsPage kind={marketingTools[normalizedPath]}/></Suspense>}
+  {const prospectingTools={"/herramientas/diagnostico-prospeccion-b2b":"diagnostic","/herramientas/definir-cliente-ideal-b2b":"icp","/herramientas/crear-propuesta-valor-b2b":"value","/herramientas/crear-mensaje-prospeccion-b2b":"message","/herramientas/crear-secuencia-prospeccion":"sequence","/herramientas/preparar-respuestas-objeciones":"objection","/herramientas/calculadora-prospeccion-b2b":"calculator","/herramientas/tablero-prospeccion-b2b":"dashboard"};if(prospectingTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProspectingToolsPage kind={prospectingTools[normalizedPath]}/></Suspense>}
+  {const informationalTools={"/herramientas/clarificador-entrevista-informativa":"objective","/herramientas/mapa-perspectivas-profesionales":"perspectives","/herramientas/clasificador-preguntas-entrevista":"questions","/herramientas/constructor-solicitud-entrevista-informativa":"request","/herramientas/revisor-solicitud-entrevista":"pressure","/herramientas/planificador-conversacion-informativa":"conversation","/herramientas/preparador-evento-profesional":"event","/herramientas/registro-aprendizajes-conversacion":"record","/herramientas/comparador-perspectivas-profesionales":"compare","/herramientas/decisor-seguimiento-profesional":"followup"};if(informationalTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><InformationalToolsPage kind={informationalTools[normalizedPath]}/></Suspense>}
+  {const professionalBrandTools={"/herramientas/diagnostico-senales-profesionales":"signals","/herramientas/inventario-evidencia-profesional":"evidence","/herramientas/constructor-contribuciones-profesionales":"contribution","/herramientas/constructor-narrativa-marca-profesional":"narrative","/herramientas/revisor-lenguaje-profesional":"language","/herramientas/mapa-coherencia-profesional":"coherence","/herramientas/revisor-perfil-profesional":"profile","/herramientas/preparar-revision-marca-profesional":"peers","/herramientas/plan-actualizacion-marca-profesional":"update","/herramientas/comparar-canales-profesionales":"compare"};if(professionalBrandTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ProfessionalBrandToolsPage kind={professionalBrandTools[normalizedPath]}/></Suspense>}
+  {const listeningFeedbackTools={"/herramientas/observador-atencion-conversaciones":"attention","/herramientas/separar-observacion-interpretacion":"separate","/herramientas/constructor-preguntas-curiosidad":"curiosity","/herramientas/preparar-escucha-conversacion":"prepare","/herramientas/filtro-feedback-util":"filter","/herramientas/revisar-feedback-profesional":"give","/herramientas/planificar-respuesta-feedback":"respond","/herramientas/simular-clarificacion-conversacion":"clarify","/herramientas/plan-reparacion-conversacion":"repair","/herramientas/plan-practica-escucha-feedback":"practice"};if(listeningFeedbackTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><ListeningFeedbackToolsPage kind={listeningFeedbackTools[normalizedPath]}/></Suspense>}
+  {const companyResearchTools={"/herramientas/crear-pregunta-investigacion-empresa":"question","/herramientas/generar-universo-organizaciones":"universe","/herramientas/evaluar-fuente-empresarial":"source","/herramientas/mapa-evidencia-empresarial":"map","/herramientas/analizar-rol-contexto":"role","/herramientas/comparar-organizaciones":"compare","/herramientas/detectar-contradicciones-empresa":"contradiction","/herramientas/planificar-investigacion-empresa":"next","/herramientas/registro-investigacion-empresa":"log","/herramientas/revisar-privacidad-investigacion":"privacy"};if(companyResearchTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><CompanyResearchToolsPage kind={companyResearchTools[normalizedPath]}/></Suspense>}
+  {const teamworkTools={"/herramientas/clarificar-proposito-equipo":"purpose","/herramientas/mapear-dependencias-equipo":"dependencies","/herramientas/disenar-decision-equipo":"rights","/herramientas/crear-acuerdos-equipo":"agreements","/herramientas/preparar-desacuerdo-equipo":"disagreement","/herramientas/registrar-decision-equipo":"decision","/herramientas/revisar-compromisos-equipo":"commitments","/herramientas/revisar-ciclo-equipo":"review","/herramientas/observar-dinamica-equipo":"dynamics","/herramientas/crear-experimento-equipo":"experiment"};if(teamworkTools[normalizedPath])return <Suspense fallback={<div className="loading">Cargando herramienta...</div>}><TeamworkToolsPage kind={teamworkTools[normalizedPath]}/></Suspense>}
+  if (normalizedPath !== "/" && normalizedPath !== "/index.html") return <NotFoundPage />;
 
   return (
     <div className="site-shell">
+      <a className="skip-link" href="#main-content">Saltar al contenido principal</a>
       <header className="site-nav">
         <a
           className="brand-mark"
-          href="#top"
+          href="/"
           aria-label="Inicio de Felipe Masanés Didyk"
         >
           <span>FMD</span>
@@ -425,7 +662,7 @@ export default function App() {
         </nav>
       ) : null}
 
-      <main id="top">
+      <main id="main-content">
         <section className="hero-section">
           <div className="hero-copy">
             <p className="eyebrow">Consultor & Coach</p>
@@ -506,6 +743,8 @@ export default function App() {
             ))}
           </div>
         </section>
+
+        <LearnAndApplySection />
 
         <section id="approach" className="section approach-section">
           <div className="approach-copy">
