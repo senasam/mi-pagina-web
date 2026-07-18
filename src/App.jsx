@@ -112,6 +112,10 @@ const TeamworkLessonPage = lazy(() => import("./TeamworkPages").then((module) =>
 const TeamworkCasesPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkCasesPage })));
 const TeamworkResourcesPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkResourcesPage })));
 const TeamworkToolsPage = lazy(() => import("./TeamworkPages").then((module) => ({ default: module.TeamworkToolsPage })));
+const MortgageCalculatorPage = lazy(() => import("./MortgageCalculatorPage"));
+const MortgageLearningPage = lazy(() => import("./MortgageLearningPage"));
+const InvestmentEvaluatorPage = lazy(() => import("./InvestmentEvaluatorPage"));
+const InvestmentLearningPage = lazy(() => import("./InvestmentLearningPage"));
 import { LearnPage, NetworkingHubPage, NetworkingLessonPage, NotFoundPage, ToolsPage } from "./LearningPages";
 
 const navigation = [
@@ -480,6 +484,8 @@ export default function App() {
   const closeMobileNav = () => setMobileOpen(false);
 
   if (normalizedPath === "/aprende") return <LearnPage />;
+  if (normalizedPath === "/aprende/finanzas-personales/como-evaluar-un-credito-hipotecario") return <Suspense fallback={<div className="loading">Cargando guía...</div>}><MortgageLearningPage /></Suspense>;
+  if (normalizedPath === "/aprende/finanzas-personales/evaluar-inversion-inmobiliaria") return <Suspense fallback={<div className="loading">Cargando guía...</div>}><InvestmentLearningPage /></Suspense>;
   if (normalizedPath === "/aprende/networking") return <NetworkingHubPage />;
   if (networkingLessonSlug) return <NetworkingLessonPage slug={networkingLessonSlug} />;
   if (normalizedPath === "/aprende/consultoria") return <ConsultingHubPage />;
@@ -533,6 +539,8 @@ export default function App() {
   if (teamworkLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><TeamworkLessonPage slug={teamworkLessonSlug} /></Suspense>;
   if (marketingLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><MarketingLessonPage slug={marketingLessonSlug} /></Suspense>;
   if (normalizedPath === "/herramientas") return <ToolsPage />;
+  if (normalizedPath === "/herramientas/calculadora-hipotecaria") return <Suspense fallback={<div className="loading">Cargando calculadora...</div>}><MortgageCalculatorPage /></Suspense>;
+  if (normalizedPath === "/herramientas/evaluador-inversion-inmobiliaria") return <Suspense fallback={<div className="loading">Cargando evaluador...</div>}><InvestmentEvaluatorPage /></Suspense>;
   if (normalizedPath === "/herramientas/generador-mensajes-networking") return <MessageGeneratorPage />;
   if (normalizedPath === "/herramientas/constructor-bullets-consultoria") return <ImpactBulletBuilderPage />;
   if (normalizedPath === "/herramientas/practica-market-sizing") return <CaseToolsPage kind="sizing" />;

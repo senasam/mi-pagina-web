@@ -61,6 +61,15 @@ export const topicGroups = [
       ...["Gestión de equipos", "Definición de objetivos", "OKR", "Reuniones efectivas", "Gestión del cambio", "Coaching profesional"].map((title) => ({ title, status: "planned" })),
     ],
   },
+  {
+    title: "Finanzas personales",
+    topics: [
+      { title: "Evaluar una operación hipotecaria", slug: "evaluar-credito-hipotecario", status: "published", href: "/aprende/finanzas-personales/como-evaluar-un-credito-hipotecario", description: "Comprende pie, tasación, tasa, amortización, seguros, carga del hogar y UF antes de comparar escenarios." },
+      { title: "Evaluar una propiedad para arriendo", slug: "evaluar-inversion-inmobiliaria", status: "published", href: "/aprende/finanzas-personales/evaluar-inversion-inmobiliaria", description: "Separa capital, operación, deuda, venta y continuidad al analizar una inversión residencial." },
+      { title: "Presupuesto y flujo de caja", status: "planned" },
+      { title: "Ahorro y objetivos", status: "planned" },
+    ],
+  },
 ];
 
 export const networkingModules = [
@@ -132,6 +141,8 @@ export const networkingPath = {
 export const networkingResources = networkingResourceContent;
 
 export const tools = [
+  { title: "Evaluador de inversión inmobiliaria para arriendo", slug: "evaluador-inversion-inmobiliaria", description: "Proyecta adquisición, crédito, vacancia, gastos, flujo, VPN y alternativas de venta o continuidad.", contentType: "tool", topic: "Finanzas personales", level: "Intermedio", readingTime: "20–35 minutos", updatedAt: "2026-07-18", featured: true, order: 2, status: "published", href: "/herramientas/evaluador-inversion-inmobiliaria" },
+  { title: "Calculadora hipotecaria: dividendo, pie y costo total", slug: "calculadora-hipotecaria", description: "Explora financiamiento, pie, seguros, gastos, carga del hogar y amortización de una operación en UF.", contentType: "tool", topic: "Finanzas personales", level: "Introductorio", readingTime: "15–25 minutos", updatedAt: "2026-07-18", featured: true, order: 1, status: "published", href: "/herramientas/calculadora-hipotecaria" },
   ...[
     ["clarificar-proposito-equipo","Clarificador de propósito colectivo","Ordena resultado, beneficiario, entregables, límites y evidencia."],
     ["mapear-dependencias-equipo","Mapa de dependencias","Detecta elementos sin dueño, ciclos y puntos únicos de fallo."],

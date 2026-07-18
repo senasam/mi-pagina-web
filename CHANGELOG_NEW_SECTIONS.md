@@ -1,5 +1,25 @@
 # Cambios — Aprende y Herramientas (Fase 1)
 
+## Calculadora hipotecaria y guía educativa — 2026-07-18
+
+- Rutas creadas: `/herramientas/calculadora-hipotecaria` y `/aprende/finanzas-personales/como-evaluar-un-credito-hipotecario`; índices de Aprende/Herramientas, router manual y sitemap actualizados sin alterar rutas existentes.
+- Componentes reutilizados: `PageShell`, navegación, breadcrumbs, CTA contextual, botones, metadata, JSON-LD y adaptador de analítica. Componentes creados: control UF, formulario PRECIO, resultados, métricas, gráficos SVG, amortización anual/mensual, escenarios y guía/casos.
+- Motor `mortgageEngine.js`: parsing chileno, formatos, dos convenciones de tasa, anualidad, base financiable, seguros, gastos, tabla exacta, ajuste final, agregación anual, carga del hogar, solver de capacidad y TIR equivalente educativa.
+- UF: función Vercel `/api/indicadores/uf`, CMF con secreto server-side como fuente primaria configurada, respaldo secundario, validación, timeout, caché diaria, estado stale y modo manual completo. Ningún secreto llega al cliente.
+- Entorno local: middleware Vite para que `/api/indicadores/uf` funcione también con `npm run dev` y `npm run preview`, reutilizando el resolver server-side y cargando el secreto privado desde `.env` cuando existe.
+- Visualizaciones: desarrollo de todas las cuotas mensuales en un gráfico de doble eje; barras apiladas contra el eje izquierdo en UF y líneas de composición contra el eje derecho en porcentaje. Incluye detalle interactivo por hover/puntero y selector accesible por teclado, además de curva de saldo, resúmenes y tablas alternativas.
+- Escenarios: hasta cuatro durante la sesión, renombrar, seleccionar base, eliminar, reiniciar y comparar 13 dimensiones. Sin URL, almacenamiento local o envío remoto.
+- Contenido: metodología, limitaciones, preguntas, once secciones educativas, doce casos ficticios y caso integrador resuelto. PRECIO se presenta como organizador práctico propio, no estándar.
+- SEO: title/description/canonical/Open Graph/Twitter mediante helper, breadcrumbs, `WebApplication`, `LearningResource`, fechas reales y dos URLs de sitemap.
+- Analítica: vistas, cálculos, modo de capacidad, escenarios, método, copia, impresión, UF manual/automática y reinicio; solo contexto de interfaz, sin valores financieros.
+- Accesibilidad: fieldsets, legends, labels/unidades, errores asociados y resumen enfocable, tabs nativos, `aria-live`, tablas, SVG descrito, detalle progresivo, foco, teclado, móvil, movimiento reducido e impresión.
+- Privacidad: datos efímeros, campos marcados privados, sin cuenta, IA, persistencia, query strings, logs de entradas o eventos con montos.
+- Revisión factual: documentación oficial CMF de UF, seguros y autonomía institucional; Decreto 1512 para evitar presentar la TIR interna como CAE oficial. Revisión editorial: 2026-07-18.
+- Pruebas añadidas: fórmulas, invariantes, regresión matemática, parsing/formato, capacidad, UF/proveedores, middleware local y estructura de rutas, SEO, privacidad y acciones. Suite final: 265 aprobadas, 0 fallidas; build Vite completado con 1.770 módulos. Smoke HTTP 200 en calculadora, guía e índices; revisión visual en escritorio y viewport responsivo completada.
+- El repositorio no ofrece scripts de formatter, linter, type checker, E2E o auditor automático de accesibilidad; no se desactivó ningún control. `git diff --check`, XML de sitemap y auditorías de privacidad/originalidad no presentaron errores.
+- Diferidos: gracia, tasa variable, prepago, mora, subsidios, impuestos/beneficios personales, proyección UF, CAE regulatoria, persistencia opt-in y exportación/importación. No son necesarios para el funcionamiento educativo base y requieren reglas o infraestructura adicionales.
+
+
 ## Marketing digital — 2026-07-16
 
 - Se añadió `/aprende/marketing-digital`, 17 módulos sustantivos y un caso integrador ficticio.
@@ -401,3 +421,34 @@ La homepage, todas sus secciones comerciales, CTA de agenda, contactos, datos, a
 - Revisión visual completada en hub, lección y herramienta en escritorio y viewport móvil de 500 px; bullets visibles, jerarquía estable y sin desbordes observados. También se comprobó el 404 heredado con una ruta inexistente.
 - Build: chunk de la sección 59,05 kB minificado (18,24 kB gzip); chunk principal 530,64 kB (153,90 kB gzip), con la advertencia no bloqueante preexistente de Vite por superar 500 kB.
 - No se difirió funcionalidad solicitada. El repositorio no configura formatter, linter, typechecker, E2E o auditor automático de accesibilidad; son límites de verificación, no funciones pendientes.
+
+## Extensión de corretaje en la calculadora hipotecaria — 2026-07-18
+
+- Se extendieron `MortgageCalculatorPage.jsx`, `MortgageLearningPage.jsx`, `mortgageEngine.js` e `index.css`; se crearon `brokerageEngine.js`, `brokerageContent.js` y `BrokerageModule.jsx`.
+- El dominio calcula porcentaje, UF/CLP fijo, IVA agregado o incluido, condición sin IVA, rango desconocido, topes netos/finales, mínimos, tramos marginales/valor completo y diferencias entre hasta cinco propuestas.
+- Se separaron comprador y vendedor. Solo la comisión conocida, pendiente de pago, fuera del crédito y seleccionada del comprador se incorpora al efectivo inicial.
+- La interfaz añade defaults seguros, seis presets explícitos y monto personalizado, 18 servicios, vendedor informativo, tarjeta UF/CLP, comparación local y reinicio exclusivo. Las preguntas de preparación se concentran en la guía educativa para evitar duplicación dentro de la calculadora.
+- Los escenarios hipotecarios, el desglose inicial, el resumen copiable y la impresión ahora incluyen corretaje sin sumar la comisión del vendedor.
+- La guía incorpora 17 bloques pedagógicos, tabla UF 5.000 con alternativa móvil, bandas editoriales, caso UF 12.000, errores frecuentes, preguntas copiables y enlace profundo a la calculadora.
+- Accesibilidad: fieldsets/legends, labels y unidades, descripciones tributarias, errores asociados, `aria-live`, tabla con encabezados, controles nativos, confirmación de copia y reflujo responsive.
+- Analítica: eventos categóricos de apertura, comparación y copia con `section`; no se transmiten montos, tasas, propiedad, servicios, hitos, diferencias ni efectivo inicial.
+- Revisión factual 2026-07-18: Ley Chile/BCN, SII y SERNAC como fuentes primarias; ofertas comerciales solo como evidencia limitada de una referencia de mercado no universal.
+- Pruebas añadidas: fixtures UF 5.000, IVA incluido/sin doble aplicación, fijos, topes, mínimo, tramos, desconocido, comprador/vendedor, efectivo inicial, comparaciones y verificaciones estructurales de integración, privacidad y accesibilidad.
+- Verificación final: 283 pruebas aprobadas, 0 fallidas; build de producción correcto con 1.773 módulos transformados. `git diff --check` no encontró errores (solo avisos de normalización LF/CRLF de Git).
+- El chunk diferido de la calculadora mide 76,51 kB minificado (20,71 kB gzip) y el de la guía 22,14 kB (7,70 kB gzip). Persiste la advertencia preexistente del chunk principal sobre 500 kB.
+- El repositorio no configura formatter, linter, typechecker, E2E ni auditor automático de accesibilidad; no se desactivó ni simuló ninguno.
+# Evaluador de inversión inmobiliaria — 2026-07-18
+
+- Añadidas las rutas pública y educativa del evaluador, sus metadatos, JSON-LD, sitemap y tarjetas de descubrimiento.
+- Reutilizados UF, amortización, tasa, seguros, corretaje, formatos, navegación, CTA, tablas, impresión y analítica segura.
+- Creado `investmentEngine.js` con adquisición, renta, vacancia, operación, CAPEX, proyección anual, venta, continuidad, VPN, TIR, MIRR, solvers, escenarios y sensibilidad.
+- Añadida interfaz ARRENDA con tres modos, UF automática/manual, resultados, comparación terminal, tres escenarios, matriz de sensibilidad, gráfico HTML/CSS con tabla alternativa, copia e impresión.
+- Añadida guía original con definiciones, fórmulas, límites y caso ficticio.
+- Accesibilidad: semántica, fieldsets, unidades, errores, live regions, foco, teclado, tablas, responsive, impresión y reducción de movimiento.
+- Privacidad: cálculos locales; sin persistencia, valores en URL, IA externa ni montos en analítica.
+- Auditoría factual y editorial revisada el 2026-07-18; no se generan conclusiones tributarias o legales.
+- Pruebas unitarias agregadas en `tests/investment.test.js`. El resultado final de suite y build se registra en el informe de entrega.
+- Diferido: vacancia mensual, editor libre de gastos, Monte Carlo, importación y modelación tributaria individual.
+- Añadido selector inicial UF/CLP. Todas las entradas monetarias aceptan la unidad elegida y todos los resultados muestran ambas equivalencias.
+- Reformulada la tasa de descuento como rentabilidad de la mejor alternativa disponible, con selección entre retorno nominal CLP y retorno real UF, más conversión explícita por inflación.
+- Añadido glosario visible y expansión de siglas financieras en tarjetas, tablas y explicaciones.

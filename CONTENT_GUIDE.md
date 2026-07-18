@@ -1,5 +1,25 @@
 # Guía de contenido
 
+## Mantener la calculadora hipotecaria y su guía
+
+- Escribe en español natural para Chile, con tono calmado y educativo. Usa “estimación”, “escenario”, “supuesto”, “orientativo” y “valor por confirmar”. No prometas aprobación, capacidad, ahorro, tasa definitiva ni una opción óptima.
+- Conserva las distinciones: precio comercial, tasación, base financiable, capital, pie, pago de capital e interés, seguros, gastos iniciales, carga hipotecaria, carga total, costo financiero estimado y desembolso total. No llames “costo” a la devolución del capital sin explicarlo.
+- Mantén toda fórmula en `src/mortgageEngine.js`. La UI puede transformar campos a unidades canónicas, pero no debe calcular cuotas, seguros, tablas o capacidad. Los gráficos reciben resultados ya calculados.
+- Los porcentajes del formulario se transforman a decimales al entrar al motor. La UF y los saldos usan `number` con tolerancia `1e-6`, precisión completa intermedia y formato centralizado al mostrar. Agrega pruebas de reconciliación antes de modificar precisión o redondeo.
+- Los supuestos editables de seguros no son una tarifa de mercado. Revisa base, tasa, multiplicador y cobertura. Los gastos parten en cero; para añadir una categoría, define etiqueta, modalidad, base, impuesto si corresponde, inclusión en efectivo inicial y en tasa equivalente.
+- Para actualizar un valor por defecto, registra fuente primaria, fecha, alcance, estabilidad y ubicación. Si una cifra depende de institución, póliza, inmueble o transacción, mantenla en cero o como ejemplo claramente ficticio.
+- La integración UF prioriza CMF con `CMF_API_KEY` solo en el entorno server-side de Vercel. Nunca uses un prefijo público ni copies la clave a documentación, cliente, logs o analítica. Para rotarla, actualiza el secreto de despliegue, redespliega y prueba `/api/indicadores/uf`; no es necesario cambiar código.
+- En desarrollo, Vite carga `CMF_API_KEY` desde `.env` mediante `loadEnv` y ejecuta el mismo resolver como middleware local. La variable nunca se expone como `VITE_*`. `npm run dev` y `npm run preview` deben responder JSON en `/api/indicadores/uf`.
+- `api/indicadores/uf.js` centraliza proveedor, parsing, validación, timeout y fallback. Para cambiar proveedor, crea un adaptador que retorne `{ valueClp, effectiveDate }`, valídalo con `validateUfRecord`, conserva el contrato público y agrega casos de éxito, payload inválido, error, timeout y caché. Revisa primero la documentación oficial vigente.
+- La UF se revalida diariamente mediante `s-maxage=86400` y `stale-while-revalidate`. La memoria de una instancia es solo un respaldo oportunista; la caché de plataforma es el respaldo operativo. En hosting estático, debe seguir funcionando la entrada manual.
+- Revisa semestralmente, o ante un cambio normativo, las explicaciones sobre UF, seguros, CAE, impuestos, gastos, DFL 2, financiamiento y prácticas institucionales. Evita publicar umbrales o porcentajes como reglas universales.
+- La tasa equivalente interna es una TIR educativa de los flujos incluidos. Nunca la renombres “CAE” sin implementar y validar la metodología regulatoria completa, fechas, gastos, seguros y un ejemplo autoritativo.
+- Los casos deben ser ficticios, breves y orientados a decisiones. Para añadir uno, cambia una tensión relevante, declara el aviso educativo y evita empresas, proyectos, clientes, personas reales o combinaciones de cifras reconocibles.
+- No guardes entradas ni nombres de escenarios. No agregues `localStorage`, query strings, sincronización, sesión remota, replay o eventos con montos. Los eventos pueden informar modo, sección y estado, nunca ingresos, deuda, tasa, pie, capital, UF o resultados.
+- Antes de publicar cambios: prueba tasa cero, ambas convenciones, plazo exacto, pago final, saldo no negativo, suma de capital, agregación anual, bisección, UF sin proveedores, modo manual, escenarios, copia, impresión, teclado, reflujo móvil y tablas alternativas.
+- Fuentes primarias revisadas el 2026-07-18: documentación API UF de CMF; contenidos CMF Educa sobre seguros hipotecarios y autonomía de condiciones; Decreto 1512 para definición de CAE. Mantenimiento: revisión editorial semestral y antes de cualquier afirmación regulatoria nueva.
+
+
 ## Mantener Marketing digital
 
 - Añadir una lección en `marketingContent.js` con slug único, descripción, resultados, tres o más secciones sustantivas, ejercicio, relaciones y `lastReviewed`; registrar la ruta en sitemap y pruebas.
@@ -414,3 +434,47 @@ Revisa contenido visible, estructura pedagógica, casos, modelos, herramientas, 
 - Fuentes y fechas: antes de cambiar accesibilidad, seguridad laboral o SEO, revisar fuentes primarias vigentes y actualizar `teamworkLastReviewed` solo después de una revisión real.
 - Integración: coordinar `App.jsx`, `contentData.js`, sitemap, enlaces internos, metadata, analítica y pruebas. Enlazar solo rutas publicadas.
 - Originalidad: auditar contenido, orden, modelos, casos, ejercicios, herramientas, variables, metadata, pruebas y documentación. Registrar el material excluido exclusivamente como `excluded source-specific references`.
+
+## Mantener el contenido de corretaje hipotecario
+
+- Separar siempre cinco categorías: norma legal, regla tributaria, acuerdo contractual, observación comercial y supuesto editable del usuario. Una práctica repetida nunca debe presentarse como obligación.
+- La comisión se pacta libremente. No describir 2% —con o sin IVA— como tarifa legal, oficial, obligatoria, justa o máxima; cualquier banda es una ayuda editorial de comparación.
+- Mantener `GENERAL_IVA_RATE` en `src/brokerageEngine.js`. Antes de cambiarlo, revisar SII, registrar fecha y volver a ejecutar los fixtures con IVA agregado e incluido. No inferir que el IVA aplica igual a todo prestador.
+- Mantener presets y bandas en `src/brokerageContent.js`, separados del motor. Al actualizar una referencia comercial, contrastar varias ofertas vigentes, fechar la revisión y conservar lenguaje no universal.
+- Distinguir comisión del comprador, comisión del vendedor e ingreso conjunto del intermediario. Solo el costo confirmado y exigible del comprador puede entrar al efectivo inicial.
+- Las plantillas son textos de preparación, no contratos ni asesoría legal. Deben conservar tono negociador, campos editables y advertencia de revisión antes de usar.
+- Revisar primero fuentes primarias: Ley Chile/BCN para vigencia normativa, SII para IVA y documentos tributarios, y SERNAC para información de precios y servicios. Las páginas comerciales solo documentan observaciones de mercado.
+- Evitar nombres, RUT, direcciones, contratos, experiencias personales y texto libre en analítica. Los valores permanecen en memoria y no se incluyen en URL.
+- Fecha de revisión factual vigente de esta extensión: 2026-07-18. Reabrir la auditoría si cambia la tasa general, el tratamiento del servicio o la legislación aplicable.
+# Guía editorial del evaluador de inversión inmobiliaria — 2026-07-18
+
+## Voz y terminología
+
+Usar español chileno profesional, sereno y condicional: “bajo estos supuestos”, “estimación”, “escenario”, “valor orientativo” y “confirma este dato”. Nunca prometer rentabilidad, aprobación crediticia, valorización, renta futura ni una decisión correcta.
+
+- Renta potencial: arriendo contractual antes de vacancia.
+- Ingreso efectivo: renta después de vacancia más otros ingresos.
+- NOI: ingreso efectivo menos egresos operativos; excluye financiamiento y CAPEX.
+- Flujo antes de impuestos personales: NOI menos deuda y CAPEX.
+- Capital inicial: pie más costos del comprador, preparación y reservas.
+- Venta neta: valor proyectado menos costos de venta, deuda y prepago confirmado.
+- Continuidad: valor presente de operar después del horizonte; nunca se suma a la venta.
+- VPN: valor creado o destruido respecto del costo de oportunidad ingresado.
+- TIR: raíz del flujo con capital inicial; puede faltar o ser ambigua. MIRR explicita financiamiento/reinversión.
+
+## Mantenimiento
+
+- Defaults verificados deben incluir fuente primaria, fecha, ubicación y condición de aplicabilidad. Si una regla depende del inmueble o contribuyente, ofrecer “por confirmar” y no inferirla.
+- Presets de escenarios deben ser ficticios, neutrales, internamente coherentes y sin etiquetas “bueno/malo”. No asignar probabilidades sin evidencia.
+- Para agregar gastos, definir unidad, frecuencia, base, crecimiento, responsable, estado y si pertenece a adquisición, operación, CAPEX o salida.
+- Para agregar un terminal, crear un vector alternativo completo y probar que aparece exactamente una vez. Nunca combinar venta y continuidad.
+- Para sensibilidad, variar una o dos entradas mediante el motor; no poner fórmulas en componentes ni usar color como único significado.
+- Revisar al menos anualmente, y antes si cambia normativa, todo contenido sobre DFL 2, impuestos, contribuciones, corretaje/IVA, seguros, prepago e inscripción.
+
+## Unidades y tasas comparables
+
+- Toda entrada monetaria del evaluador se conserva internamente en UF, pero la persona puede elegir al inicio si quiere escribir en UF o CLP. Mostrar siempre la equivalencia inmediata en la otra unidad con la UF seleccionada.
+- Aclarar que una equivalencia futura en CLP usa la UF actual de la simulación y no es una proyección del valor futuro de la UF.
+- Preguntar el costo de oportunidad como la rentabilidad anual de la mejor alternativa real que la persona consideraría para ese capital.
+- Si esa rentabilidad es nominal en pesos, solicitar una inflación esperada y convertirla con `(1 + retorno nominal) / (1 + inflación) - 1`. Si ya es real o está expresada sobre UF, no descontar inflación nuevamente.
+- Expandir las siglas en su primera aparición y conservar un glosario visible para UF, CLP, NOI, VPN, TIR, MIRR, DSCR y CAPEX.

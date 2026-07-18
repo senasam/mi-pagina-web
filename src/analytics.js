@@ -1,4 +1,4 @@
-const SAFE_DIMENSIONS = new Set(["channel", "tone", "module", "destination", "resource", "tool", "category"]);
+const SAFE_DIMENSIONS = new Set(["channel", "tone", "module", "destination", "resource", "tool", "category", "section", "mode", "status"]);
 
 export function trackEvent(name, dimensions = {}) {
   const safeDimensions = Object.fromEntries(
