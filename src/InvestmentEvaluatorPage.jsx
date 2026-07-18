@@ -48,6 +48,8 @@ import {
   isNewProperty,
   maximumTolerableDelay,
 } from "./preOperationalEngine";
+import TechnicalHelp from "./TechnicalHelp";
+import { formatNumericInput, normalizeNumericInput } from "./chileanNumberInput";
 
 const REVIEW_DATE = "2026-07-18";
 const PATH = "/herramientas/evaluador-inversion-inmobiliaria";
@@ -58,17 +60,17 @@ const initial = Object.freeze({
   dfl2Status: "unknown",
   financingRatio: 70,
   annualRate: 4,
-  termYears: 25,
+  termYears: 20,
   acquisitionExpensesUf: 65,
   preparationCostsUf: 70,
   furnitureUf: 35,
   initialReservesUf: 25,
   brokerageMode: BROKERAGE_MODES.PERCENTAGE,
-  brokerageAmount: 1.5,
+  brokerageAmount: "2.0",
   brokerageTax: BROKERAGE_TAX.ADDED,
   monthlyRentUf: 17.5,
   occupancyRate: 92,
-  rentGrowthRate: 1,
+  rentGrowthRate: 0,
   comparablePriceUf: 3800,
   comparableRentUf: 17,
   monthlyCommonExpenseUf: 2.2,
@@ -80,7 +82,7 @@ const initial = Object.freeze({
   landlordInsuranceAnnualUf: 2,
   otherOperatingAnnualUf: 1,
   appreciationRate: 1.5,
-  saleCostRate: 2.5,
+  saleCostRate: 2.38,
   fixedSaleCostsUf: 10,
   prepaymentMode: "automatic-uf",
   prepaymentCostUf: "",
@@ -154,6 +156,16 @@ const rateNumberLabel = (value, minimumFractionDigits = 0) =>
   });
 const ufPlusLabel = (percentage, minimumFractionDigits = 0) =>
   `UF + ${rateNumberLabel(percentage, minimumFractionDigits)}%`;
+const plainDecisionText = (text = "") =>
+  text
+    .replace("El valor presente neto es negativo frente a la alternativa seleccionada.", "La propiedad queda por debajo de la otra inversión que elegiste.")
+    .replace("El valor presente neto es positivo frente a la alternativa seleccionada.", "La propiedad queda por encima de la otra inversión que elegiste.")
+    .replace("El flujo del primer año es positivo antes de impuestos personales.", "Durante el primer año quedaría un excedente antes de impuestos personales.")
+    .replace("El ingreso operativo neto no cubre completamente el servicio de la deuda.", "El arriendo después de los gastos normales no alcanza a cubrir completamente el crédito.")
+    .replace("El ingreso operativo neto mantiene un margen sobre el servicio de la deuda.", "El arriendo después de los gastos normales cubre el crédito y deja un margen.")
+    .replace("El valor presente neto está cerca de cero y puede cambiar de signo con variaciones pequeñas.", "La comparación con tu otra alternativa está cerca de cero y puede cambiar con pequeñas variaciones.")
+    .replace("La tasa interna de retorno puede tener múltiples soluciones y no debe usarse de forma aislada.", "No es posible resumir estos flujos en una única tasa anual; revisa los montos y fechas.")
+    .replace("La cobertura de deuda", "La capacidad del arriendo para cubrir el crédito");
 
 function Input({
   id,
@@ -165,22 +177,26 @@ function Input({
   max,
   step = "any",
   help,
+  helpConcept,
 }) {
   return (
     <div className="investment-field">
-      <label htmlFor={id}>
-        {label}
-        {unit ? ` (${unit})` : ""}
-      </label>
+      <div className="investment-field__label-row">
+        <label htmlFor={id}>
+          {label}
+          {unit ? ` (${unit})` : ""}
+        </label>
+        {helpConcept && <TechnicalHelp concept={helpConcept} label={`Explicación de ${label}`} />}
+      </div>
       <input
         id={id}
-        type="number"
+        type="text"
         inputMode="decimal"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        data-min={min}
+        data-max={max}
+        data-step={step}
+        value={formatNumericInput(value)}
+        onChange={(event) => onChange(normalizeNumericInput(event.target.value))}
         data-private="true"
       />
       {help && <small>{help}</small>}
@@ -197,6 +213,7 @@ function MoneyInput({
   ufValue,
   min = 0,
   help,
+  helpConcept,
 }) {
   const validUf = valueUf !== "" && Number.isFinite(asNumber(valueUf));
   const primaryValue =
@@ -210,7 +227,7 @@ function MoneyInput({
       ? currencyMode === "clp"
         ? formatUf(asNumber(valueUf))
         : formatClp(asNumber(valueUf) * ufValue)
-      : "Equivalencia disponible cuando exista una UF válida";
+      : null;
   const change = (raw) => {
     if (raw === "") return onChangeUf("");
     const parsed = asNumber(raw);
@@ -220,20 +237,24 @@ function MoneyInput({
   };
   return (
     <div className="investment-field money-field">
-      <label htmlFor={id}>
-        {label} ({currencyMode === "clp" ? "CLP" : "UF"})
-      </label>
+      <div className="investment-field__label-row">
+        <label htmlFor={id}>
+          {label} ({currencyMode === "clp" ? "CLP" : "UF"})
+        </label>
+        {helpConcept && <TechnicalHelp concept={helpConcept} label={`Explicación de ${label}`} />}
+      </div>
       <input
         id={id}
-        type="number"
+        type="text"
         inputMode="decimal"
-        min={min}
-        step="any"
-        value={primaryValue}
-        onChange={(event) => change(event.target.value)}
+        data-min={min}
+        value={formatNumericInput(primaryValue)}
+        onChange={(event) => change(normalizeNumericInput(event.target.value))}
         data-private="true"
       />
-      <small className="money-equivalent">Equivale a {secondary}</small>
+      {secondary && (
+        <small className="money-equivalent">Equivale a {secondary}</small>
+      )}
       {help && <small>{help}</small>}
     </div>
   );
@@ -284,10 +305,18 @@ function MoneyValue({ valueUf, ufValue, currencyMode = "uf" }) {
   );
 }
 
-function Metric({ label, value, moneyUf, ufValue, currencyMode, detail }) {
+function Metric({ label, value, moneyUf, ufValue, currencyMode, detail, helpConcept, helpLabel }) {
   return (
     <div className="investment-metric">
-      <dt>{label}</dt>
+      <dt>
+        <span>{label}</span>
+        {helpConcept && (
+          <TechnicalHelp
+            concept={helpConcept}
+            label={helpLabel || `Explicación de ${label}`}
+          />
+        )}
+      </dt>
       <dd>
         {moneyUf !== undefined ? (
           <MoneyValue
@@ -355,10 +384,10 @@ function ProjectionChart({ rows }) {
       aria-labelledby="flow-chart-title flow-chart-desc"
     >
       <figcaption>
-        <h3 id="flow-chart-title">Operación anual</h3>
+        <h3 id="flow-chart-title">Qué pasa cada año</h3>
         <p id="flow-chart-desc">
-          Comparación visual entre ingreso operativo neto, servicio de deuda y
-          flujo antes de impuestos. La tabla siguiente contiene los valores
+          Compara lo que deja el arriendo antes del crédito, los pagos del
+          crédito y lo que tú aportas o recibes. La tabla contiene los valores
           exactos.
         </p>
       </figcaption>
@@ -390,16 +419,59 @@ function ProjectionChart({ rows }) {
       </div>
       <ul className="chart-legend">
         <li>
-          <i /> Ingreso operativo neto
+          <i /> Arriendo después de gastos normales
         </li>
         <li>
-          <i /> Servicio de deuda
+          <i /> Pago del crédito
         </li>
         <li>
-          <i /> Flujo antes de impuestos
+          <i /> Tú aportas o recibes
         </li>
       </ul>
     </figure>
+  );
+}
+
+function SimpleProjectionTable({ rows, saleYear, ufValue, currencyMode }) {
+  const money = (value) => (
+    <MoneyValue valueUf={value} ufValue={ufValue} currencyMode={currencyMode} />
+  );
+  return (
+    <div className="table-scroll investment-table investment-table--simple" tabIndex="0">
+      <table>
+        <caption>
+          Vista simple de la proyección. Los montos son estimaciones antes de
+          impuestos personales y cada uno muestra UF y pesos.
+        </caption>
+        <thead>
+          <tr>
+            <th>Año</th>
+            <th>Arriendo recibido</th>
+            <th>Gastos</th>
+            <th>Pago del crédito</th>
+            <th>Tú aportas o recibes</th>
+            <th>Deuda pendiente</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.year} className={row.year === saleYear ? "selected-year" : ""}>
+              <th>{row.year}</th>
+              <td>{money(row.effectiveIncomeUf)}</td>
+              <td>{money(row.operatingExpensesUf + row.capitalExpenditureUf)}</td>
+              <td>{money(row.debtServiceUf)}</td>
+              <td>
+                <span className={row.preTaxCashFlowUf < 0 ? "cash-direction cash-direction--out" : "cash-direction cash-direction--in"}>
+                  {row.preTaxCashFlowUf < 0 ? "Aportas " : "Recibes "}
+                  {money(Math.abs(row.preTaxCashFlowUf))}
+                </span>
+              </td>
+              <td>{money(row.mortgageBalanceUf)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -411,8 +483,8 @@ function ProjectionTable({ rows, saleYear, ufValue, currencyMode }) {
     <div className="table-scroll investment-table" tabIndex="0">
       <table>
         <caption>
-          Proyección anual con valores en UF y CLP al valor seleccionado. La
-          venta es una alternativa terminal y no se suma a la continuidad.
+          Vista financiera detallada con valores en UF y CLP. La venta es una
+          alternativa final y no se suma a la continuidad.
         </caption>
         <thead>
           <tr>
@@ -468,9 +540,10 @@ function DecisionSummary({
   currencyMode,
   selectedAlternative,
   cautiousNpvUf,
+  dependsOnCashFlow,
 }) {
   if (!decision) return null;
-  const risks = [...decision.blockers, ...decision.risks];
+  const risks = [...decision.blockers, ...decision.risks].map(plainDecisionText);
   if (inputs.occupancyRate < 0.9)
     risks.push(
       "La ocupación supuesta es inferior al 90% y aumenta la exposición a meses sin arriendo.",
@@ -489,7 +562,7 @@ function DecisionSummary({
     );
   if (Number.isFinite(cautiousNpvUf) && cautiousNpvUf < 0)
     risks.push(
-      "El escenario de presión operativa produce un valor presente neto negativo.",
+      "En el escenario difícil, la propiedad queda por debajo de la otra inversión elegida.",
     );
   const uniqueRisks = [...new Set(risks)];
   const steps = [
@@ -509,15 +582,33 @@ function DecisionSummary({
       <div className="investment-decision__header">
         <div>
           <p className="eyebrow">Resumen final del escenario</p>
-          <h2 id="decision-title">{decision.label}</h2>
+          <h2 id="decision-title" tabIndex="-1">
+            {dependsOnCashFlow ? "Depende" : decision.label}
+          </h2>
           <p>{decision.conclusion}</p>
         </div>
         <span>
-            {decision.status === "avanzar-con-condiciones"
-            ? "Avanzar solo si se valida"
-            : "No avanzar todavía"}
+            {dependsOnCashFlow
+              ? "Revisa tu capacidad de aporte"
+              : decision.status === "avanzar-con-condiciones"
+                ? "Avanzar solo si se valida"
+                : "No avanzar todavía"}
         </span>
       </div>
+      {dependsOnCashFlow && (
+        <div className="conditional-reading">
+          <h3>Por qué el resultado depende de tu capacidad de aportar</h3>
+          <p>
+            Bajo estos supuestos, la inversión supera a la alternativa en el
+            largo plazo, pero el arriendo no cubre completamente el crédito.
+            Tendrías que aportar aproximadamente{" "}
+            <strong>{formatUf(Math.abs(result.annualProjection[0].preTaxCashFlowUf))}</strong>{" "}
+            durante el primer año. Podría ser razonable avanzar únicamente si
+            puedes financiar esos aportes y el resultado se mantiene en
+            escenarios menos favorables.
+          </p>
+        </div>
+      )}
       <div className="decision-grid">
         <article>
           <h3>Supuestos iniciales</h3>
@@ -577,10 +668,10 @@ function DecisionSummary({
           </dl>
         </article>
         <article>
-          <h3>Operación proyectada</h3>
+          <h3>Qué pasa con el arriendo</h3>
           <dl>
             <div>
-              <dt>Ingreso operativo neto, año 1</dt>
+              <dt>Arriendo después de gastos normales, año 1</dt>
               <dd>
                 <MoneyValue
                   valueUf={result.annualProjection[0].noiUf}
@@ -590,7 +681,7 @@ function DecisionSummary({
               </dd>
             </div>
             <div>
-              <dt>Servicio de deuda, año 1</dt>
+              <dt>Pagos del crédito, año 1</dt>
               <dd>
                 <MoneyValue
                   valueUf={result.annualProjection[0].debtServiceUf}
@@ -600,17 +691,17 @@ function DecisionSummary({
               </dd>
             </div>
             <div>
-              <dt>Flujo antes de impuestos, año 1</dt>
+              <dt>{result.annualProjection[0].preTaxCashFlowUf < 0 ? "Tú aportas, año 1" : "Tú recibes, año 1"}</dt>
               <dd>
                 <MoneyValue
-                  valueUf={result.annualProjection[0].preTaxCashFlowUf}
+                  valueUf={Math.abs(result.annualProjection[0].preTaxCashFlowUf)}
                   ufValue={ufValue}
                   currencyMode={currencyMode}
                 />
               </dd>
             </div>
             <div>
-              <dt>Cobertura de deuda</dt>
+              <dt>Cuánto del crédito cubre el arriendo</dt>
               <dd>
                 {result.dscr == null
                   ? "No aplica"
@@ -618,7 +709,7 @@ function DecisionSummary({
               </dd>
             </div>
             <div>
-              <dt>Valor presente neto</dt>
+              <dt>Comparación con tu otra alternativa</dt>
               <dd>
                 <MoneyValue
                   valueUf={result.npvUf}
@@ -628,7 +719,7 @@ function DecisionSummary({
               </dd>
             </div>
             <div>
-              <dt>Tasa interna de retorno</dt>
+              <dt>Rendimiento anual calculado</dt>
               <dd>
                 {result.irr.value == null
                   ? "No disponible"
@@ -639,7 +730,7 @@ function DecisionSummary({
           <h4>Señales favorables</h4>
           <ul>
             {decision.strengths.length ? (
-              decision.strengths.map((item) => <li key={item}>{item}</li>)
+              decision.strengths.map((item) => <li key={item}>{plainDecisionText(item)}</li>)
             ) : (
               <li>
                   No se identificaron señales suficientes para respaldar un avance.
@@ -1049,18 +1140,18 @@ export default function InvestmentEvaluatorPage() {
 
   const errors = [];
   if (!(inputs.propertyPriceUf > 0))
-    errors.push("Ingresa un precio de compra mayor que cero.");
-  if (!(inputs.monthlyRentUf >= 0)) errors.push("Ingresa un arriendo válido.");
+    errors.push("Ingresa un precio de propiedad mayor que cero para poder calcular la compra.");
+  if (!(inputs.monthlyRentUf >= 0)) errors.push("Ingresa un arriendo mensual igual o mayor que cero para calcular los ingresos.");
   if (!(inputs.occupancyRate >= 0 && inputs.occupancyRate <= 1))
-    errors.push("La ocupación debe estar entre 0% y 100%.");
+    errors.push("Ingresa un porcentaje de ocupación entre 0% y 100%.");
   if (!(inputs.opportunityCostRate > inputs.perpetualGrowthRate))
     errors.push(
-      "El retorno equivalente expresado como UF + tasa debe superar el crecimiento perpetuo para valorar la continuidad.",
+      "La rentabilidad de tu otra alternativa debe ser mayor que el crecimiento de largo plazo del arriendo. Baja ese crecimiento o sube la rentabilidad alternativa.",
     );
   if (!(asNumber(form.saleYear) <= asNumber(form.horizonYears)))
-    errors.push("El año de salida no puede superar el horizonte.");
+    errors.push("El año en que compararás vender debe estar dentro del período proyectado. Elige un año menor o amplía la proyección.");
   if (newProperty && asNumber(form.balloonUf) > 0 && form.balloonMonth === "")
-    errors.push("Ingresa el mes de la cuota balón.");
+    errors.push("Indica en qué mes pagarás la cuota final para poder ubicar ese pago.");
   if (
     newProperty &&
     form.manualFirstRentMonth !== "" &&
@@ -1069,7 +1160,7 @@ export default function InvestmentEvaluatorPage() {
         asNumber(form.deliveryToWritingMonths) +
         asNumber(form.writingToMaterialMonths)
   )
-    errors.push("El primer arriendo no puede ocurrir antes de la entrega material.");
+    errors.push("El primer arriendo no puede ocurrir antes de recibir materialmente la propiedad. Corrige la fecha de entrega o el mes del primer arriendo.");
   const result = useMemo(() => {
     try {
       return errors.length ? null : projectInvestment(inputs);
@@ -1132,14 +1223,14 @@ export default function InvestmentEvaluatorPage() {
         : base.strengths;
     const risks = [...base.risks, ...preOperational.warnings];
     if (preOperational.adjustedNpvUf < 0)
-      blockers.push("El valor presente neto ajustado desde hoy es negativo.");
+      blockers.push("Desde hoy, la propiedad queda por debajo de la otra inversión que elegiste.");
     if (
       preOperational.liquidityBufferUf != null &&
       preOperational.liquidityBufferUf < 0
     )
-      blockers.push("El capital disponible no cubre la necesidad preoperativa máxima.");
+      blockers.push("El dinero disponible no cubre el máximo que necesitarías antes del primer arriendo.");
     if (preOperational.totalDscr != null && preOperational.totalDscr < 1)
-      blockers.push("El ingreso operativo no cubre la deuda hipotecaria y las cuotas del pie.");
+      blockers.push("El arriendo después de gastos normales no cubre el crédito hipotecario y las cuotas pendientes del pie.");
     const status = blockers.length ? "no-avanzar" : "avanzar-con-condiciones";
     return {
       ...base,
@@ -1153,8 +1244,8 @@ export default function InvestmentEvaluatorPage() {
           : "No avanzar bajo estos supuestos",
       conclusion:
         status === "avanzar-con-condiciones"
-          ? "El escenario ajustado desde hoy supera los filtros financieros básicos, sujeto a validar el bono, las fechas y la liquidez."
-          : "No conviene avanzar todavía con el escenario ajustado desde hoy; primero deben corregirse o comprobarse sus bloqueos.",
+          ? "Bajo estos supuestos, el resultado desde hoy supera los filtros básicos del modelo. Aún debes confirmar el bono, las fechas y el dinero disponible."
+          : "Bajo estos supuestos, no conviene avanzar todavía. Primero corrige o confirma las condiciones señaladas.",
     };
   }, [result, preOperational]);
   const scenarios = useMemo(
@@ -1163,16 +1254,16 @@ export default function InvestmentEvaluatorPage() {
         ? compareScenarios(inputs, [
             {
               id: "cautious",
-              name: "Presión operativa",
+              name: "Escenario difícil",
               overrides: {
                 occupancyRate: Math.max(0, inputs.occupancyRate - 0.08),
                 appreciationRate: inputs.appreciationRate - 0.02,
               },
             },
-            { id: "base", name: "Supuestos ingresados", overrides: {} },
+            { id: "base", name: "Tu escenario", overrides: {} },
             {
               id: "favorable",
-              name: "Mejor operación",
+              name: "Escenario favorable",
               overrides: {
                 occupancyRate: Math.min(1, inputs.occupancyRate + 0.04),
                 monthlyRentUf: inputs.monthlyRentUf * 1.06,
@@ -1266,9 +1357,23 @@ export default function InvestmentEvaluatorPage() {
   );
 
   const summaryMoney = (value) =>
-    `${formatUf(value)} (${ufValue > 0 ? formatClp(value * ufValue) : "CLP no disponible"})`;
+    Number.isFinite(value)
+      ? `${formatUf(value)} (${ufValue > 0 ? formatClp(value * ufValue) : "CLP no disponible"})`
+      : "no disponible";
+  const firstYearCashUf = result?.annualProjection[0]?.preTaxCashFlowUf;
+  const comparisonUf = preOperational?.applies
+    ? preOperational.adjustedNpvUf
+    : result?.npvUf;
+  const dependsOnCashFlow = Boolean(
+    result &&
+      comparisonUf > 0 &&
+      (firstYearCashUf < 0 || (result.dscr != null && result.dscr < 1)),
+  );
+  const initialDecisionLabel = dependsOnCashFlow
+    ? "Depende"
+    : decision?.label || "Bajo estos supuestos";
   const summary = result
-    ? `Evaluación educativa de inversión inmobiliaria\nOrientación del escenario: ${decision?.label || "no disponible"}\n${decision?.conclusion || ""}\nCapital inicial: ${summaryMoney(result.initialEquityUf)}\nFlujo año 1: ${summaryMoney(result.annualProjection[0].preTaxCashFlowUf)}\nValor presente neto de venta: ${summaryMoney(result.npvUf)}\nTasa interna de retorno: ${result.irr.value == null ? "no disponible" : formatPercent(result.irr.value)}\nVenta neta año ${result.saleYear}: ${summaryMoney(result.selectedYearNetSaleValueUf)}\nValor de continuidad: ${summaryMoney(result.selectedYearHoldValueUf)}\nRiesgos principales: ${[...(decision?.blockers || []), ...(decision?.risks || [])].join(" ") || "Requiere validación profesional y documental."}\nAviso: herramienta automática con fines académicos; puede contener errores y no reemplaza asesoría profesional, asesor inmobiliario ni evaluación o comité de riesgo bancario. La decisión corresponde al usuario.`
+    ? `¿Conviene comprar este departamento para arrendarlo?\nResultado bajo estos supuestos: ${initialDecisionLabel}\n${dependsOnCashFlow ? `Bajo estos supuestos, la inversión supera a la alternativa en el largo plazo, pero el arriendo no cubre completamente el crédito. Tendrías que aportar aproximadamente ${summaryMoney(Math.abs(firstYearCashUf))} durante el primer año. Podría ser razonable avanzar únicamente si puedes financiar esos aportes y el resultado se mantiene en escenarios menos favorables.` : decision?.conclusion || ""}\n\nSUPUESTOS PRINCIPALES\nPrecio: ${summaryMoney(inputs.propertyPriceUf)}\nCrédito: ${form.financingRatio}% del precio, ${form.annualRate}% anual, ${form.termYears} años\nArriendo: ${summaryMoney(monthlyRent)} al mes\nMeses arrendados equivalentes: ${(12 * inputs.occupancyRate).toLocaleString("es-CL", { maximumFractionDigits: 1 })} al año\nOtra alternativa: ${selectedAlternative?.label || "Tasa personalizada"}, ${ufPlusLabel(inputs.opportunityCostRate * 100, 2)}\n\nDINERO INICIAL\nDinero que necesitas poner al comienzo: ${summaryMoney(result.initialEquityUf)}\n${preOperational?.applies ? `Máximo dinero acumulado antes del primer arriendo: ${summaryMoney(preOperational.maximumCashUf)}\n` : ""}\nPRIMER AÑO\n${firstYearCashUf < 0 ? "Dinero que tendrías que aportar" : "Dinero que te quedaría"}: ${summaryMoney(Math.abs(firstYearCashUf))}\n\nCOMPARACIÓN CON LA ALTERNATIVA\nDiferencia estimada a valor de hoy: ${summaryMoney(comparisonUf)}. ${comparisonUf > 0 ? "La propiedad supera la alternativa en el modelo." : comparisonUf < 0 ? "La alternativa supera la propiedad en el modelo." : "Ambas opciones quedan prácticamente igualadas."}\n\nDECISIÓN EN EL AÑO ${result.saleYear}: RIQUEZA ESTIMADA AL AÑO ${result.comparisonYear}\nSi vendes e inviertes en tu mejor alternativa: ${summaryMoney(result.sellAndInvestTerminalWealthUf)}\nSi sigues arrendando y vendes al final: ${summaryMoney(result.holdUntilHorizonTerminalWealthUf)}\nDiferencia entre estrategias: ${summaryMoney(Math.abs(result.terminalWealthDifferenceUf))}\n\nINDICADORES TÉCNICOS\nValor presente neto: ${summaryMoney(result.npvUf)}\nTasa interna de retorno: ${result.irr.value == null ? "no disponible" : formatPercent(result.irr.value)}\n\nADVERTENCIAS\n${[...(decision?.blockers || []), ...(decision?.risks || [])].join(" ") || "Requiere validación profesional y documental."}\n\nAviso: herramienta automática con fines académicos; puede contener errores y no reemplaza asesoría profesional, asesor inmobiliario ni evaluación o comité de riesgo bancario. La decisión corresponde al usuario.`
     : "";
   const copy = async () => {
     await navigator.clipboard.writeText(summary);
@@ -1276,6 +1381,16 @@ export default function InvestmentEvaluatorPage() {
     trackEvent("investment_summary_copied", {
       tool: "investment",
       status: "success",
+    });
+  };
+  const goToFinalSummary = () => {
+    const target = document.getElementById("decision-title");
+    if (!target) return;
+    target.scrollIntoView({ block: "start", behavior: "smooth" });
+    target.focus({ preventScroll: true });
+    trackEvent("investment_final_summary_opened", {
+      tool: "investment",
+      status: initialDecisionLabel.toLowerCase(),
     });
   };
 
@@ -1294,51 +1409,24 @@ export default function InvestmentEvaluatorPage() {
             <p className="eyebrow">
               Finanzas personales · herramienta educativa
             </p>
-            <h1>Evaluador de inversión inmobiliaria para arriendo</h1>
+            <h1>¿Conviene comprar este departamento para arrendarlo?</h1>
             <p>
-              Proyecta la compra, el crédito, la operación del arriendo y
-              distintos escenarios de salida antes de tomar una decisión.
+              Calcula cuánto dinero necesitas, cuánto tendrías que aportar y si
+              la inversión podría rendir más que otra alternativa.
             </p>
             <div className="hero-actions">
               <a className="button button--primary" href="#modelo">
-                <Calculator size={18} /> Comenzar evaluación
+                <Calculator size={18} /> Comenzar simulación
               </a>
               <a
                 className="button button--secondary"
                 href="/aprende/finanzas-personales/evaluar-inversion-inmobiliaria"
               >
-                <BookOpen size={18} /> Ver metodología
+                <BookOpen size={18} /> Ver cómo funciona
               </a>
             </div>
           </div>
-          <aside>
-            <ShieldCheck size={28} />
-            <h2>Tus datos quedan en este navegador</h2>
-            <p>
-              No se almacenan remotamente, no se agregan a la URL y no se envían
-              montos a analítica.
-            </p>
-          </aside>
         </header>
-
-        <section className="arrenda-strip" aria-labelledby="arrenda-title">
-          <div>
-            <p className="eyebrow">Marco de lectura</p>
-            <h2 id="arrenda-title">ARRENDA</h2>
-            <p>
-              Adquisición, Recursos, Renta, Egresos, Negocio, Decisión y
-              Alternativas.
-            </p>
-          </div>
-          <p>
-            <strong>
-              ARRENDA es un modelo práctico creado para organizar esta
-              herramienta.
-            </strong>{" "}
-            No es un estándar financiero, una certificación ni una garantía de
-            rentabilidad.
-          </p>
-        </section>
 
         <section id="modelo" className="investment-workspace">
           <div className="investment-inputs">
@@ -1427,19 +1515,10 @@ export default function InvestmentEvaluatorPage() {
 
             <section className="uf-panel" aria-live="polite">
               <div>
-                <p className="eyebrow">UF seleccionada</p>
-                <h2>{ufValue > 0 ? formatClp(ufValue) : "No disponible"}</h2>
-                <p>
-                  {uf.mode === "automatic"
-                    ? `Automática · ${dateLabel(uf.effectiveDate)}`
-                    : uf.mode === "cached"
-                      ? `Respaldo en caché · ${dateLabel(uf.effectiveDate)}`
-                      : uf.mode === "manual"
-                        ? "Valor manual para esta simulación"
-                        : uf.mode === "loading"
-                          ? "Actualizando…"
-                          : "Ingresa un valor manual para continuar"}
+                <p className="eyebrow">
+                  Valor UF al {dateLabel(uf.effectiveDate)}
                 </p>
+                <h2>{ufValue > 0 ? formatClp(ufValue) : "No disponible"}</h2>
                 {uf.stale && (
                   <p className="warning-text">
                     El valor puede estar desactualizado. Confirma la fecha antes
@@ -1452,10 +1531,11 @@ export default function InvestmentEvaluatorPage() {
                   <label>
                     Valor manual en CLP
                     <input
-                      type="number"
-                      value={manualUf}
+                      type="text"
+                      inputMode="numeric"
+                      value={formatNumericInput(manualUf)}
                       onChange={(event) => {
-                        setManualUf(event.target.value);
+                        setManualUf(normalizeNumericInput(event.target.value));
                         setUf((current) => ({ ...current, mode: "manual" }));
                       }}
                       data-private="true"
@@ -1473,21 +1553,6 @@ export default function InvestmentEvaluatorPage() {
                     Cambiar valor
                   </button>
                 )}
-                {uf.automaticValue && uf.mode === "manual" && (
-                  <button
-                    className="button button--secondary"
-                    type="button"
-                    onClick={() =>
-                      setUf((current) => ({
-                        ...current,
-                        valueClp: current.automaticValue,
-                        mode: "automatic",
-                      }))
-                    }
-                  >
-                    Restaurar automática
-                  </button>
-                )}
                 <button
                   className="text-button"
                   type="button"
@@ -1496,11 +1561,6 @@ export default function InvestmentEvaluatorPage() {
                   <RefreshCw size={15} /> Actualizar
                 </button>
               </div>
-              <p className="uf-note">
-                Los montos en pesos se convierten utilizando la UF seleccionada
-                para la simulación. Los valores futuros en CLP pueden variar si
-                cambia la UF.
-              </p>
             </section>
 
             {errors.length > 0 && (
@@ -1515,11 +1575,11 @@ export default function InvestmentEvaluatorPage() {
             )}
 
             <fieldset>
-              <legend>1. Adquisición y recursos</legend>
+              <legend>1. Compra y financiamiento</legend>
               <div className="investment-field-grid">
                 <MoneyInput
                   id="property-price"
-                  label="Precio de compra"
+                  label="Precio de venta de la propiedad"
                   valueUf={form.propertyPriceUf}
                   onChangeUf={set("propertyPriceUf")}
                   currencyMode={currencyMode}
@@ -1528,7 +1588,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="appraisal"
-                  label="Tasación, opcional"
+                  label="Tasación del banco (opcional)"
                   valueUf={form.appraisalValueUf}
                   onChangeUf={set("appraisalValueUf")}
                   currencyMode={currencyMode}
@@ -1536,7 +1596,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Select
                   id="property-level"
-                  label="Tipo de propiedad"
+                  label="Estado de la propiedad"
                   value={newProperty ? "new" : "used"}
                   onChange={changePropertyLevel}
                 >
@@ -1604,7 +1664,7 @@ export default function InvestmentEvaluatorPage() {
                 </Select>
                 <Input
                   id="financing"
-                  label="Financiamiento"
+                  label="Financiamiento de la propiedad"
                   unit="%"
                   value={form.financingRatio}
                   onChange={set("financingRatio")}
@@ -1614,7 +1674,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="rate"
-                  label="Tasa anual efectiva del crédito"
+                  label="¿Cuál es la tasa del crédito?"
                   unit="%"
                   value={form.annualRate}
                   onChange={(value) => {
@@ -1626,7 +1686,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="term"
-                  label="Plazo"
+                  label="¿En cuántos años pagarás el crédito?"
                   unit="años"
                   value={form.termYears}
                   onChange={set("termYears")}
@@ -1680,7 +1740,7 @@ export default function InvestmentEvaluatorPage() {
                 </div>
                 <MoneyInput
                   id="acquisition"
-                  label="Gastos de adquisición"
+                  label="Gastos operacionales del crédito"
                   valueUf={form.acquisitionExpensesUf}
                   onChangeUf={set("acquisitionExpensesUf")}
                   currencyMode={currencyMode}
@@ -1689,7 +1749,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="preparation"
-                  label="Preparación o renovación"
+                  label="¿Cuánto gastarás en preparar o renovar?"
                   valueUf={form.preparationCostsUf}
                   onChangeUf={set("preparationCostsUf")}
                   currencyMode={currencyMode}
@@ -1697,7 +1757,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="furniture"
-                  label="Muebles y equipamiento"
+                  label="¿Cuánto gastarás en muebles y equipamiento?"
                   valueUf={form.furnitureUf}
                   onChangeUf={set("furnitureUf")}
                   currencyMode={currencyMode}
@@ -1705,7 +1765,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="reserves"
-                  label="Reservas iniciales"
+                  label="¿Cuánto guardarás para imprevistos al comienzo?"
                   valueUf={form.initialReservesUf}
                   onChangeUf={set("initialReservesUf")}
                   currencyMode={currencyMode}
@@ -1784,19 +1844,17 @@ export default function InvestmentEvaluatorPage() {
                     ufValue={ufValue}
                     currencyMode={currencyMode}
                   />
-                  . El corretaje de venta se configura por separado como costo
-                  de salida.
+                  .
                 </p>
               </details>
             </fieldset>
 
             {newProperty && (
               <fieldset className="preoperational-form">
-                <legend>Compra nueva y período antes del arriendo</legend>
+                <legend>Propiedad nueva: antes de que empiece a arrendarse</legend>
                 <p className="input-note">
-                  Esta capa ubica de forma aproximada los pagos anteriores al
-                  primer arriendo. La operación posterior sigue usando el motor
-                  anual actual.
+                  Cuéntanos cuándo pagarás y cuándo esperas recibir el primer
+                  arriendo. El modelo ubicará esos pagos en el tiempo.
                 </p>
                 <h3>Precio y bono pie</h3>
                 <div className="investment-field-grid">
@@ -1892,7 +1950,7 @@ export default function InvestmentEvaluatorPage() {
 
                 {preOperational?.applies && (
                   <div className="preoperational-preview">
-                    <h3>Resumen de la etapa preoperativa</h3>
+                    <h3>Resumen antes del primer arriendo</h3>
                     <dl className="investment-metrics">
                       <Metric label="Precio económico efectivo" moneyUf={preOperational.economicPriceUf} ufValue={ufValue} currencyMode={currencyMode} />
                       <Metric label="Pie total" moneyUf={preOperational.totalDownPaymentUf} ufValue={ufValue} currencyMode={currencyMode} />
@@ -1923,7 +1981,7 @@ export default function InvestmentEvaluatorPage() {
             )}
 
             <fieldset>
-              <legend>2. Renta y vacancia</legend>
+              <legend>2. Arriendo y meses sin arrendatario</legend>
               {mode === "comparable" && (
                 <div className="comparable-box">
                   <div className="investment-field-grid">
@@ -1967,7 +2025,7 @@ export default function InvestmentEvaluatorPage() {
                 {mode !== "comparable" && (
                   <MoneyInput
                     id="rent"
-                    label="Arriendo mensual esperado"
+                    label="¿Cuánto podrías cobrar al mes?"
                     valueUf={form.monthlyRentUf}
                     onChangeUf={set("monthlyRentUf")}
                     currencyMode={currencyMode}
@@ -1976,16 +2034,18 @@ export default function InvestmentEvaluatorPage() {
                 )}
                 <Input
                   id="occupancy"
-                  label="Ocupación anual esperada"
+                  label="¿Qué porcentaje del año esperas tenerlo arrendado?"
                   unit="%"
                   value={form.occupancyRate}
                   onChange={set("occupancyRate")}
                   min="0"
                   max="100"
+                  helpConcept="occupancy"
+                  help={`Una ocupación de ${form.occupancyRate}% equivale aproximadamente a ${(12 * pct(form.occupancyRate)).toLocaleString("es-CL", { maximumFractionDigits: 1 })} meses arrendados por año, pero la vacancia real puede concentrarse en periodos completos.`}
                 />
                 <Input
                   id="rent-growth"
-                  label="Crecimiento anual real del arriendo"
+                  label="¿Cuánto esperas que suba el arriendo además del reajuste de la UF?"
                   unit="%"
                   value={form.rentGrowthRate}
                   onChange={set("rentGrowthRate")}
@@ -1993,23 +2053,14 @@ export default function InvestmentEvaluatorPage() {
                   help="Real significa que el crecimiento se mide por encima de la variación de la UF."
                 />
               </div>
-              <p>
-                Una ocupación de {form.occupancyRate}% equivale aproximadamente
-                a{" "}
-                {(12 * pct(form.occupancyRate)).toLocaleString("es-CL", {
-                  maximumFractionDigits: 1,
-                })}{" "}
-                meses arrendados por año, pero la vacancia real puede
-                concentrarse en periodos completos.
-              </p>
             </fieldset>
 
             <fieldset>
-              <legend>3. Egresos de operación</legend>
+              <legend>3. Gastos de mantener la propiedad</legend>
               <div className="investment-field-grid">
                 <MoneyInput
                   id="common"
-                  label="Gasto común mensual"
+                  label="¿Cuánto es el gasto común mensual?"
                   valueUf={form.monthlyCommonExpenseUf}
                   onChangeUf={set("monthlyCommonExpenseUf")}
                   currencyMode={currencyMode}
@@ -2017,7 +2068,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="owner-occupied"
-                  label="Parte pagada por propietario con ocupación"
+                  label="¿Qué parte pagas tú cuando está arrendado?"
                   unit="%"
                   value={form.ownerCommonShareOccupied}
                   onChange={set("ownerCommonShareOccupied")}
@@ -2026,7 +2077,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="owner-vacant"
-                  label="Parte pagada por propietario en vacancia"
+                  label="¿Qué parte pagas tú cuando está desocupado?"
                   unit="%"
                   value={form.ownerCommonShareVacant}
                   onChange={set("ownerCommonShareVacant")}
@@ -2035,7 +2086,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="maintenance"
-                  label="Mantención sobre ingreso efectivo"
+                  label="¿Qué porcentaje reservarás para mantenciones?"
                   unit="%"
                   value={form.maintenanceRate}
                   onChange={set("maintenanceRate")}
@@ -2043,7 +2094,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="administration"
-                  label="Administración sobre ingreso efectivo"
+                  label="¿Qué porcentaje pagarás por administración?"
                   unit="%"
                   value={form.administrationRate}
                   onChange={set("administrationRate")}
@@ -2051,7 +2102,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="contributions"
-                  label="Contribuciones estimadas anuales"
+                  label="¿Cuánto pagarás de contribuciones al año?"
                   valueUf={form.contributionsAnnualUf}
                   onChangeUf={set("contributionsAnnualUf")}
                   currencyMode={currencyMode}
@@ -2059,7 +2110,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="landlord-insurance"
-                  label="Seguros del arrendador anuales"
+                  label="¿Cuánto pagarás de seguros al año?"
                   valueUf={form.landlordInsuranceAnnualUf}
                   onChangeUf={set("landlordInsuranceAnnualUf")}
                   currencyMode={currencyMode}
@@ -2067,7 +2118,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="other-operation"
-                  label="Otros egresos anuales"
+                  label="¿Qué otros gastos crees que tendrás al año?"
                   valueUf={form.otherOperatingAnnualUf}
                   onChangeUf={set("otherOperatingAnnualUf")}
                   currencyMode={currencyMode}
@@ -2077,19 +2128,20 @@ export default function InvestmentEvaluatorPage() {
             </fieldset>
 
             <fieldset>
-              <legend>4. Decisión y alternativas</legend>
+              <legend>4. Qué pasa después</legend>
               <div className="investment-field-grid">
                 <Input
                   id="appreciation"
-                  label="Variación anual real del inmueble"
+                  label="¿Cuánto esperas que suba el valor de la propiedad además de la UF?"
                   unit="%"
                   value={form.appreciationRate}
                   onChange={set("appreciationRate")}
                   min="-100"
+                  helpConcept="appreciation"
                 />
                 <Input
                   id="horizon"
-                  label="Horizonte de proyección"
+                  label="¿Cuántos años quieres proyectar?"
                   unit="años"
                   value={form.horizonYears}
                   onChange={set("horizonYears")}
@@ -2099,7 +2151,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="sale-year"
-                  label="Año para comparar salida"
+                  label="¿En qué año quieres comparar vender con seguir arrendando?"
                   unit="año"
                   value={form.saleYear}
                   onChange={set("saleYear")}
@@ -2109,7 +2161,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <Input
                   id="sale-cost"
-                  label="Costos variables de venta"
+                  label="Comisión de venta corredor de propiedades IVA incluido"
                   unit="%"
                   value={form.saleCostRate}
                   onChange={set("saleCostRate")}
@@ -2118,7 +2170,7 @@ export default function InvestmentEvaluatorPage() {
                 />
                 <MoneyInput
                   id="sale-fixed"
-                  label="Costos fijos de venta"
+                  label="Costos por arreglos para vender la vivienda"
                   valueUf={form.fixedSaleCostsUf}
                   onChangeUf={set("fixedSaleCostsUf")}
                   currencyMode={currencyMode}
@@ -2232,11 +2284,12 @@ export default function InvestmentEvaluatorPage() {
                   <div className="investment-field-grid">
                     <Input
                       id="opportunity"
-                      label="Rentabilidad anual esperada de esa alternativa"
+                      label="Si no compraras, ¿cuánto podría rendir ese dinero al año?"
                       unit="%"
                       value={form.opportunityCostRate}
                       onChange={set("opportunityCostRate")}
                       min="-99"
+                      helpConcept="opportunityRate"
                     />
                     <Select
                       id="opportunity-basis"
@@ -2365,7 +2418,7 @@ export default function InvestmentEvaluatorPage() {
                   />
                   <Input
                     id="capex-year"
-                    label="Año del gasto de capital"
+                    label="Reparación mayor de la vivienda"
                     unit="año"
                     value={form.capexYear}
                     onChange={set("capexYear")}
@@ -2374,7 +2427,7 @@ export default function InvestmentEvaluatorPage() {
                   />
                   <MoneyInput
                     id="capex"
-                    label="Gasto de capital"
+                    label="Costos de la reparación mayor"
                     valueUf={form.capexAmountUf}
                     onChangeUf={set("capexAmountUf")}
                     currencyMode={currencyMode}
@@ -2405,218 +2458,180 @@ export default function InvestmentEvaluatorPage() {
               <>
                 <div className="result-heading">
                   <div>
-                    <p className="eyebrow">
-                      Resultado antes de impuestos personales
+                    <p className="result-heading__label">Resultado de tu simulación</p>
+                    <h2>
+                      <button
+                        type="button"
+                        className="result-heading__decision"
+                        onClick={goToFinalSummary}
+                        aria-label={`${initialDecisionLabel}. Ir a la explicación y al resumen final del escenario`}
+                      >
+                        <span>{initialDecisionLabel}</span>
+                        <small>Ver explicación y resumen final ↓</small>
+                      </button>
+                    </h2>
+                    <p className="result-heading__note">
+                      Estimación antes de impuestos personales.
                     </p>
-                    <h2>Lectura del escenario</h2>
                   </div>
-                  <span>{decision?.label || "Bajo estos supuestos"}</span>
                 </div>
-                <dl className="investment-metrics">
+                <dl className="investment-metrics investment-metrics--primary">
                   <Metric
-                    label="Capital inicial requerido"
+                    label="Dinero que necesitas poner al comienzo"
                     moneyUf={result.initialEquityUf}
                     ufValue={ufValue}
                     currencyMode={currencyMode}
+                    detail="Incluye pie y los gastos iniciales que ingresaste."
+                    helpConcept="initialMoney"
+                    helpLabel="¿Qué incluye el dinero inicial?"
                   />
                   {preOperational?.applies && (
-                    <>
-                      <Metric
-                        label="VPN ajustado desde hoy"
-                        moneyUf={preOperational.adjustedNpvUf}
-                        ufValue={ufValue}
-                        currencyMode={currencyMode}
-                        detail="Principal para propiedades nuevas; incorpora la espera y los pagos preoperativos."
-                      />
-                      <Metric
-                        label="Valor presente de pagos preoperativos"
-                        moneyUf={preOperational.presentValuePaymentsUf}
-                        ufValue={ufValue}
-                        currencyMode={currencyMode}
-                      />
-                      <Metric
-                        label="Holgura de liquidez"
-                        value={
-                          preOperational.liquidityBufferUf == null
-                            ? "Ingresa el capital disponible"
-                            : undefined
-                        }
-                        moneyUf={
-                          preOperational.liquidityBufferUf == null
-                            ? undefined
-                            : preOperational.liquidityBufferUf
-                        }
-                        ufValue={ufValue}
-                        currencyMode={currencyMode}
-                      />
-                    </>
+                    <Metric
+                      label="Máximo dinero que tendrías que haber puesto antes del primer arriendo"
+                      moneyUf={preOperational.maximumCashUf}
+                      ufValue={ufValue}
+                      currencyMode={currencyMode}
+                      detail="Considera los pagos acumulados durante la espera."
+                    />
                   )}
                   <Metric
-                    label={preOperational?.applies ? "Flujo año 1 operativo" : "Flujo año 1"}
-                    moneyUf={result.annualProjection[0].preTaxCashFlowUf}
+                    label={
+                      firstYearCashUf < 0
+                        ? "Dinero que tendrías que aportar durante el primer año"
+                        : "Dinero que te quedaría durante el primer año"
+                    }
+                    moneyUf={Math.abs(firstYearCashUf)}
                     ufValue={ufValue}
                     currencyMode={currencyMode}
                     detail={
-                      result.annualProjection[0].preTaxCashFlowUf >= 0
-                        ? "Positivo antes de impuestos personales"
-                        : "Requiere aporte durante la operación"
+                      firstYearCashUf >= 0
+                        ? "Excedente estimado antes de impuestos personales; no es una ganancia garantizada."
+                        : "Aporte adicional estimado para cubrir la operación y el crédito."
                     }
+                    helpConcept="firstYearCash"
+                    helpLabel="¿Cómo se calcula el primer año?"
                   />
                   <Metric
-                    label={preOperational?.applies ? "Ingreso operativo neto año 1 operativo (NOI)" : "Ingreso operativo neto año 1 (NOI)"}
-                    moneyUf={result.annualProjection[0].noiUf}
+                    label="Comparación con tu otra alternativa"
+                    moneyUf={Math.abs(comparisonUf)}
                     ufValue={ufValue}
                     currencyMode={currencyMode}
-                    detail="Excluye deuda y gastos de capital"
-                  />
-                  <Metric
-                    label="Servicio de deuda año 1"
-                    moneyUf={result.annualProjection[0].debtServiceUf}
-                    ufValue={ufValue}
-                    currencyMode={currencyMode}
-                  />
-                  <Metric
-                    label={preOperational?.applies ? "VPN operativo desde el primer arriendo" : "Valor presente neto si vende (VPN)"}
-                    moneyUf={result.npvUf}
-                    ufValue={ufValue}
-                    currencyMode={currencyMode}
-                    detail={`Descontado usando ${ufPlusLabel(realOpportunityRate * 100, 2)}`}
-                  />
-                  <Metric
-                    label="Tasa interna de retorno (TIR)"
-                    value={
-                      result.irr.value == null
-                        ? "No disponible"
-                        : formatPercent(result.irr.value)
-                    }
                     detail={
-                      result.irr.status === "multiple-roots-possible"
-                        ? "Hay cambios de signo: interpreta con cautela"
-                        : "Incluye el aporte inicial"
+                      Math.abs(comparisonUf) < 0.01
+                        ? "Las dos opciones quedan prácticamente igualadas bajo estos supuestos."
+                        : comparisonUf > 0
+                          ? "La propiedad supera a la alternativa por este valor estimado a dinero de hoy."
+                          : "La alternativa supera a la propiedad por este valor estimado a dinero de hoy."
                     }
-                  />
-                  <Metric
-                    label="Tasa interna de retorno modificada (MIRR)"
-                    value={
-                      result.mirr == null
-                        ? "No disponible"
-                        : formatPercent(result.mirr)
-                    }
-                  />
-                  <Metric
-                    label="Retorno sobre el efectivo invertido, año 1"
-                    value={
-                      result.cashOnCashReturn == null
-                        ? "No disponible"
-                        : formatPercent(result.cashOnCashReturn)
-                    }
-                  />
-                  <Metric
-                    label="Cobertura del servicio de deuda (DSCR)"
-                    value={
-                      result.dscr == null
-                        ? "No aplica"
-                        : `${result.dscr.toLocaleString("es-CL", { maximumFractionDigits: 2 })}×`
-                    }
-                  />
-                  <Metric
-                    label="Rentabilidad del ingreso operativo neto"
-                    value={formatPercent(result.netOperatingYield)}
+                    helpConcept={preOperational?.applies ? "adjustedPresentValue" : "presentValue"}
+                    helpLabel="¿Cómo se hace la comparación?"
                   />
                 </dl>
+                <details className="advanced-results">
+                  <summary>Ver indicadores financieros avanzados</summary>
+                  <p>
+                    Estos indicadores permiten revisar el cálculo con más
+                    detalle. No necesitas entenderlos para leer el resultado
+                    principal.
+                  </p>
+                  <dl className="investment-metrics">
+                    {preOperational?.applies && (
+                      <>
+                        <Metric label="Resultado total desde hoy (VPN ajustado)" moneyUf={preOperational.adjustedNpvUf} ufValue={ufValue} currencyMode={currencyMode} />
+                        <Metric label="Valor presente de pagos antes del arriendo" moneyUf={preOperational.presentValuePaymentsUf} ufValue={ufValue} currencyMode={currencyMode} />
+                        <Metric
+                          label="Te alcanza el dinero que dijiste que tienes"
+                          value={preOperational.liquidityBufferUf == null ? "Ingresa el capital disponible" : preOperational.liquidityBufferUf >= 0 ? "Sí" : "No"}
+                          detail={preOperational.liquidityBufferUf == null ? undefined : `${summaryMoney(Math.abs(preOperational.liquidityBufferUf))} de ${preOperational.liquidityBufferUf >= 0 ? "margen" : "faltante"}.`}
+                        />
+                      </>
+                    )}
+                    <Metric label="Ingreso operativo neto (NOI), año 1" moneyUf={result.annualProjection[0].noiUf} ufValue={ufValue} currencyMode={currencyMode} detail="Excluye crédito y renovaciones importantes." helpConcept="operatingIncome" helpLabel="Explicación del ingreso después de gastos" />
+                    <Metric label="Pago del crédito, año 1" moneyUf={result.annualProjection[0].debtServiceUf} ufValue={ufValue} currencyMode={currencyMode} />
+                    <Metric label="Valor presente neto (VPN) operativo" moneyUf={result.npvUf} ufValue={ufValue} currencyMode={currencyMode} detail={`Usa una alternativa de ${ufPlusLabel(realOpportunityRate * 100, 2)}.`} helpConcept="presentValue" helpLabel="Explicación del valor presente" />
+                    <Metric label="Tasa interna de retorno (TIR)" value={result.irr.value == null ? "No es posible calcular una rentabilidad única con estos flujos" : formatPercent(result.irr.value)} detail={result.irr.status === "multiple-roots-possible" ? "Puede existir más de un resultado; no la interpretes de forma aislada." : undefined} helpConcept="irr" helpLabel="Explicación de la tasa interna" />
+                    <Metric label="Tasa interna de retorno modificada (MIRR)" value={result.mirr == null ? "No se puede calcular con estos flujos" : formatPercent(result.mirr)} helpConcept="mirr" helpLabel="Explicación de la tasa modificada" />
+                    <Metric label="Retorno sobre efectivo invertido" value={result.cashOnCashReturn == null ? "No se puede calcular" : formatPercent(result.cashOnCashReturn)} helpConcept="cashReturn" helpLabel="Explicación del retorno sobre efectivo" />
+                    <Metric label="Cobertura del servicio de deuda (DSCR)" value={result.dscr == null ? form.financingRatio === 0 ? "No aplica: la compra no usa crédito" : "No se puede calcular" : `${result.dscr.toLocaleString("es-CL", { maximumFractionDigits: 2 })}×`} detail={result.dscr != null && result.dscr < 1 ? "El arriendo no cubre por completo el crédito bajo estos supuestos." : undefined} helpConcept="debtCoverage" helpLabel="Explicación de la cobertura del crédito" />
+                    <Metric label="Rentabilidad del ingreso operativo neto" value={formatPercent(result.netOperatingYield)} helpConcept="operatingYield" helpLabel="Explicación de la rentabilidad operativa" />
+                  </dl>
+                </details>
                 <section className="terminal-comparison">
-                  <h3>Vender o continuar en el año {result.saleYear}</h3>
-                  <div>
-                    <article>
-                      <span>Venta neta estimada</span>
+                  <header className="terminal-comparison__header">
+                    <p>Decisión en el año {result.saleYear}</p>
+                    <h3>
+                      ¿Qué opción te dejaría más dinero al año{" "}
+                      {result.comparisonYear}?
+                    </h3>
+                  </header>
+                  <div className="terminal-options">
+                    <article className="terminal-option">
+                      <span className="terminal-option__label">
+                        Si vendes e inviertes en tu mejor alternativa
+                      </span>
                       <strong>
                         <MoneyValue
-                          valueUf={result.selectedYearNetSaleValueUf}
+                          valueUf={result.sellAndInvestTerminalWealthUf}
                           ufValue={ufValue}
                           currencyMode={currencyMode}
                         />
                       </strong>
                       <small>
-                        Valor del inmueble menos costos de venta, deuda y
-                        comisión de prepago.
+                        Dinero estimado al año {result.comparisonYear} después
+                        de invertir por {result.comparisonYear - result.saleYear}{" "}
+                        años el monto neto de la venta, con una rentabilidad de{" "}
+                        {ufPlusLabel(realOpportunityRate * 100, 2)}.
                       </small>
                     </article>
-                    <article>
-                      <span>Valor de continuar</span>
+                    <article className="terminal-option">
+                      <span className="terminal-option__label">Si sigues arrendando</span>
                       <strong>
                         <MoneyValue
-                          valueUf={result.selectedYearHoldValueUf}
+                          valueUf={result.holdUntilHorizonTerminalWealthUf}
                           ufValue={ufValue}
                           currencyMode={currencyMode}
                         />
                       </strong>
                       <small>
-                        Valor presente del ingreso operativo neto posterior. No
-                        se recibe junto con la venta.
+                        Dinero estimado al año {result.comparisonYear}: incluye
+                        los flujos por arriendo desde el año {result.saleYear + 1},
+                        reinvertidos, más el dinero neto de vender la propiedad
+                        al final.
                       </small>
                     </article>
                   </div>
-                  <p className="prepayment-summary">
-                    <strong>
-                      Comisión de prepago{" "}
-                      {form.prepaymentMode === "automatic-uf"
-                        ? "estimada"
-                        : "ingresada"}
-                      :
-                    </strong>{" "}
-                    <MoneyValue
-                      valueUf={result.selectedYearPrepaymentCostUf}
-                      ufValue={ufValue}
-                      currencyMode={currencyMode}
-                    />
-                    .
-                    {form.prepaymentMode === "automatic-uf" && (
-                      <>
-                        {" "}
-                        Se calcula como 1,5 × interés mensual de{" "}
-                        {formatPercent(result.mortgage.monthlyRate)} × saldo que
-                        se prepaga.
-                      </>
-                    )}
-                    {asNumber(form.prepaymentMinimumUf) > 0 && (
-                      <>
-                        {" "}
-                        Mínimo contractual parcial registrado:{" "}
+                  {!Number.isFinite(result.terminalWealthDifferenceUf) ? (
+                    <div className="terminal-verdict terminal-verdict--unavailable">
+                      No es posible valorar la continuidad con estos supuestos.
+                    </div>
+                  ) : (
+                    <div className="terminal-verdict">
+                      <p className="terminal-verdict__sentence">
+                        <strong>
+                          {result.terminalWealthDifferenceUf >= 0
+                            ? "Vender e invertir en tu mejor alternativa"
+                            : "Seguir arrendando"}
+                        </strong>{" "}
+                        en vez de{" "}
+                        {result.terminalWealthDifferenceUf >= 0
+                          ? "seguir arrendando"
+                          : "vender e invertir en tu mejor alternativa"}{" "}
+                        desde el año {result.saleYear}, te llevaría el año{" "}
+                        {result.comparisonYear} a tener una mayor riqueza, igual
+                        a:
+                      </p>
+                      <div className="terminal-verdict__value">
                         <MoneyValue
-                          valueUf={asNumber(form.prepaymentMinimumUf)}
+                          valueUf={Math.abs(result.terminalWealthDifferenceUf)}
                           ufValue={ufValue}
                           currencyMode={currencyMode}
                         />
-                        .
-                      </>
-                    )}
-                  </p>
-                  {result.mortgage.principalUf > 5000 &&
-                    form.prepaymentMode === "automatic-uf" && (
-                      <p className="warning-text">
-                        El capital inicial del crédito supera UF 5.000. En ese
-                        caso las condiciones de prepago se acuerdan libremente:
-                        reemplaza la estimación por el monto informado por el
-                        banco.
-                      </p>
-                    )}
-                  {result.sellVsHoldDifferenceUf == null ? (
-                    <p>
-                      No es posible valorar la continuidad con estos supuestos.
-                    </p>
-                  ) : (
-                    <p>
-                      {result.sellVsHoldDifferenceUf >= 0
-                        ? "La venta supera el valor de continuidad en "
-                        : "La continuidad supera la venta en "}
-                      <MoneyValue
-                        valueUf={Math.abs(result.sellVsHoldDifferenceUf)}
-                        ufValue={ufValue}
-                        currencyMode={currencyMode}
-                      />
-                      . Esto compara valores al mismo año; no constituye una
-                      recomendación.
-                    </p>
+                        <TechnicalHelp
+                          concept="saleVsHoldValue"
+                          label="¿Cómo se calcula esta comparación?"
+                        />
+                      </div>
+                    </div>
                   )}
                 </section>
                 {mode === "break-even" && breakEvens && (
@@ -2699,11 +2714,12 @@ export default function InvestmentEvaluatorPage() {
         {result && (
           <section className="investment-analysis">
             <div className="section-title">
-              <p className="eyebrow">Negocio y alternativas</p>
-              <h2>Qué mueve el resultado</h2>
+              <p className="eyebrow">Prueba otros supuestos</p>
+              <h2>Qué puede cambiar el resultado</h2>
               <p>
-                Los escenarios cambian varios supuestos en conjunto. No asignan
-                probabilidades ni predicen el mercado.
+                Comparamos tres versiones de la misma compra. Solo cambian el
+                arriendo, los meses arrendados o el valor futuro de la
+                propiedad. Estos escenarios no predicen el futuro.
               </p>
             </div>
             {deliveryScenarios.length > 0 && (
@@ -2717,7 +2733,7 @@ export default function InvestmentEvaluatorPage() {
                   <table>
                     <caption>Impacto del atraso y posible pérdida del bono</caption>
                     <thead>
-                      <tr><th>Escenario</th><th>Primer arriendo</th><th>Estado del bono</th><th>Capital máximo</th><th>Dividendos sin arriendo</th><th>VPN ajustado desde hoy</th></tr>
+                      <tr><th>Escenario</th><th>Primer arriendo</th><th>Estado del bono</th><th>Máximo dinero acumulado</th><th>Cuotas pagadas antes de recibir arriendo</th><th>Resultado total desde hoy</th></tr>
                     </thead>
                     <tbody>
                       {deliveryScenarios.map(({ delayMonths, result: scenario }) => (
@@ -2734,50 +2750,87 @@ export default function InvestmentEvaluatorPage() {
                   </table>
                 </div>
                 <p>
-                  Atraso máximo aproximado compatible con VPN no negativo:{" "}
+                  Atraso máximo aproximado antes de que la comparación con tu
+                  alternativa pase a ser negativa:{" "}
                   <strong>{tolerableDelay == null ? "no encontrado" : `${tolerableDelay} meses`}</strong>.
                 </p>
               </section>
             )}
             <div className="scenario-comparison">
-              {scenarios.map((scenario) => (
-                <article key={scenario.id}>
-                  <h3>{scenario.name}</h3>
-                  <dl>
-                    <Metric
-                      label="Valor presente neto de venta"
-                      moneyUf={scenario.result.npvUf}
-                      ufValue={ufValue}
-                      currencyMode={currencyMode}
-                    />
-                    <Metric
-                      label="Flujo año 1"
-                      moneyUf={
-                        scenario.result.annualProjection[0].preTaxCashFlowUf
-                      }
-                      ufValue={ufValue}
-                      currencyMode={currencyMode}
-                    />
-                    <Metric
-                      label="Capital inicial"
-                      moneyUf={scenario.result.initialEquityUf}
-                      ufValue={ufValue}
-                      currencyMode={currencyMode}
-                    />
-                  </dl>
-                </article>
-              ))}
+              {scenarios.map((scenario) => {
+                const scenarioOccupancy =
+                  scenario.overrides.occupancyRate ?? inputs.occupancyRate;
+                const scenarioRent =
+                  scenario.overrides.monthlyRentUf ?? inputs.monthlyRentUf;
+                const scenarioAppreciation =
+                  scenario.overrides.appreciationRate ?? inputs.appreciationRate;
+                const comparison = scenario.result.npvUf;
+                const firstYear =
+                  scenario.result.annualProjection[0].preTaxCashFlowUf;
+                return (
+                  <article key={scenario.id} className={`scenario-card scenario-card--${scenario.id}`}>
+                    <h3>{scenario.name}</h3>
+                    <p className="scenario-card__description">
+                      {scenario.id === "cautious"
+                        ? "Prueba menos meses arrendados y un menor valor futuro de la propiedad."
+                        : scenario.id === "favorable"
+                          ? "Prueba más meses arrendados, un arriendo mayor y un mayor valor futuro."
+                          : "Usa exactamente los datos que ingresaste."}
+                    </p>
+                    <dl className="scenario-assumptions">
+                      <div>
+                        <dt>Meses arrendados</dt>
+                        <dd>
+                          {(12 * scenarioOccupancy).toLocaleString("es-CL", {
+                            maximumFractionDigits: 1,
+                          })} de 12 ({formatPercent(scenarioOccupancy)})
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>Arriendo mensual</dt>
+                        <dd><MoneyValue valueUf={scenarioRent} ufValue={ufValue} currencyMode={currencyMode} /></dd>
+                      </div>
+                      <div>
+                        <dt>Cambio anual del valor, además de la UF</dt>
+                        <dd>{formatPercent(scenarioAppreciation)}</dd>
+                      </div>
+                    </dl>
+                    <dl className="scenario-results">
+                      <Metric
+                        label={comparison >= 0 ? "La propiedad sería mejor que la otra inversión por" : "La otra inversión sería mejor que la propiedad por"}
+                        moneyUf={Math.abs(comparison)}
+                        ufValue={ufValue}
+                        currencyMode={currencyMode}
+                        detail="Diferencia estimada a valor de hoy; no es dinero disponible en tu cuenta."
+                      />
+                      <Metric
+                        label={firstYear < 0 ? "Tú aportarías el primer año" : "Tú recibirías el primer año"}
+                        moneyUf={Math.abs(firstYear)}
+                        ufValue={ufValue}
+                        currencyMode={currencyMode}
+                      />
+                      <Metric
+                        label="Dinero necesario al comienzo"
+                        moneyUf={scenario.result.initialEquityUf}
+                        ufValue={ufValue}
+                        currencyMode={currencyMode}
+                        detail="No cambia porque el precio, el crédito y los gastos de compra son iguales en los tres escenarios."
+                      />
+                    </dl>
+                  </article>
+                );
+              })}
             </div>
             <section className="sensitivity-section">
               <h3>
-                Sensibilidad del valor presente neto a ocupación y variación del
-                inmueble
+                Qué pasa si cambia la ocupación o el valor de la propiedad
               </h3>
               <div className="table-scroll">
                 <table>
                   <caption>
-                    Valor presente neto de venta. Filas: ocupación. Columnas:
-                    variación anual real del valor. Cada monto muestra UF y CLP.
+                    Comparación con tu otra alternativa. Filas: ocupación.
+                    Columnas: cambio anual del valor de la propiedad por encima
+                    de la UF.
                   </caption>
                   <thead>
                     <tr>
@@ -2824,18 +2877,18 @@ export default function InvestmentEvaluatorPage() {
               </div>
             </section>
             <section className="sensitivity-section">
-              <h3>Cambio de un supuesto a la vez</h3>
+              <h3>Qué podría cambiar el resultado</h3>
               <div className="table-scroll">
                 <table>
                   <caption>
-                    Valor presente neto de venta al modificar un impulsor y
-                    mantener los demás supuestos.
+                    Resultado al modificar un supuesto y mantener todos los
+                    demás sin cambios.
                   </caption>
                   <thead>
                     <tr>
                       <th>Cambio probado</th>
                       <th>Resultado</th>
-                      <th>Diferencia frente al escenario ingresado</th>
+                      <th>Diferencia frente a tu escenario</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2876,15 +2929,16 @@ export default function InvestmentEvaluatorPage() {
               }}
             >
               <BarChart3 size={17} />{" "}
-              {showProjection ? "Ocultar tabla" : "Ver proyección completa"}
+              {showProjection ? "Ocultar qué pasa cada año" : "Ver qué pasa cada año"}
             </button>
             {showProjection && (
-              <ProjectionTable
-                rows={result.annualProjection}
-                saleYear={result.saleYear}
-                ufValue={ufValue}
-                currencyMode={currencyMode}
-              />
+              <div className="projection-tables">
+                <SimpleProjectionTable rows={result.annualProjection} saleYear={result.saleYear} ufValue={ufValue} currencyMode={currencyMode} />
+                <details className="detailed-table">
+                  <summary>Ver tabla financiera detallada</summary>
+                  <ProjectionTable rows={result.annualProjection} saleYear={result.saleYear} ufValue={ufValue} currencyMode={currencyMode} />
+                </details>
+              </div>
             )}
           </section>
         )}
@@ -2895,31 +2949,31 @@ export default function InvestmentEvaluatorPage() {
               <p className="eyebrow">Resumen de propiedad nueva</p>
               <div className="decision-grid">
                 <article>
-                  <h3>Antes de que el departamento produzca ingresos</h3>
+                  <h3>Resumen antes del primer arriendo</h3>
                   <dl>
                     <div><dt>Estado del proyecto</dt><dd>{form.propertyKind.replaceAll("-", " ")}</dd></div>
                     <div><dt>Entrega y atraso</dt><dd>Mes {preOperational.deliveryMonth} + {preOperational.delayMonths} meses</dd></div>
                     <div><dt>Escritura / primer arriendo</dt><dd>Mes {preOperational.writingMonth} / mes {preOperational.firstRentMonth}</dd></div>
                     <div><dt>Pie total / efectivo</dt><dd><MoneyValue valueUf={preOperational.totalDownPaymentUf} ufValue={ufValue} currencyMode={currencyMode} /> / <MoneyValue valueUf={preOperational.effectiveDownPaymentUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
                     <div><dt>Bono</dt><dd>{preOperational.bonoStatus} · <MoneyValue valueUf={preOperational.bono.announcedUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
-                    <div><dt>Pagos nominales previos</dt><dd><MoneyValue valueUf={preOperational.nominalPaidBeforeRentUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
-                    <div><dt>Capital máximo acumulado</dt><dd><MoneyValue valueUf={preOperational.maximumCashUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
+                    <div><dt>Pagos realizados antes de recibir arriendo</dt><dd><MoneyValue valueUf={preOperational.nominalPaidBeforeRentUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
+                    <div><dt>Máximo dinero que tendrías que haber puesto antes del primer arriendo</dt><dd><MoneyValue valueUf={preOperational.maximumCashUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
+                    <div><dt>Te alcanza el dinero que dijiste que tienes</dt><dd>{preOperational.liquidityBufferUf == null ? "Ingresa tu capital disponible" : preOperational.liquidityBufferUf >= 0 ? "Sí" : "No"}</dd></div>
+                    <div><dt>El bono se perdería por atraso</dt><dd>{preOperational.bonoExpired ? "Sí" : "No según los datos ingresados"}</dd></div>
                   </dl>
                 </article>
                 <article>
-                  <h3>Operación desde el primer arriendo</h3>
+                  <h3>Desde que comienza el arriendo</h3>
                   <dl>
                     <div><dt>Arriendo y ocupación</dt><dd><MoneyValue valueUf={monthlyRent} ufValue={ufValue} currencyMode={currencyMode} /> · {form.occupancyRate}%</dd></div>
-                    <div><dt>NOI del año 1 operativo</dt><dd><MoneyValue valueUf={result.annualProjection[0].noiUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
-                    <div><dt>DSCR hipotecario</dt><dd>{result.dscr == null ? "No aplica" : `${result.dscr.toLocaleString("es-CL", { maximumFractionDigits: 2 })}×`}</dd></div>
-                    <div><dt>DSCR total aproximado</dt><dd>{preOperational.totalDscr == null ? "No aplica" : `${preOperational.totalDscr.toLocaleString("es-CL", { maximumFractionDigits: 2 })}×`}</dd></div>
-                    <div><dt>VPN operativo</dt><dd><MoneyValue valueUf={result.npvUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
-                    <div><dt>VPN ajustado desde hoy</dt><dd><MoneyValue valueUf={preOperational.adjustedNpvUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
-                    <div><dt>TIR operativa / aproximada</dt><dd>{result.irr.value == null ? "No disponible" : formatPercent(result.irr.value)} / {preOperational.adjustedIrr.value == null ? "No disponible" : formatPercent(preOperational.adjustedIrr.value)}</dd></div>
+                    <div><dt>Arriendo después de gastos normales, año 1</dt><dd><MoneyValue valueUf={result.annualProjection[0].noiUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
+                    <div><dt>Cuánto del crédito cubre el arriendo</dt><dd>{result.dscr == null ? "No aplica" : `${result.dscr.toLocaleString("es-CL", { maximumFractionDigits: 2 })}×`}</dd></div>
+                    <div><dt>Resultado de la operación desde el primer arriendo</dt><dd><MoneyValue valueUf={result.npvUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
+                    <div><dt><span className="metric-label-with-help">Resultado total desde hoy <TechnicalHelp concept="adjustedPresentValue" label="Explicación técnica del resultado desde hoy" /></span></dt><dd><MoneyValue valueUf={preOperational.adjustedNpvUf} ufValue={ufValue} currencyMode={currencyMode} /></dd></div>
                   </dl>
                 </article>
               </div>
-              <p className="opportunity-caveat"><ShieldCheck size={16} /> La TIR ajustada agrupa pagos preoperativos por años. El saldo hipotecario operativo no adelanta exactamente las cuotas pagadas antes del primer arriendo.</p>
+              <p className="opportunity-caveat"><ShieldCheck size={16} /> El modelo agrupa algunos pagos previos por años y no adelanta exactamente el saldo hipotecario por las cuotas pagadas antes del primer arriendo.</p>
             </section>
           )
         )}
@@ -2938,14 +2992,21 @@ export default function InvestmentEvaluatorPage() {
               scenarios.find((scenario) => scenario.id === "cautious")?.result
                 .npvUf
             }
+            dependsOnCashFlow={dependsOnCashFlow}
           />
         )}
 
         <section className="investment-methodology">
           <div className="section-title">
-            <p className="eyebrow">Cómo leer el modelo</p>
-            <h2>Metodología, límites e incertidumbre</h2>
+            <p className="eyebrow">Ayuda avanzada</p>
+            <h2>Cómo funciona el cálculo y qué no considera</h2>
+            <p>
+              Puedes usar la simulación sin leer esta parte. Ábrela si quieres
+              revisar fórmulas, conceptos y límites.
+            </p>
           </div>
+          <details className="methodology-details">
+            <summary>Ver explicación técnica y límites</summary>
           <div className="method-grid">
             <article>
               <h3>Adquisición</h3>
@@ -3119,6 +3180,7 @@ export default function InvestmentEvaluatorPage() {
               Leer la guía completa, casos ficticios y fórmulas
             </a>
           </p>
+          </details>
         </section>
         <ContextualServiceCta />
       </main>

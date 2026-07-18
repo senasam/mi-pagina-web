@@ -173,11 +173,25 @@ export function projectInvestment(inputs) {
   const selected = annualProjection[saleYear - 1];
   const nextNoi = selected.noiUf * (1 + annualRateFor(inputs.rentGrowthRate, saleYear + 1));
   const selectedYearHoldValueUf = terminalHoldValue({ nextYearNoiUf: nextNoi, opportunityCostRate: inputs.opportunityCostRate, perpetualGrowthRate: inputs.perpetualGrowthRate });
+  const discountRate = safe(inputs.opportunityCostRate);
   const saleCashFlows = [-initialEquityUf, ...annualProjection.slice(0, saleYear).map((row) => row.preTaxCashFlowUf)];
   saleCashFlows[saleCashFlows.length - 1] += selected.netSaleProceedsUf;
   const holdCashFlows = [-initialEquityUf, ...annualProjection.slice(0, saleYear).map((row) => row.preTaxCashFlowUf)];
   if (selectedYearHoldValueUf != null) holdCashFlows[holdCashFlows.length - 1] += selectedYearHoldValueUf;
-  const discountRate = safe(inputs.opportunityCostRate);
+  const saleStrategyNpvUf = npv(discountRate, saleCashFlows);
+  const holdStrategyNpvUf = selectedYearHoldValueUf == null ? null : npv(discountRate, holdCashFlows);
+  const comparisonYear = horizonYears;
+  const remainingYears = Math.max(0, comparisonYear - saleYear);
+  const sellAndInvestTerminalWealthUf = selected.netSaleProceedsUf * Math.pow(1 + discountRate, remainingYears);
+  const horizonRow = annualProjection[comparisonYear - 1];
+  const holdInterimCashAtHorizonUf = annualProjection
+    .slice(saleYear, comparisonYear)
+    .reduce(
+      (sum, row) => sum + row.preTaxCashFlowUf * Math.pow(1 + discountRate, comparisonYear - row.year),
+      0,
+    );
+  const holdUntilHorizonTerminalWealthUf = horizonRow.netSaleProceedsUf + holdInterimCashAtHorizonUf;
+  const terminalWealthDifferenceUf = sellAndInvestTerminalWealthUf - holdUntilHorizonTerminalWealthUf;
   const grossYield = nonNegative(inputs.monthlyRentUf) * 12 / inputs.propertyPriceUf;
   const effectiveGrossYield = annualProjection[0].effectiveIncomeUf / inputs.propertyPriceUf;
   const netOperatingYield = annualProjection[0].noiUf / inputs.propertyPriceUf;
@@ -188,13 +202,19 @@ export function projectInvestment(inputs) {
     grossYield, effectiveGrossYield, netOperatingYield,
     cashOnCashReturn: initialEquityUf > 0 ? firstCashFlow / initialEquityUf : null,
     dscr: annualProjection[0].debtServiceUf > 0 ? annualProjection[0].noiUf / annualProjection[0].debtServiceUf : null,
-    npvUf: npv(discountRate, saleCashFlows), holdNpvUf: selectedYearHoldValueUf == null ? null : npv(discountRate, holdCashFlows),
+    npvUf: saleStrategyNpvUf, holdNpvUf: holdStrategyNpvUf,
+    saleStrategyNpvUf, holdStrategyNpvUf,
     irr: irr(saleCashFlows), mirr: mirr(saleCashFlows, discountRate, discountRate),
     equityMultiple: initialEquityUf > 0 ? positiveDistributions / initialEquityUf : null,
     selectedYearNetSaleValueUf: selected.netSaleProceedsUf,
     selectedYearPrepaymentCostUf: selected.prepaymentCostUf,
     selectedYearHoldValueUf,
     sellVsHoldDifferenceUf: selectedYearHoldValueUf == null ? null : selected.netSaleProceedsUf - selectedYearHoldValueUf,
+    sellVsHoldPresentValueDifferenceUf: holdStrategyNpvUf == null ? null : saleStrategyNpvUf - holdStrategyNpvUf,
+    comparisonYear,
+    sellAndInvestTerminalWealthUf,
+    holdUntilHorizonTerminalWealthUf,
+    terminalWealthDifferenceUf,
     saleCashFlows, holdCashFlows, saleYear, annualProjection,
   };
 }
@@ -213,8 +233,8 @@ export const solveBreakEvenPrice = (inputs) => solveInput(inputs, "propertyPrice
 export const solveMaximumInterestRate = (inputs) => solveBisection((rate) => projectInvestment({ ...inputs, mortgageInputs: { ...inputs.mortgageInputs, annualRate: rate } }).npvUf, 0, 0.3, { tolerance: 1e-6 });
 export const solveIndifferenceRate = (inputs) => solveBisection((rate) => {
   const result = projectInvestment({ ...inputs, opportunityCostRate: rate });
-  return result.sellVsHoldDifferenceUf;
-}, Math.max(-0.5, safe(inputs.perpetualGrowthRate) + 0.0001), 1, { tolerance: 1e-6 });
+  return result.terminalWealthDifferenceUf;
+}, -0.5, 1, { tolerance: 1e-6 });
 
 export function assessInvestmentDecision(result, { minimumDscr = 1.2 } = {}) {
   if (!result || !finite(result.npvUf) || !Array.isArray(result.annualProjection) || !result.annualProjection.length) return null;

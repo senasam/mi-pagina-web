@@ -95,6 +95,18 @@ test("projection separates NOI, financing and mutually exclusive terminal altern
   assert.equal(result.saleCashFlows.length, result.saleYear + 1);
   assert.equal(result.holdCashFlows.length, result.saleYear + 1);
   assert.equal(result.saleCashFlows.at(-1), first.year ? result.annualProjection[result.saleYear - 1].preTaxCashFlowUf + result.selectedYearNetSaleValueUf : NaN);
+  const expectedSaleWealth = result.selectedYearNetSaleValueUf * Math.pow(1 + baseInputs.opportunityCostRate, baseInputs.horizonYears - baseInputs.saleYear);
+  const expectedHoldWealth = result.annualProjection.at(-1).netSaleProceedsUf
+    + result.annualProjection.slice(baseInputs.saleYear).reduce(
+      (sum, row) => sum + row.preTaxCashFlowUf * Math.pow(1 + baseInputs.opportunityCostRate, baseInputs.horizonYears - row.year),
+      0,
+    );
+  assert.ok(Math.abs(result.sellAndInvestTerminalWealthUf - expectedSaleWealth) < 1e-10);
+  assert.ok(Math.abs(result.holdUntilHorizonTerminalWealthUf - expectedHoldWealth) < 1e-10);
+  assert.ok(Math.abs(result.terminalWealthDifferenceUf - (expectedSaleWealth - expectedHoldWealth)) < 1e-10);
+  assert.ok(Math.abs(result.saleStrategyNpvUf - npv(baseInputs.opportunityCostRate, result.saleCashFlows)) < 1e-10);
+  assert.ok(Math.abs(result.holdStrategyNpvUf - npv(baseInputs.opportunityCostRate, result.holdCashFlows)) < 1e-10);
+  assert.ok(Math.abs(result.sellVsHoldPresentValueDifferenceUf - (result.saleStrategyNpvUf - result.holdStrategyNpvUf)) < 1e-10);
   assert.notEqual(result.saleCashFlows.at(-1), result.holdCashFlows.at(-1));
   assert.ok(result.annualProjection.every((row) => row.mortgageBalanceUf >= 0));
   assert.ok(result.annualProjection.slice(20).every((row) => row.debtServiceUf === 0));
