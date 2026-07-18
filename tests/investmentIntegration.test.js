@@ -10,6 +10,7 @@ const endpoint = readFileSync(new URL("../api/indicadores/oportunidades.js", imp
 const preOperationalEngine = readFileSync(new URL("../src/preOperationalEngine.js", import.meta.url), "utf8");
 const helpContent = readFileSync(new URL("../src/investmentHelpContent.js", import.meta.url), "utf8");
 const technicalHelp = readFileSync(new URL("../src/TechnicalHelp.jsx", import.meta.url), "utf8");
+const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
 const sitemap = readFileSync(new URL("../public/sitemap.xml", import.meta.url), "utf8");
 
 test("publica evaluador y guía con SEO y sitemap", () => {
@@ -121,6 +122,31 @@ test("usa nombres cotidianos, nuevos valores iniciales y ubica la equivalencia d
   const occupancyExplanation = page.indexOf("Una ocupación de ${form.occupancyRate}%", occupancyField);
   const rentGrowthField = page.indexOf('id="rent-growth"');
   assert.ok(occupancyField >= 0 && occupancyField < occupancyExplanation && occupancyExplanation < rentGrowthField);
+});
+
+test("presenta todos los porcentajes como sliders entre 0 y 100 con su valor visible", () => {
+  assert.match(page, /const isPercentage = String\(unit \|\| ""\)\.startsWith\("%"\)/);
+  assert.match(page, /className="percentage-slider"/);
+  assert.match(page, /type="range"/);
+  assert.match(page, /min="0"/);
+  assert.match(page, /max="100"/);
+  assert.match(page, /formatNumericInput\(percentageDisplayValue\)/);
+  assert.match(page, /aria-valuetext/);
+  assert.match(css, /\.percentage-slider/);
+});
+
+test("permite subir y bajar años y UF de una unidad con controles táctiles", () => {
+  assert.match(page, /className="numeric-stepper"/);
+  assert.match(page, /\["UF", "año", "años"\]/);
+  assert.match(page, /currencyMode === "uf"/);
+  assert.match(page, /onClick=\{\(\) => adjust\(-1\)\}/);
+  assert.match(page, /onClick=\{\(\) => adjust\(1\)\}/);
+  assert.match(page, /numericUfValue - 1/);
+  assert.match(page, /numericUfValue \+ 1/);
+  assert.match(page, /aria-label=\{`Disminuir/);
+  assert.match(page, /aria-label=\{`Aumentar/);
+  assert.match(css, /\.numeric-stepper/);
+  assert.match(css, /touch-action: manipulation/);
 });
 
 test("agrega una capa preoperativa acotada sin reemplazar el motor anual", () => {

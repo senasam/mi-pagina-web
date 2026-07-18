@@ -179,6 +179,37 @@ function Input({
   help,
   helpConcept,
 }) {
+  const isPercentage = String(unit || "").startsWith("%");
+  const percentageValue = Math.min(100, Math.max(0, asNumber(value) || 0));
+  const percentageDisplayValue =
+    percentageValue === asNumber(value) ? value : percentageValue;
+  const hasUnitStepper =
+    !isPercentage && ["UF", "año", "años"].includes(String(unit || ""));
+  const numericValue = Number.isFinite(asNumber(value)) ? asNumber(value) : 0;
+  const numericMin = Number.isFinite(asNumber(min)) ? asNumber(min) : null;
+  const numericMax = Number.isFinite(asNumber(max)) ? asNumber(max) : null;
+  const adjust = (delta) => {
+    const next = numericValue + delta;
+    onChange(
+      Math.min(
+        numericMax ?? Number.POSITIVE_INFINITY,
+        Math.max(numericMin ?? Number.NEGATIVE_INFINITY, next),
+      ),
+    );
+  };
+  const standardInput = (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      data-min={min}
+      data-max={max}
+      data-step={step}
+      value={formatNumericInput(value)}
+      onChange={(event) => onChange(normalizeNumericInput(event.target.value))}
+      data-private="true"
+    />
+  );
   return (
     <div className="investment-field">
       <div className="investment-field__label-row">
@@ -188,17 +219,44 @@ function Input({
         </label>
         {helpConcept && <TechnicalHelp concept={helpConcept} label={`Explicación de ${label}`} />}
       </div>
-      <input
-        id={id}
-        type="text"
-        inputMode="decimal"
-        data-min={min}
-        data-max={max}
-        data-step={step}
-        value={formatNumericInput(value)}
-        onChange={(event) => onChange(normalizeNumericInput(event.target.value))}
-        data-private="true"
-      />
+      {isPercentage ? (
+        <div className="percentage-slider">
+          <input
+            id={id}
+            type="range"
+            min="0"
+            max="100"
+            step={step === "any" ? "0.01" : step}
+            value={percentageValue}
+            aria-valuetext={`${formatNumericInput(percentageDisplayValue)}%`}
+            onChange={(event) => onChange(event.target.value)}
+            data-private="true"
+          />
+          <output htmlFor={id}>
+            {formatNumericInput(percentageDisplayValue)}%
+          </output>
+        </div>
+      ) : hasUnitStepper ? (
+        <div className="numeric-stepper">
+          <button
+            type="button"
+            onClick={() => adjust(-1)}
+            disabled={numericMin != null && numericValue <= numericMin}
+            aria-label={`Disminuir ${label} en 1 ${unit}`}
+          >
+            −
+          </button>
+          {standardInput}
+          <button
+            type="button"
+            onClick={() => adjust(1)}
+            disabled={numericMax != null && numericValue >= numericMax}
+            aria-label={`Aumentar ${label} en 1 ${unit}`}
+          >
+            +
+          </button>
+        </div>
+      ) : standardInput}
       {help && <small>{help}</small>}
     </div>
   );
@@ -235,6 +293,21 @@ function MoneyInput({
       currencyMode === "clp" && ufValue > 0 ? parsed / ufValue : parsed,
     );
   };
+  const numericUfValue = Number.isFinite(asNumber(valueUf))
+    ? asNumber(valueUf)
+    : 0;
+  const minimumUf = Number.isFinite(asNumber(min)) ? asNumber(min) : 0;
+  const moneyInput = (
+    <input
+      id={id}
+      type="text"
+      inputMode="decimal"
+      data-min={min}
+      value={formatNumericInput(primaryValue)}
+      onChange={(event) => change(normalizeNumericInput(event.target.value))}
+      data-private="true"
+    />
+  );
   return (
     <div className="investment-field money-field">
       <div className="investment-field__label-row">
@@ -243,15 +316,26 @@ function MoneyInput({
         </label>
         {helpConcept && <TechnicalHelp concept={helpConcept} label={`Explicación de ${label}`} />}
       </div>
-      <input
-        id={id}
-        type="text"
-        inputMode="decimal"
-        data-min={min}
-        value={formatNumericInput(primaryValue)}
-        onChange={(event) => change(normalizeNumericInput(event.target.value))}
-        data-private="true"
-      />
+      {currencyMode === "uf" ? (
+        <div className="numeric-stepper">
+          <button
+            type="button"
+            onClick={() => onChangeUf(Math.max(minimumUf, numericUfValue - 1))}
+            disabled={numericUfValue <= minimumUf}
+            aria-label={`Disminuir ${label} en 1 UF`}
+          >
+            −
+          </button>
+          {moneyInput}
+          <button
+            type="button"
+            onClick={() => onChangeUf(numericUfValue + 1)}
+            aria-label={`Aumentar ${label} en 1 UF`}
+          >
+            +
+          </button>
+        </div>
+      ) : moneyInput}
       {secondary && (
         <small className="money-equivalent">Equivale a {secondary}</small>
       )}
