@@ -136,7 +136,7 @@
 
 ## Preservación
 
-- No se elimina ni reescribe el contenido comercial, formularios/enlaces, activos, metadatos base o páginas HTML existentes.
+- No se elimina ni reescribe el contenido comercial, formularios/enlaces, activos, metaCompra y Financiamiento o páginas HTML existentes.
 - La CTA primaria de agenda y la posición comercial de la homepage permanecen prominentes.
 - Las nuevas áreas usan los mismos tokens, botones, tipografía y patrones visuales.
 

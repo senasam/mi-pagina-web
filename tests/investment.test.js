@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  assessInvestmentDecision, comparableGrossYield, effectiveAnnualIncome, estimatePrepaymentCommission, impliedMonthlyRentUf, irr, mirr, netSaleProceeds,
+  annualRentInUf, assessInvestmentDecision, comparableGrossYield, effectiveAnnualIncome, estimatePrepaymentCommission, impliedMonthlyRentUf, irr, mirr, netSaleProceeds,
   npv, ownerCommonExpenseUf, projectInvestment, realRateFromNominal, sensitivityMatrix, solveBreakEvenRent,
   solveIndifferenceRate, terminalHoldValue,
 } from "../src/investmentEngine.js";
@@ -49,6 +49,29 @@ test("comparable yield and implied rent preserve the price/rent relation", () =>
 test("converts a nominal CLP opportunity return to a comparable real rate", () => {
   assert.ok(Math.abs(realRateFromNominal(0.07, 0.03) - 0.03883495145631066) < 1e-12);
   assert.equal(realRateFromNominal(-1, 0.03), null);
+});
+
+test("models periodic CLP rent adjustments and annualized rent/price yield in UF", () => {
+  assert.equal(annualRentInUf({ monthlyRentUf: 13, rentCurrency: "uf" }), 156);
+  const monthly = annualRentInUf({ monthlyRentUf: 13, rentCurrency: "clp", adjustmentMonths: 1, annualInflationRate: 0.06 });
+  const quarterly = annualRentInUf({ monthlyRentUf: 13, rentCurrency: "clp", adjustmentMonths: 3, annualInflationRate: 0.06 });
+  const annual = annualRentInUf({ monthlyRentUf: 13, rentCurrency: "clp", adjustmentMonths: 12, annualInflationRate: 0.06 });
+  assert.equal(monthly, 156);
+  assert.ok(annual < quarterly && quarterly < monthly);
+  const projected = projectInvestment({ ...baseInputs, propertyPriceUf: 3900, monthlyRentUf: 13, rentCurrency: "clp", rentAdjustmentMonths: 3, expectedInflationRate: 0.06 });
+  assert.ok(Math.abs(projected.grossYield - projected.annualProjection[0].potentialRentUf / 3900) < 1e-12);
+});
+
+test("limits appreciation to the selected years and values never selling as a perpetuity", () => {
+  const limited = projectInvestment({ ...baseInputs, appreciationRate: 0.1, appreciationStartYear: 2, appreciationEndYear: 3, horizonYears: 5, saleYear: 5 });
+  assert.equal(limited.annualProjection[0].propertyValueUf, baseInputs.propertyPriceUf);
+  assert.ok(Math.abs(limited.annualProjection[4].propertyValueUf - baseInputs.propertyPriceUf * 1.1 * 1.1) < 1e-8);
+  const perpetual = projectInvestment({ ...baseInputs, horizonYears: 20, saleYear: null, saleStrategy: "never" });
+  assert.equal(perpetual.neverSell, true);
+  assert.equal(perpetual.selectedYearNetSaleValueUf, null);
+  assert.ok(Number.isFinite(perpetual.selectedYearHoldValueUf));
+  assert.ok(Number.isFinite(perpetual.npvUf));
+  assert.equal(perpetual.terminalWealthDifferenceUf, null);
 });
 
 test("vacancy lowers effective income and owner common expenses follow occupancy rules", () => {

@@ -124,9 +124,29 @@ function annualRateFor(value, year) {
   return Array.isArray(value) ? safe(value[year - 1], safe(value.at(-1))) : safe(value);
 }
 
+export function annualRentInUf({
+  monthlyRentUf,
+  rentCurrency = "uf",
+  adjustmentMonths = 1,
+  annualInflationRate = 0,
+}) {
+  if (!(monthlyRentUf >= 0)) return null;
+  if (rentCurrency !== "clp") return monthlyRentUf * 12;
+  const cycle = [1, 3, 6, 12].includes(Number(adjustmentMonths))
+    ? Number(adjustmentMonths)
+    : 12;
+  const monthlyInflation = Math.pow(1 + Math.max(-0.99, safe(annualInflationRate)), 1 / 12) - 1;
+  return Array.from({ length: 12 }, (_, month) =>
+    monthlyRentUf / Math.pow(1 + monthlyInflation, month % cycle)
+  ).reduce((sum, value) => sum + value, 0);
+}
+
 export function projectInvestment(inputs) {
   const horizonYears = Math.max(1, Math.trunc(nonNegative(inputs.horizonYears, 10)));
-  const saleYear = Math.min(horizonYears, Math.max(1, Math.trunc(nonNegative(inputs.saleYear, horizonYears))));
+  const neverSell = inputs.saleStrategy === "never" || inputs.saleYear === "never" || inputs.saleYear == null;
+  const saleYear = neverSell
+    ? horizonYears
+    : Math.min(horizonYears, Math.max(1, Math.trunc(nonNegative(inputs.saleYear, horizonYears))));
   const mortgage = inputs.mortgageResult || calculateMortgage({ ...inputs.mortgageInputs, propertyPriceUf: inputs.propertyPriceUf });
   const acquisitionExpensesUf = (inputs.acquisitionExpenses || []).filter((item) => item.enabled !== false && item.included !== false).reduce((sum, item) => sum + nonNegative(item.amountUf), 0);
   const preparationCostsUf = nonNegative(inputs.preparationCostsUf);
@@ -137,12 +157,21 @@ export function projectInvestment(inputs) {
   let propertyValueUf = inputs.propertyPriceUf;
   let monthlyRentUf = inputs.monthlyRentUf;
   for (let year = 1; year <= horizonYears; year += 1) {
-    const appreciationRate = annualRateFor(inputs.appreciationRate, year);
+    const appreciationStartYear = Math.max(1, Math.trunc(nonNegative(inputs.appreciationStartYear, 1)));
+    const appreciationEndYear = Math.max(appreciationStartYear, Math.trunc(nonNegative(inputs.appreciationEndYear, horizonYears)));
+    const appreciationRate = year >= appreciationStartYear && year <= appreciationEndYear
+      ? annualRateFor(inputs.appreciationRate, year)
+      : 0;
     const rentGrowthRate = annualRateFor(inputs.rentGrowthRate, year);
     if (year > 1) monthlyRentUf *= 1 + rentGrowthRate;
     propertyValueUf *= 1 + appreciationRate;
     const occupancyRate = normalizeOccupancy({ occupancyRate: annualRateFor(inputs.occupancyRate, year) });
-    const potentialRentUf = nonNegative(monthlyRentUf) * 12;
+    const potentialRentUf = annualRentInUf({
+      monthlyRentUf: nonNegative(monthlyRentUf),
+      rentCurrency: inputs.rentCurrency,
+      adjustmentMonths: inputs.rentAdjustmentMonths,
+      annualInflationRate: inputs.expectedInflationRate,
+    });
     const vacancyLossUf = potentialRentUf * (1 - occupancyRate);
     const effectiveIncomeUf = potentialRentUf - vacancyLossUf + nonNegative(annualRateFor(inputs.otherAnnualIncomeUf, year));
     const commonExpensesUf = ownerCommonExpenseUf({
@@ -175,14 +204,16 @@ export function projectInvestment(inputs) {
   const selectedYearHoldValueUf = terminalHoldValue({ nextYearNoiUf: nextNoi, opportunityCostRate: inputs.opportunityCostRate, perpetualGrowthRate: inputs.perpetualGrowthRate });
   const discountRate = safe(inputs.opportunityCostRate);
   const saleCashFlows = [-initialEquityUf, ...annualProjection.slice(0, saleYear).map((row) => row.preTaxCashFlowUf)];
-  saleCashFlows[saleCashFlows.length - 1] += selected.netSaleProceedsUf;
+  if (neverSell) {
+    if (selectedYearHoldValueUf != null) saleCashFlows[saleCashFlows.length - 1] += selectedYearHoldValueUf;
+  } else saleCashFlows[saleCashFlows.length - 1] += selected.netSaleProceedsUf;
   const holdCashFlows = [-initialEquityUf, ...annualProjection.slice(0, saleYear).map((row) => row.preTaxCashFlowUf)];
   if (selectedYearHoldValueUf != null) holdCashFlows[holdCashFlows.length - 1] += selectedYearHoldValueUf;
-  const saleStrategyNpvUf = npv(discountRate, saleCashFlows);
+  const saleStrategyNpvUf = neverSell && selectedYearHoldValueUf == null ? null : npv(discountRate, saleCashFlows);
   const holdStrategyNpvUf = selectedYearHoldValueUf == null ? null : npv(discountRate, holdCashFlows);
   const comparisonYear = horizonYears;
   const remainingYears = Math.max(0, comparisonYear - saleYear);
-  const sellAndInvestTerminalWealthUf = selected.netSaleProceedsUf * Math.pow(1 + discountRate, remainingYears);
+  const sellAndInvestTerminalWealthUf = neverSell ? null : selected.netSaleProceedsUf * Math.pow(1 + discountRate, remainingYears);
   const horizonRow = annualProjection[comparisonYear - 1];
   const holdInterimCashAtHorizonUf = annualProjection
     .slice(saleYear, comparisonYear)
@@ -191,8 +222,8 @@ export function projectInvestment(inputs) {
       0,
     );
   const holdUntilHorizonTerminalWealthUf = horizonRow.netSaleProceedsUf + holdInterimCashAtHorizonUf;
-  const terminalWealthDifferenceUf = sellAndInvestTerminalWealthUf - holdUntilHorizonTerminalWealthUf;
-  const grossYield = nonNegative(inputs.monthlyRentUf) * 12 / inputs.propertyPriceUf;
+  const terminalWealthDifferenceUf = neverSell ? null : sellAndInvestTerminalWealthUf - holdUntilHorizonTerminalWealthUf;
+  const grossYield = annualProjection[0].potentialRentUf / inputs.propertyPriceUf;
   const effectiveGrossYield = annualProjection[0].effectiveIncomeUf / inputs.propertyPriceUf;
   const netOperatingYield = annualProjection[0].noiUf / inputs.propertyPriceUf;
   const firstCashFlow = annualProjection[0].preTaxCashFlowUf;
@@ -206,16 +237,16 @@ export function projectInvestment(inputs) {
     saleStrategyNpvUf, holdStrategyNpvUf,
     irr: irr(saleCashFlows), mirr: mirr(saleCashFlows, discountRate, discountRate),
     equityMultiple: initialEquityUf > 0 ? positiveDistributions / initialEquityUf : null,
-    selectedYearNetSaleValueUf: selected.netSaleProceedsUf,
+    selectedYearNetSaleValueUf: neverSell ? null : selected.netSaleProceedsUf,
     selectedYearPrepaymentCostUf: selected.prepaymentCostUf,
     selectedYearHoldValueUf,
-    sellVsHoldDifferenceUf: selectedYearHoldValueUf == null ? null : selected.netSaleProceedsUf - selectedYearHoldValueUf,
-    sellVsHoldPresentValueDifferenceUf: holdStrategyNpvUf == null ? null : saleStrategyNpvUf - holdStrategyNpvUf,
+    sellVsHoldDifferenceUf: neverSell || selectedYearHoldValueUf == null ? null : selected.netSaleProceedsUf - selectedYearHoldValueUf,
+    sellVsHoldPresentValueDifferenceUf: neverSell || holdStrategyNpvUf == null ? null : saleStrategyNpvUf - holdStrategyNpvUf,
     comparisonYear,
     sellAndInvestTerminalWealthUf,
     holdUntilHorizonTerminalWealthUf,
     terminalWealthDifferenceUf,
-    saleCashFlows, holdCashFlows, saleYear, annualProjection,
+    saleCashFlows, holdCashFlows, saleYear, neverSell, annualProjection,
   };
 }
 
@@ -243,8 +274,8 @@ export function assessInvestmentDecision(result, { minimumDscr = 1.2 } = {}) {
   const strengths = [];
   const risks = [];
 
-  if (result.npvUf < 0) blockers.push("El valor presente neto es negativo frente a la alternativa seleccionada.");
-  else strengths.push("El valor presente neto es positivo frente a la alternativa seleccionada.");
+  if (result.npvUf < 0) blockers.push("El valor presente neto es negativo con la rentabilidad mínima exigida.");
+  else strengths.push("El valor presente neto es positivo con la rentabilidad mínima exigida.");
 
   if (firstYear.preTaxCashFlowUf < 0) blockers.push("La operación requiere aportes adicionales durante el primer año.");
   else strengths.push("El flujo del primer año es positivo antes de impuestos personales.");

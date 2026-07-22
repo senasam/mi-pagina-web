@@ -2,7 +2,7 @@ import { useId, useRef } from "react";
 import { CircleHelp } from "lucide-react";
 import { INVESTMENT_HELP } from "./investmentHelpContent";
 
-export default function TechnicalHelp({ concept, label = "¿Qué significa?" }) {
+export default function TechnicalHelp({ concept, label = "¿Qué significa?", context, extra }) {
   const detailsRef = useRef(null);
   const triggerRef = useRef(null);
   const titleId = useId();
@@ -39,6 +39,8 @@ export default function TechnicalHelp({ concept, label = "¿Qué significa?" }) 
             <button type="button" className="technical-help__icon-close" onClick={close} aria-label="Cerrar explicación">×</button>
           </div>
           <p>{content.simple}</p>
+          {context && <p className="technical-help__context">{context}</p>}
+          {extra && <div className="technical-help__extra">{extra}</div>}
           <dl>
             <div><dt>Nombre técnico</dt><dd>{content.technical}</dd></div>
             <div><dt>Cómo se calcula</dt><dd>{content.formula}</dd></div>
