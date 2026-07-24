@@ -1,4 +1,5 @@
 import { useState, lazy, Suspense } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import {
   ArrowRight,
   BadgeCheck,
@@ -1011,6 +1012,7 @@ export default function App() {
         </span>
         <span>{profile.role}</span>
       </footer>
+      <Analytics />
     </div>
   );
 }
