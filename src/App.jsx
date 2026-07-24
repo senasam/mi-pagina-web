@@ -26,6 +26,7 @@ import {
   WalletCards,
   X,
 } from "lucide-react";
+import { Analytics } from "@vercel/analytics/react";
 
 const profile = {
   name: "Felipe Masanés Didyk",
@@ -1011,6 +1012,7 @@ export default function App() {
         </span>
         <span>{profile.role}</span>
       </footer>
+      <Analytics />
     </div>
   );
 }
