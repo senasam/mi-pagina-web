@@ -77,6 +77,18 @@ test("redacta un atributo del Codex usando el contexto completo", async () => {
   assert.match(body.input[1].content, /lee poesía/);
 });
 
+test("clasifica campos personalizados importados sin alterar el JSON", async () => {
+  const json = '{"assignments":[{"source":"Datos de combate","target":"Habilidades, destrezas, armas y poderes"}]}';
+  const result = await generateSceneSuggestion({
+    task: "codex-import-classification",
+    prose: "SECCIONES PERSONALIZADAS IMPORTADAS:\nDatos de combate: sable",
+    apiKey: "test-key",
+    fetchImpl: async () => openAiResponse(json),
+  });
+  assert.equal(result.suggestion, json);
+  assert.equal(result.task, "codex-import-classification");
+});
+
 test("rechaza escenas vacías antes de llamar a OpenAI", async () => {
   let called = false;
   await assert.rejects(

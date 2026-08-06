@@ -76,6 +76,21 @@ test("asks Ollama to write a Codex field from all available attributes", async (
   assert.equal(request.options.num_predict, 900);
 });
 
+test("asks Ollama to classify imported custom Codex fields as JSON", async () => {
+  let request;
+  const response = '{"assignments":[{"source":"Datos de combate","target":"Habilidades, destrezas, armas y poderes"}]}';
+  const suggestion = await requestOllamaSuggestion({
+    task: "codex-import-classification",
+    prose: "ATRIBUTOS ESTÁNDAR PERMITIDOS:\n- Habilidades, destrezas, armas y poderes\nSECCIONES PERSONALIZADAS IMPORTADAS:\nDatos de combate: sable",
+    metadata: { title: "ficha.docx" },
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b" },
+    fetchImpl: async (url, options) => { request = JSON.parse(options.body); return new Response(JSON.stringify({ response }), { status: 200 }); },
+  });
+  assert.equal(suggestion, response);
+  assert.match(request.prompt, /exclusivamente JSON válido/);
+  assert.equal(request.options.temperature, 0.1);
+});
+
 test("reports streamed Ollama model installation progress", async () => {
   const updates = [];
   const stream = new ReadableStream({

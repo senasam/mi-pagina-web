@@ -37,6 +37,8 @@ export function normalizeChatGptUrl(value = "https://chatgpt.com/") {
 export function buildScenePrompt(task, prose, metadata = {}) {
   const instruction = task === "codex-field"
     ? "Redacta en español el contenido del atributo objetivo de esta ficha del Codex usando todos los datos disponibles. Si el atributo ya tiene contenido, mejóralo y complétalo sin perder hechos. No contradigas la ficha ni repitas innecesariamente otros apartados. Puedes desarrollar detalles narrativos coherentes, pero no presentes como comprobado aquello que la ficha deja incierto. Devuelve únicamente el contenido listo para pegar, con párrafos o listas cuando ayuden."
+    : task === "codex-import-classification"
+    ? "Clasifica únicamente las secciones personalizadas importadas en uno de los atributos estándar disponibles cuando la correspondencia sea clara por su título y contenido. No inventes, resumas ni reescribas contenido. Omite las secciones ambiguas para conservarlas como personalizadas. Devuelve exclusivamente JSON válido con esta forma exacta: {\"assignments\":[{\"source\":\"título personalizado exacto\",\"target\":\"atributo estándar exacto\"}]}. Usa solamente títulos source y target incluidos en el material."
     : task === "codex-categories"
     ? "Sugiere entre 3 y 6 categorías breves y útiles para clasificar esta ficha del Codex. Considera su tipo, nombre, alias, descripción y las categorías ya usadas. No repitas categorías existentes. Devuelve únicamente las categorías separadas por comas, sin explicación."
     : task === "chapter-title"
@@ -131,7 +133,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
       system: "Eres un asistente editorial para ficción. Responde en el idioma de la escena y cumple exactamente el formato solicitado.",
       stream: false,
       think: false,
-      options: { temperature: task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-field" ? 900 : task === "codex-categories" ? 140 : 80 },
+      options: { temperature: task === "codex-import-classification" ? 0.1 : task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-field" ? 900 : task === "codex-import-classification" ? 700 : task === "codex-categories" ? 140 : 80 },
     }),
   });
   const payload = await response.json().catch(() => ({}));
@@ -141,7 +143,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
   }
   const result = String(payload.response || "").trim();
   if (!result) throw new Error("Ollama no devolvió una sugerencia utilizable.");
-  return task !== "summary" ? result.replace(/^[“”"']+|[“”"'.]+$/g, "").trim() : result;
+  return task !== "summary" && task !== "codex-import-classification" ? result.replace(/^[“”"']+|[“”"'.]+$/g, "").trim() : result;
 }
 
 export function buildChatGptManualPrompt(task, prose, metadata) {

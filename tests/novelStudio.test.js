@@ -81,6 +81,8 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /Importar ficha/);
   assert.match(source, /Combinar con la ficha/);
   assert.match(source, /Reemplazar secciones detectadas/);
+  assert.match(source, /Clasificar con IA/);
+  assert.match(source, /codex-import-classification/);
   assert.match(source, /TableKit\.configure/);
   assert.match(source, /insertTable\(\{ rows: 3, cols: 3/);
   assert.match(source, /fileToHtml/);

@@ -4,6 +4,11 @@ const MAX_PROSE_CHARS = 60000;
 const REQUEST_TIMEOUT_MS = 45000;
 
 const TASKS = Object.freeze({
+  "codex-import-classification": {
+    instruction: "Clasifica únicamente las secciones personalizadas importadas en uno de los atributos estándar disponibles cuando la correspondencia sea clara por su título y contenido. No inventes, resumas ni reescribas contenido. Omite las secciones ambiguas para conservarlas como personalizadas. Devuelve exclusivamente JSON válido con esta forma exacta: {\"assignments\":[{\"source\":\"título personalizado exacto\",\"target\":\"atributo estándar exacto\"}]}. Usa solamente títulos source y target incluidos en el material.",
+    maxOutputTokens: 1000,
+    maxChars: 12000,
+  },
   "codex-field": {
     instruction: "Redacta en español el contenido del atributo objetivo de esta ficha del Codex usando todos los datos disponibles. Si el atributo ya tiene contenido, mejóralo y complétalo sin perder hechos. No contradigas la ficha ni repitas innecesariamente otros apartados. Puedes desarrollar detalles narrativos coherentes, pero no presentes como comprobado aquello que la ficha deja incierto. Devuelve únicamente el contenido listo para pegar, con párrafos o listas cuando ayuden.",
     maxOutputTokens: 1400,
@@ -75,7 +80,7 @@ export async function generateSceneSuggestion({
 } = {}) {
   if (!TASKS[task]) throw new SceneAssistantError("Acción de IA no válida.", 400, "INVALID_TASK");
   const cleanProse = cleanString(prose, MAX_PROSE_CHARS);
-  if (!cleanProse) throw new SceneAssistantError(task === "codex-categories" || task === "codex-field" ? "Completa al menos el nombre de la ficha antes de usar la IA." : "Escribe contenido en la escena antes de usar la IA.", 400, "EMPTY_SCENE");
+  if (!cleanProse) throw new SceneAssistantError(task.startsWith("codex-") ? "Completa al menos el nombre o contenido de la ficha antes de usar la IA." : "Escribe contenido en la escena antes de usar la IA.", 400, "EMPTY_SCENE");
   const cleanApiKey = cleanString(apiKey, 512);
   const cleanModel = cleanString(model, 100);
   if (!cleanApiKey) throw new SceneAssistantError("Configura una clave API de OpenAI en el estudio.", 503, "AI_NOT_CONFIGURED");
@@ -117,7 +122,7 @@ export async function generateSceneSuggestion({
   }
 
   const result = cleanString(extractOutputText(await response.json()), TASKS[task].maxChars)
-    .replace(task !== "summary" ? /^[“”"']+|[“”"'.]+$/g : /$^/, "")
+    .replace(task !== "summary" && task !== "codex-import-classification" ? /^[“”"']+|[“”"'.]+$/g : /$^/, "")
     .trim();
   if (!result) throw new SceneAssistantError("La IA no devolvió una sugerencia utilizable.", 502, "EMPTY_AI_RESPONSE");
   return { suggestion: result, task, model: cleanModel };

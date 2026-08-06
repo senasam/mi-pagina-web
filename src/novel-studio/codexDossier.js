@@ -41,6 +41,7 @@ export const CHARACTER_DOSSIER_GROUPS = Object.freeze([
 ]);
 
 const KNOWN_SECTIONS = CHARACTER_DOSSIER_GROUPS.flatMap((group) => group.sections);
+export const CHARACTER_DOSSIER_SECTIONS = Object.freeze([...KNOWN_SECTIONS]);
 
 function normalized(value) {
   return String(value || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase()
@@ -146,4 +147,30 @@ export function mergeDossierDetails(current = {}, imported = {}) {
 
 export function customDossierSections(details = {}) {
   return Object.keys(details).filter((title) => !KNOWN_SECTIONS.includes(title));
+}
+
+export function parseDossierClassification(value) {
+  const source = String(value || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  let payload;
+  try { payload = JSON.parse(source); }
+  catch { throw new Error("La IA no devolvió una clasificación JSON válida."); }
+  const assignments = Array.isArray(payload) ? payload : payload?.assignments;
+  if (!Array.isArray(assignments)) throw new Error("La clasificación de la IA no contiene asignaciones válidas.");
+  return assignments.map((item) => ({ source: String(item?.source || "").trim(), target: String(item?.target || "").trim() })).filter((item) => item.source && item.target);
+}
+
+export function applyDossierClassification(sections = {}, value) {
+  const result = { ...sections };
+  const customTitles = customDossierSections(sections);
+  const assignments = Array.isArray(value) ? value : parseDossierClassification(value);
+  let moved = 0;
+  for (const assignment of assignments) {
+    const source = customTitles.find((title) => normalized(title) === normalized(assignment.source));
+    const target = KNOWN_SECTIONS.find((title) => normalized(title) === normalized(assignment.target));
+    if (!source || !target || source === target || !result[source]) continue;
+    result[target] = mergeDossierDetails({ [target]: result[target] || "" }, { [target]: result[source] })[target];
+    delete result[source];
+    moved += 1;
+  }
+  return { sections: result, moved };
 }
