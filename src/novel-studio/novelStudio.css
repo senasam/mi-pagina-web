@@ -276,12 +276,11 @@
 .studio-codex-list > button.active small { color: #ddd4c7; }
 .studio-codex-editor { display: grid; gap: 15px; padding: clamp(18px, 3vw, 30px); border: 1px solid var(--studio-line); border-radius: 6px; background: #fffdf8; }
 .studio-character-network-panel { margin: 0 0 18px; border: 1px solid var(--studio-line); border-radius: 7px; background: #fffdf8; }
-.studio-character-network-panel > summary { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px 16px; cursor: pointer; list-style: none; }
-.studio-character-network-panel > summary::-webkit-details-marker { display: none; }
-.studio-character-network-panel > summary span { display: flex; align-items: center; gap: 8px; }
-.studio-character-network-panel > summary small { color: var(--studio-muted); }
+.studio-network-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 14px 16px; }
+.studio-network-page-heading span { display: flex; align-items: center; gap: 8px; }
+.studio-network-page-heading small { color: var(--studio-muted); }
 .studio-network-wrap { padding: 0 14px 14px; }
-.studio-character-network { display: block; width: 100%; min-height: 330px; border: 1px solid #ded4c5; border-radius: 6px; background: radial-gradient(circle at center, #fffdf8 0, #f2ebdf 100%); }
+.studio-character-network { display: block; width: 100%; aspect-ratio: 9 / 5; min-height: 330px; border: 1px solid #ded4c5; border-radius: 6px; background: radial-gradient(circle at center, #fffdf8 0, #f2ebdf 100%); }
 .studio-network-edge line { opacity: .82; stroke-linecap: round; }
 .studio-network-node { cursor: pointer; outline: none; }
 .studio-network-node circle { fill: #f9f3e8; stroke: #3d3831; stroke-width: 2; filter: drop-shadow(0 2px 2px rgb(39 32 24 / .18)); transition: fill .15s, stroke-width .15s; }
@@ -505,7 +504,7 @@
   .studio-dossier-heading { flex-direction: column; }
   .studio-dossier-heading-actions { justify-content: flex-start; }
   .studio-dossier-add { grid-template-columns: 1fr; }
-  .studio-character-network-panel > summary { align-items: flex-start; flex-direction: column; }
+  .studio-network-page-heading { align-items: flex-start; flex-direction: column; }
   .studio-character-network { min-height: 250px; }
   .studio-relationship-row { grid-template-columns: 1fr; }
   .studio-relationship-row .studio-icon-button { justify-self: end; }

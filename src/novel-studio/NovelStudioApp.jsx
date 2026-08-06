@@ -237,12 +237,13 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
   };
   if (error) return <div className="studio-app"><WorkspaceHeader manifest={manifest} saveState="error" readOnly={readOnly} onClose={onClose} /><main className="studio-fatal"><h1>No se pudo abrir la novela</h1><p>{error}</p><a className="studio-button" href="/estudio-novela">Volver a la biblioteca</a></main></div>;
   if (!novel || !structure || !preferences) return <StudioLoading />;
-  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "codex", label: "Codex", icon: Box }, { id: "configuracion", label: "Configuración", icon: Settings }];
+  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "codex", label: "Codex", icon: Box }, { id: "relaciones", label: "Relaciones", icon: Share2 }, { id: "configuracion", label: "Configuración", icon: Settings }];
   return <div className={`studio-app studio-workspace ${sidebar ? "" : "sidebar-closed"}`}><WorkspaceHeader manifest={manifest} saveState={saveState} readOnly={readOnly} onClose={onClose}><button type="button" className="studio-header-save-button" title="Forzar el guardado de todos los cambios pendientes" disabled={readOnly || saveState === "saving"} onClick={forceSave}><Save size={16} /><span>Guardar todo</span></button><button className="studio-icon-button" title="Mostrar u ocultar panel" onClick={() => setSidebar((value) => !value)}>{sidebar ? <PanelLeftClose size={18} /> : <Menu size={18} />}</button></WorkspaceHeader><aside className="studio-sidebar"><a className="studio-sidebar__back" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")}><ArrowLeft size={16} /> Biblioteca</a><div className="studio-sidebar__novel"><BookOpen size={19} /><div><strong>{novel.title}</strong><small>{countNovelWords(structure).toLocaleString("es")} palabras registradas</small></div></div><nav>{modes.map(({ id, label, icon: Icon }) => <a className={mode === id ? "active" : ""} href={studioHref(novelId, id)} onClick={(event) => handleStudioLink(event, studioHref(novelId, id))} key={id}><Icon size={18} />{label}</a>)}</nav></aside><main className="studio-main">
     {readOnly && <div className="studio-notice"><strong>Solo lectura:</strong> cierra la otra pestaña del estudio para editar.</div>}
     {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "codex" && <CharactersPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
+    {mode === "relaciones" && <CharacterNetworkPage novel={novel} structure={structure} entries={codex} />}
     {mode === "configuracion" && <SettingsPage novel={novel} setNovel={setNovel} structure={structure} preferences={preferences} setPreferences={setPreferences} readOnly={readOnly} setSaveState={setSaveState} />}
   </main></div>;
 }
@@ -678,13 +679,37 @@ function DossierImportDialog({ preview, aiConfigured, classificationAi, onClassi
   return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="dossier-import-title"><div className="studio-modal__card studio-dossier-import"><p className="studio-kicker">Importar ficha de personaje</p><h2 id="dossier-import-title">{preview.fileName}</h2><p>Se detectaron {sections.length} secciones con su formato y tablas. Puedes combinarlas o reemplazar solamente las secciones detectadas; el resto de la ficha no cambiará.</p>{customCount > 0 && <div className="studio-import-classification"><div><strong>{customCount} {customCount === 1 ? "sección personalizada" : "secciones personalizadas"}</strong><p>La IA puede revisar su título y contenido para ubicarlas en los atributos estándar. Las secciones dudosas se conservarán sin cambios.</p></div><button type="button" className="studio-button studio-button--secondary" disabled={!aiConfigured || classificationAi.busy} title={aiConfigured ? "Clasificar los campos personalizados sin reescribir su contenido" : "Configura la IA para clasificar estos campos"} onClick={onClassify}><Sparkles size={16} /> {classificationAi.busy ? "Clasificando…" : "Clasificar con IA"}</button></div>}{preview.classificationMessage && <p className="studio-notice">{preview.classificationMessage}</p>}{classificationAi.error && <p className="studio-ai-error" role="alert">{classificationAi.error}</p>}<div className="studio-dossier-import-list">{sections.map(([title, content]) => { const plain = dossierPlainText(content); return <div key={title}><strong>{title}</strong><span>{plain.length.toLocaleString("es")} caracteres</span><p>{plain.slice(0, 180)}{plain.length > 180 ? "…" : ""}</p></div>; })}</div>{preview.warnings?.length > 0 && <details><summary>Advertencias del archivo</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}<div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button studio-button--secondary" disabled={!sections.length} onClick={onReplace}>Reemplazar secciones detectadas</button><button type="button" className="studio-button" disabled={!sections.length} onClick={onMerge}><Upload size={16} /> Combinar con la ficha</button></div></div></div>;
 }
 
+function useCodexMentions(novelId, structure, entries) {
+  const [mentions, setMentions] = useState({});
+  useEffect(() => {
+    let worker;
+    let cancelled = false;
+    (async () => {
+      const scenes = [];
+      for (const { act, chapter, scene } of flattenScenes(structure)) {
+        try {
+          const savedScene = await repository.readScene(novelId, scene.id);
+          scenes.push({ ...scene, prose: savedScene.prose, actId: act.id, actTitle: act.title, chapterId: chapter.id, chapterTitle: chapter.title });
+        } catch { /* Una escena ilegible no impide revisar las demás. */ }
+      }
+      if (cancelled) return;
+      worker = new Worker(new URL("./mentions.worker.js", import.meta.url), { type: "module" });
+      worker.onmessage = (event) => setMentions(event.data);
+      worker.postMessage({ scenes, entries });
+    })();
+    return () => { cancelled = true; worker?.terminate(); };
+  }, [entries, novelId, structure]);
+  return mentions;
+}
+
 function CharactersPage({ novel, structure, entries, setEntries, aiSettings, readOnly, setSaveState }) {
-  const initial = entries.find((entry) => entry.type === "character") || entries[0] || null;
+  const requestedId = new URLSearchParams(window.location.search).get("entry");
+  const initial = entries.find((entry) => entry.id === requestedId) || entries.find((entry) => entry.type === "character") || entries[0] || null;
   const [selectedId, setSelectedId] = useState(initial?.id || null);
   const [draft, setDraft] = useState(initial);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
-  const [mentions, setMentions] = useState({});
+  const mentions = useCodexMentions(novel.id, structure, entries);
   const [codexDirty, setCodexDirty] = useState(false);
   const [categoryAi, setCategoryAi] = useState({ busy: false, proposal: null, manual: null, error: "" });
   const [fieldAi, setFieldAi] = useState({ busy: "", proposal: null, manual: null, error: "" });
@@ -707,32 +732,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [novel.id]);
-
-  useEffect(() => {
-    let worker;
-    let cancelled = false;
-    (async () => {
-      const scenes = [];
-      for (const { act, chapter, scene } of flattenScenes(structure)) {
-        try {
-          const savedScene = await repository.readScene(novel.id, scene.id);
-          scenes.push({
-            ...scene,
-            prose: savedScene.prose,
-            actId: act.id,
-            actTitle: act.title,
-            chapterId: chapter.id,
-            chapterTitle: chapter.title,
-          });
-        } catch { /* Una escena ilegible no impide revisar las demás. */ }
-      }
-      if (cancelled) return;
-      worker = new Worker(new URL("./mentions.worker.js", import.meta.url), { type: "module" });
-      worker.onmessage = (event) => setMentions(event.data);
-      worker.postMessage({ scenes, entries });
-    })();
-    return () => { cancelled = true; worker?.terminate(); };
-  }, [entries, novel.id, structure]);
 
   const save = async () => {
     if (!draft || readOnly || !codexDirty) return true;
@@ -890,7 +889,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   const filtered = entries.filter((entry) => (kind === "all" || entry.type === "character")
     && `${entry.name} ${(entry.aliases || []).join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const selectedMentions = draft ? mentions[draft.id] || [] : [];
-  const mentionTotals = useMemo(() => Object.fromEntries(entries.map((entry) => [entry.id, (mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)])), [entries, mentions]);
   const categorySuggestions = useMemo(() => {
     if (!draft) return [];
     const values = entries.filter((entry) => entry.id !== draft.id && entry.type === draft.type).flatMap((entry) => entry.categories || []);
@@ -991,10 +989,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     </PageTitle>
     <p className="studio-notice studio-character-help"><UserRound size={18} /> La detección revisa el título, el resumen y el texto de cada escena. Sus resultados se agrupan por acto y capítulo; no modifica tu manuscrito.</p>
     {showArchivedEntries && <section className="studio-panel studio-codex-archive"><div><h2>Archivo del Codex</h2><p>Las entradas archivadas dejan de aparecer en el Codex activo. Puedes restaurarlas o eliminarlas definitivamente.</p></div>{archivedEntries.length ? <div className="studio-archive-list">{archivedEntries.map((entry) => <div key={entry.id}><span><strong>{entry.name}</strong><small>{entry.type === "character" ? "Personaje" : entry.type === "location" ? "Ubicación" : entry.type === "object" ? "Objeto" : entry.type === "lore" ? "Conocimiento" : entry.type === "subplot" ? "Subtrama" : "Otro"}</small></span><div className="studio-row"><button className="studio-button studio-button--secondary" disabled={readOnly} onClick={() => restoreEntry(entry)}><RotateCcw size={15} /> Restaurar</button><button className="studio-button studio-button--danger" disabled={readOnly} onClick={() => deleteArchivedEntry(entry)}><Trash2 size={15} /> Eliminar</button></div></div>)}</div> : <p>No hay entradas archivadas.</p>}</section>}
-    <details className="studio-character-network-panel" open>
-      <summary><span><Share2 size={18} /><strong>Mapa de relaciones</strong></span><small>Nodos más grandes = personajes con más menciones</small></summary>
-      <CharacterNetworkMap entries={entries} mentionTotals={mentionTotals} selectedId={selectedId} onSelect={selectEntry} />
-    </details>
     <div className="studio-codex-layout">
       <aside className="studio-codex-list">
         <div className="studio-segmented studio-character-filter">
@@ -1042,6 +1036,20 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     {fieldAi.manual && <ManualChatGptDialog request={fieldAi.manual} onApply={(value) => applyCodexField(fieldAi.manual.target, value)} onCancel={() => setFieldAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {dossierImport && <DossierImportDialog preview={dossierImport} aiConfigured={aiConfigured} classificationAi={classificationAi} onClassify={classifyDossierImport} onCancel={() => { setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onMerge={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: mergeDossierDetails(current, dossierImport.sections) }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onReplace={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: { ...current, ...dossierImport.sections } }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} />}
     {classificationAi.manual && <ManualChatGptDialog request={classificationAi.manual} onApply={applyImportClassification} onCancel={() => setClassificationAi({ busy: false, manual: null, error: "" })} />}
+  </section>;
+}
+
+function CharacterNetworkPage({ novel, structure, entries }) {
+  const mentions = useCodexMentions(novel.id, structure, entries);
+  const mentionTotals = useMemo(() => Object.fromEntries(entries.map((entry) => [entry.id, (mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)])), [entries, mentions]);
+  return <section className="studio-page studio-network-page">
+    <PageTitle kicker="Red de personajes" title="Mapa de relaciones" text="Explora los vínculos entre personajes sin ocupar espacio en las fichas del Códex.">
+      <a className="studio-button studio-button--secondary" href={studioHref(novel.id, "codex")} onClick={(event) => handleStudioLink(event, studioHref(novel.id, "codex"))}><Box size={16} /> Volver al Códex</a>
+    </PageTitle>
+    <section className="studio-character-network-panel">
+      <header className="studio-network-page-heading"><span><Share2 size={18} /><strong>Red completa</strong></span><small>El tamaño del nodo representa sus menciones; el tipo y la intensidad determinan el conector.</small></header>
+      <CharacterNetworkMap entries={entries} mentionTotals={mentionTotals} selectedId={null} onSelect={(entryId) => goStudio(`${studioHref(novel.id, "codex")}?entry=${encodeURIComponent(entryId)}`)} />
+    </section>
   </section>;
 }
 
