@@ -4,6 +4,11 @@ const MAX_PROSE_CHARS = 60000;
 const REQUEST_TIMEOUT_MS = 45000;
 
 const TASKS = Object.freeze({
+  "codex-categories": {
+    instruction: "Sugiere entre 3 y 6 categorías breves y útiles para clasificar esta ficha del Codex. Considera su tipo, nombre, alias, descripción y las categorías ya usadas. No repitas categorías existentes. Devuelve únicamente las categorías separadas por comas, sin explicación.",
+    maxOutputTokens: 250,
+    maxChars: 400,
+  },
   "chapter-title": {
     instruction: "Propón un título evocador y específico para este capítulo a partir del contexto de la novela y sus escenas. Devuelve únicamente el título, sin comillas, explicación ni punto final.",
     maxOutputTokens: 200,
@@ -65,7 +70,7 @@ export async function generateSceneSuggestion({
 } = {}) {
   if (!TASKS[task]) throw new SceneAssistantError("Acción de IA no válida.", 400, "INVALID_TASK");
   const cleanProse = cleanString(prose, MAX_PROSE_CHARS);
-  if (!cleanProse) throw new SceneAssistantError("Escribe contenido en la escena antes de usar la IA.", 400, "EMPTY_SCENE");
+  if (!cleanProse) throw new SceneAssistantError(task === "codex-categories" ? "Completa al menos el nombre de la ficha antes de usar la IA." : "Escribe contenido en la escena antes de usar la IA.", 400, "EMPTY_SCENE");
   const cleanApiKey = cleanString(apiKey, 512);
   const cleanModel = cleanString(model, 100);
   if (!cleanApiKey) throw new SceneAssistantError("Configura una clave API de OpenAI en el estudio.", 503, "AI_NOT_CONFIGURED");

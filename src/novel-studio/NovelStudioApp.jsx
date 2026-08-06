@@ -239,7 +239,7 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
     {readOnly && <div className="studio-notice"><strong>Solo lectura:</strong> cierra la otra pestaña del estudio para editar.</div>}
     {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
-    {mode === "codex" && <CharactersPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} readOnly={readOnly} setSaveState={setSaveState} />}
+    {mode === "codex" && <CharactersPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "configuracion" && <SettingsPage novel={novel} setNovel={setNovel} structure={structure} preferences={preferences} setPreferences={setPreferences} readOnly={readOnly} setSaveState={setSaveState} />}
   </main></div>;
 }
@@ -460,7 +460,8 @@ function ConflictDialog({ conflict, onResolve, onEmergency }) {
 
 function AiSuggestionDialog({ proposal, currentValue, onApply, onCancel }) {
   const isTitle = proposal.task === "title" || proposal.task === "chapter-title";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="ai-suggestion-title"><div className="studio-modal__card studio-ai-dialog"><p className="studio-kicker"><Sparkles size={15} /> Sugerencia de IA</p><h2 id="ai-suggestion-title">{isTitle ? "Título propuesto" : "Resumen propuesto"}</h2><p className="studio-ai-privacy">Revisa el resultado antes de reemplazar el texto actual. Nada se aplicará si cancelas.</p>{currentValue && <div className="studio-ai-comparison"><small>Actual</small><p>{currentValue}</p></div>}<div className="studio-ai-comparison is-proposal"><small>Propuesta</small><p>{proposal.value}</p></div><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" onClick={onApply}><Sparkles size={16} /> Aplicar sugerencia</button></div></div></div>;
+  const isCategories = proposal.task === "codex-categories";
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="ai-suggestion-title"><div className="studio-modal__card studio-ai-dialog"><p className="studio-kicker"><Sparkles size={15} /> Sugerencia de IA</p><h2 id="ai-suggestion-title">{isCategories ? "Categorías propuestas" : isTitle ? "Título propuesto" : "Resumen propuesto"}</h2><p className="studio-ai-privacy">Revisa el resultado antes de aplicarlo. Nada cambiará si cancelas.</p>{currentValue && <div className="studio-ai-comparison"><small>Actual</small><p>{currentValue}</p></div>}<div className="studio-ai-comparison is-proposal"><small>Propuesta</small><p>{proposal.value}</p></div><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" onClick={onApply}><Sparkles size={16} /> Aplicar sugerencia</button></div></div></div>;
 }
 
 function ManualChatGptDialog({ request, onApply, onCancel }) {
@@ -470,7 +471,8 @@ function ManualChatGptDialog({ request, onApply, onCancel }) {
     catch { /* El prompt permanece visible para copiarlo manualmente. */ }
   };
   const isTitle = request.task === "title" || request.task === "chapter-title";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2><ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle ? 2 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
+  const isCategories = request.task === "codex-categories";
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2><ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isCategories ? "Categorías devueltas" : isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle || isCategories ? 2 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
 }
 
 function MentionBreakdown({ novelId, mentions }) {
@@ -497,7 +499,7 @@ function MentionBreakdown({ novelId, mentions }) {
   </>;
 }
 
-function ChipInput({ values = [], onChange, disabled, placeholder = "Escribe y presiona Enter" }) {
+function ChipInput({ values = [], suggestions = [], onChange, disabled, placeholder = "Escribe y presiona Enter" }) {
   const [pending, setPending] = useState("");
   const add = (raw = pending) => {
     const next = [...values];
@@ -508,7 +510,8 @@ function ChipInput({ values = [], onChange, disabled, placeholder = "Escribe y p
     setPending("");
   };
   const remove = (index) => onChange(values.filter((_, itemIndex) => itemIndex !== index));
-  return <div className={`studio-chip-input${disabled ? " is-disabled" : ""}`}>
+  const availableSuggestions = suggestions.filter((suggestion) => !values.some((value) => value.toLocaleLowerCase() === suggestion.toLocaleLowerCase()));
+  return <><div className={`studio-chip-input${disabled ? " is-disabled" : ""}`}>
     {values.map((value, index) => <span className="studio-editable-chip" key={`${value}-${index}`}>
       {value}
       <button type="button" disabled={disabled} aria-label={`Quitar ${value}`} title={`Quitar ${value}`} onClick={() => remove(index)}><X size={13} /></button>
@@ -525,20 +528,31 @@ function ChipInput({ values = [], onChange, disabled, placeholder = "Escribe y p
         else if (event.key === "Backspace" && !pending && values.length) remove(values.length - 1);
       }}
     />
-  </div>;
+  </div>{availableSuggestions.length > 0 && <div className="studio-chip-suggestions"><span>Sugerencias usadas en este tipo:</span>{availableSuggestions.map((suggestion) => <button type="button" disabled={disabled} key={suggestion.toLocaleLowerCase()} onClick={() => onChange([...values, suggestion])}><Plus size={12} />{suggestion}</button>)}</div>}</>;
 }
 
-function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSaveState }) {
+function parseCategorySuggestions(value) {
+  const categories = String(value || "")
+    .replace(/[\[\]"]/g, "")
+    .split(/[,;\n]+/)
+    .map((item) => item.replace(/^[-*•\d.)\s]+/, "").trim())
+    .filter((item) => item && item.length <= 60);
+  return categories.filter((category, index) => categories.findIndex((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()) === index);
+}
+
+function CharactersPage({ novel, structure, entries, setEntries, aiSettings, readOnly, setSaveState }) {
   const initial = entries.find((entry) => entry.type === "character") || entries[0] || null;
   const [selectedId, setSelectedId] = useState(initial?.id || null);
   const [draft, setDraft] = useState(initial);
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
   const [mentions, setMentions] = useState({});
+  const [categoryAi, setCategoryAi] = useState({ busy: false, proposal: null, manual: null, error: "" });
+  const openAiConfirmedRef = useRef(false);
 
   useEffect(() => {
     const selected = entries.find((entry) => entry.id === selectedId);
-    if (selected) setDraft(selected);
+    if (selected) { setDraft(selected); setCategoryAi({ busy: false, proposal: null, manual: null, error: "" }); }
   }, [selectedId, entries]);
 
   useEffect(() => {
@@ -594,6 +608,47 @@ function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSa
   const filtered = entries.filter((entry) => (kind === "all" || entry.type === "character")
     && `${entry.name} ${(entry.aliases || []).join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const selectedMentions = draft ? mentions[draft.id] || [] : [];
+  const categorySuggestions = useMemo(() => {
+    if (!draft) return [];
+    const values = entries.filter((entry) => entry.id !== draft.id && entry.type === draft.type).flatMap((entry) => entry.categories || []);
+    return values.filter((category, index) => values.findIndex((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()) === index).sort((a, b) => a.localeCompare(b, "es"));
+  }, [draft, entries]);
+  const aiConfigured = aiSettings?.provider === "chatgpt-manual"
+    || (aiSettings?.provider === "ollama" ? Boolean(aiSettings.ollamaModel) : Boolean(aiSettings?.apiKey));
+  const applyCategories = (value) => {
+    const proposed = parseCategorySuggestions(value);
+    const current = draft.categories || [];
+    const categories = [...current, ...proposed.filter((category) => !current.some((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()))];
+    setDraft({ ...draft, categories });
+    setCategoryAi({ busy: false, proposal: null, manual: null, error: "" });
+  };
+  const suggestCategories = async () => {
+    if (!draft || readOnly || !aiConfigured || categoryAi.busy || !draft.name.trim()) return;
+    if (aiSettings.provider === "openai" && !openAiConfirmedRef.current) {
+      const accepted = confirm("Esta acción enviará a OpenAI el tipo, nombre, alias, descripción y categorías de esta ficha, y puede generar costos en tu cuenta API. ¿Quieres continuar?");
+      if (!accepted) return;
+      openAiConfirmedRef.current = true;
+    }
+    const typeLabels = { character: "Personaje", location: "Ubicación", object: "Objeto", lore: "Conocimiento", subplot: "Subtrama", other: "Otro" };
+    const prose = [`Tipo: ${typeLabels[draft.type] || draft.type}`, `Nombre: ${draft.name}`, (draft.aliases || []).length ? `Alias: ${draft.aliases.join(", ")}` : "", draft.description ? `Descripción: ${draft.description}` : ""].filter(Boolean).join("\n");
+    const knownCategories = [...(draft.categories || []), ...categorySuggestions].filter((category, index, values) => values.findIndex((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()) === index);
+    const metadata = { title: draft.name, summary: draft.description || "", beats: knownCategories.length ? [`Categorías existentes o ya usadas para ${typeLabels[draft.type] || draft.type}: ${knownCategories.join(", ")}`] : [] };
+    if (aiSettings.provider === "chatgpt-manual") {
+      try {
+        const prompt = buildChatGptManualPrompt("codex-categories", prose, metadata);
+        const url = normalizeChatGptUrl(aiSettings.manualUrl);
+        window.open(url, "_blank", "noopener,noreferrer");
+        navigator.clipboard?.writeText(prompt)?.catch(() => {});
+        setCategoryAi({ busy: false, proposal: null, error: "", manual: { task: "codex-categories", prompt, url } });
+      } catch (error) { setCategoryAi({ busy: false, proposal: null, manual: null, error: error.message }); }
+      return;
+    }
+    setCategoryAi({ busy: true, proposal: null, manual: null, error: "" });
+    try {
+      const value = await requestSceneSuggestion({ task: "codex-categories", prose, metadata, settings: aiSettings });
+      setCategoryAi({ busy: false, manual: null, error: "", proposal: { task: "codex-categories", value } });
+    } catch (error) { setCategoryAi({ busy: false, proposal: null, manual: null, error: error.message }); }
+  };
 
   return <section className="studio-page studio-characters-page">
     <PageTitle kicker="Biblia de la historia" title="Codex" text="Organiza personajes, lugares, objetos, conocimientos y subtramas, y comprueba dónde aparecen en el manuscrito.">
@@ -621,7 +676,7 @@ function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSa
         <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => setDraft({ ...draft, aliases })} /></label>
         <label>Descripción<textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
         <div className="studio-form-grid">
-          <label>Categorías <small>Ejemplo: protagonista, antagonista, secundario.</small><input value={(draft.categories || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, categories: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
+          <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas en otras entradas de este tipo.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => setDraft({ ...draft, categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
           <label>Palabras que no deben contar <small>Útil para alias que también sean palabras comunes.</small><input value={(draft.exclusions || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, exclusions: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
         </div>
         <div className="studio-checks">
@@ -638,6 +693,8 @@ function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSa
         </section>
       </div> : <div className="studio-empty"><Box size={28} /><p>Selecciona o crea una entrada del Codex.</p></div>}
     </div>
+    {categoryAi.proposal && <AiSuggestionDialog proposal={categoryAi.proposal} currentValue={(draft?.categories || []).join(", ")} onApply={() => applyCategories(categoryAi.proposal.value)} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
+    {categoryAi.manual && <ManualChatGptDialog request={categoryAi.manual} onApply={applyCategories} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
   </section>;
 }
 

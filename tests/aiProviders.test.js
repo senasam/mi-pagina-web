@@ -47,6 +47,20 @@ test("asks Ollama for a chapter title and cleans quotation marks", async () => {
   assert.match(prompt, /este capítulo/);
 });
 
+test("asks Ollama for Codex categories using the entry context", async () => {
+  let prompt;
+  const suggestion = await requestOllamaSuggestion({
+    task: "codex-categories",
+    prose: "Tipo: Personaje\nNombre: Elena\nAlias: La doctora\nDescripción: Investiga una desaparición.",
+    metadata: { beats: ["Categorías ya usadas: protagonista"] },
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b" },
+    fetchImpl: async (url, options) => { prompt = JSON.parse(options.body).prompt; return new Response(JSON.stringify({ response: "investigadora, aliada" }), { status: 200 }); },
+  });
+  assert.equal(suggestion, "investigadora, aliada");
+  assert.match(prompt, /categorías breves y útiles/);
+  assert.match(prompt, /La doctora/);
+});
+
 test("reports streamed Ollama model installation progress", async () => {
   const updates = [];
   const stream = new ReadableStream({

@@ -48,6 +48,20 @@ test("genera un título de capítulo con una instrucción específica", async ()
   assert.match(body.input[1].content, /título evocador y específico para este capítulo/i);
 });
 
+test("sugiere categorías para una ficha del Codex", async () => {
+  let body;
+  const result = await generateSceneSuggestion({
+    task: "codex-categories",
+    prose: "Tipo: Personaje\nNombre: Elena\nAlias: La doctora\nDescripción: Investiga una desaparición.",
+    beats: ["Categorías ya usadas: protagonista"],
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => { body = JSON.parse(options.body); return openAiResponse("investigadora, aliada"); },
+  });
+  assert.equal(result.suggestion, "investigadora, aliada");
+  assert.equal(result.task, "codex-categories");
+  assert.match(body.input[1].content, /categorías breves y útiles/i);
+});
+
 test("rechaza escenas vacías antes de llamar a OpenAI", async () => {
   let called = false;
   await assert.rejects(

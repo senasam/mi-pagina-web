@@ -35,7 +35,9 @@ export function normalizeChatGptUrl(value = "https://chatgpt.com/") {
 }
 
 export function buildScenePrompt(task, prose, metadata = {}) {
-  const instruction = task === "chapter-title"
+  const instruction = task === "codex-categories"
+    ? "Sugiere entre 3 y 6 categorías breves y útiles para clasificar esta ficha del Codex. Considera su tipo, nombre, alias, descripción y las categorías ya usadas. No repitas categorías existentes. Devuelve únicamente las categorías separadas por comas, sin explicación."
+    : task === "chapter-title"
     ? "Propón un título evocador y específico para este capítulo a partir del contexto y sus escenas. Devuelve únicamente el título, sin comillas, explicación ni punto final."
     : task === "title"
       ? "Propón un título evocador y específico para esta escena. Devuelve únicamente el título, sin comillas, explicación ni punto final."
@@ -127,7 +129,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
       system: "Eres un asistente editorial para ficción. Responde en el idioma de la escena y cumple exactamente el formato solicitado.",
       stream: false,
       think: false,
-      options: { temperature: task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : 80 },
+      options: { temperature: task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-categories" ? 140 : 80 },
     }),
   });
   const payload = await response.json().catch(() => ({}));
