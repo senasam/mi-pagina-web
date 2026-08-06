@@ -280,6 +280,13 @@
 .studio-character-filter { display: grid; grid-template-columns: 1fr 1fr; margin-bottom: 10px; }
 .studio-character-filter button { justify-content: center; }
 .studio-list-empty { padding: 16px 8px; color: var(--studio-muted); font-size: .8rem; text-align: center; }
+.studio-chip-input { display: flex; min-height: 42px; flex-wrap: wrap; align-items: center; gap: 6px; padding: 6px 8px; border: 1px solid var(--studio-line); border-radius: 5px; background: #fff; }
+.studio-chip-input:focus-within { border-color: #9b7331; box-shadow: 0 0 0 3px rgba(155, 115, 49, .12); }
+.studio-chip-input.is-disabled { background: #f1eee8; }
+.studio-chip-input input { min-width: 160px; flex: 1 1 190px; padding: 4px 2px; border: 0; outline: 0; box-shadow: none; background: transparent; }
+.studio-editable-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 5px 5px 9px; border: 1px solid #d5c4a7; border-radius: 999px; color: #51452f; background: #fff8e8; font-size: .78rem; font-weight: 650; }
+.studio-editable-chip button { display: inline-flex; padding: 2px; border: 0; border-radius: 50%; color: #75664f; background: transparent; cursor: pointer; }
+.studio-editable-chip button:hover { color: #fff; background: #7b2932; }
 .studio-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .studio-checks { display: flex; flex-wrap: wrap; gap: 20px; }
 .studio-checks label { display: flex; align-items: center; gap: 7px; }

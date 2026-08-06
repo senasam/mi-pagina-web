@@ -497,6 +497,37 @@ function MentionBreakdown({ novelId, mentions }) {
   </>;
 }
 
+function ChipInput({ values = [], onChange, disabled, placeholder = "Escribe y presiona Enter" }) {
+  const [pending, setPending] = useState("");
+  const add = (raw = pending) => {
+    const next = [...values];
+    for (const candidate of raw.split(",").map((value) => value.trim()).filter(Boolean)) {
+      if (!next.some((value) => value.toLocaleLowerCase() === candidate.toLocaleLowerCase())) next.push(candidate);
+    }
+    if (next.length !== values.length) onChange(next);
+    setPending("");
+  };
+  const remove = (index) => onChange(values.filter((_, itemIndex) => itemIndex !== index));
+  return <div className={`studio-chip-input${disabled ? " is-disabled" : ""}`}>
+    {values.map((value, index) => <span className="studio-editable-chip" key={`${value}-${index}`}>
+      {value}
+      <button type="button" disabled={disabled} aria-label={`Quitar ${value}`} title={`Quitar ${value}`} onClick={() => remove(index)}><X size={13} /></button>
+    </span>)}
+    <input
+      value={pending}
+      disabled={disabled}
+      placeholder={values.length ? "Agregar otro…" : placeholder}
+      aria-label="Nuevo alias"
+      onChange={(event) => setPending(event.target.value)}
+      onBlur={() => { if (pending.trim()) add(); }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === ",") { event.preventDefault(); add(); }
+        else if (event.key === "Backspace" && !pending && values.length) remove(values.length - 1);
+      }}
+    />
+  </div>;
+}
+
 function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSaveState }) {
   const initial = entries.find((entry) => entry.type === "character") || entries[0] || null;
   const [selectedId, setSelectedId] = useState(initial?.id || null);
@@ -587,7 +618,7 @@ function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSa
           <label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
           <label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
-        <label>Alias y otras formas de nombrar esta entrada <small>Sepáralos con comas: apellido, apodo, abreviación, título o nombre alternativo.</small><input placeholder="Ejemplo: Rainiero, Cardona, teniente, ingeniero" value={(draft.aliases || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, aliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
+        <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => setDraft({ ...draft, aliases })} /></label>
         <label>Descripción<textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
         <div className="studio-form-grid">
           <label>Categorías <small>Ejemplo: protagonista, antagonista, secundario.</small><input value={(draft.categories || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, categories: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>

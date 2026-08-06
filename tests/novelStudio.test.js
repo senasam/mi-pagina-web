@@ -69,6 +69,8 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /title="Codex"/);
   assert.match(source, /personajes, lugares, objetos, conocimientos y subtramas/);
   assert.match(source, /Alias y otras formas de nombrar esta entrada/);
+  assert.match(source, /event\.key === "Enter" \|\| event\.key === ","/);
+  assert.match(source, /aria-label={`Quitar \${value}`}/);
   assert.match(source, /Sus resultados se agrupan por acto y capítulo/);
   assert.match(source, /Encontrado como:/);
   assert.doesNotMatch(source, /placeholder="Beats/);
