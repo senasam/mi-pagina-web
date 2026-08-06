@@ -4,6 +4,7 @@ import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
+import { TableKit } from "@tiptap/extension-table";
 import {
   Archive, ArrowDown, ArrowLeft, ArrowUp, BookOpen, Bold, Box,
   Clock3, Download, FileArchive, FilePlus2, FolderOpen, Grid2X2, Heading2,
@@ -16,10 +17,10 @@ import {
   applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, flattenScenes, groupMentionsByStory,
   makeId, nowIso, parseOutline,
 } from "./model.js";
-import { htmlToMarkdown, markdownToHtml } from "./editorFormat.js";
+import { htmlToMarkdown, markdownToHtml, sanitizeRichHtml } from "./editorFormat.js";
 import { SectionNode } from "./SectionNode.js";
 import { requestSceneSuggestion } from "./sceneAssistant.js";
-import { CHARACTER_DOSSIER_GROUPS, customDossierSections, mergeDossierDetails, parseCharacterDossier } from "./codexDossier.js";
+import { CHARACTER_DOSSIER_GROUPS, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml } from "./codexDossier.js";
 import {
   OLLAMA_MODEL_PRESETS, buildChatGptManualPrompt, chooseOllamaModel, listOllamaModels, normalizeChatGptUrl,
   ollamaOriginCommand, pullOllamaModel,
@@ -541,6 +542,60 @@ function parseCategorySuggestions(value) {
   return categories.filter((category, index) => categories.findIndex((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()) === index);
 }
 
+function dossierValueToHtml(value) {
+  const content = String(value || "");
+  return /<\/?[a-z][\s\S]*>/i.test(content) ? sanitizeRichHtml(content) : markdownToHtml(content);
+}
+
+function dossierPlainText(value) {
+  return String(value || "").replace(/<br\s*\/?\s*>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim();
+}
+
+function DossierRichEditor({ value, disabled, onChange }) {
+  const editor = useEditor({
+    extensions: [StarterKit, Underline, TableKit.configure({ table: { resizable: true } })],
+    content: dossierValueToHtml(value),
+    editable: !disabled,
+    onUpdate: ({ editor: active }) => onChange(sanitizeRichHtml(active.getHTML())),
+    editorProps: { attributes: { class: "studio-dossier-prose", "aria-label": "Contenido de la sección" } },
+  });
+  useEffect(() => {
+    if (!editor) return;
+    editor.setEditable(!disabled);
+    const html = dossierValueToHtml(value);
+    if (editor.getHTML() !== html) editor.commands.setContent(html, { emitUpdate: false });
+  }, [disabled, editor, value]);
+  if (!editor) return null;
+  const command = (action) => { action(editor.chain().focus()).run(); };
+  return <div className="studio-dossier-editor">
+    <div className="studio-dossier-toolbar" aria-label="Formato de la sección">
+      <button type="button" disabled={disabled} className={editor.isActive("bold") ? "active" : ""} title="Negrita" onClick={() => command((chain) => chain.toggleBold())}><Bold size={15} /></button>
+      <button type="button" disabled={disabled} className={editor.isActive("italic") ? "active" : ""} title="Cursiva" onClick={() => command((chain) => chain.toggleItalic())}><Italic size={15} /></button>
+      <button type="button" disabled={disabled} className={editor.isActive("underline") ? "active" : ""} title="Subrayado" onClick={() => command((chain) => chain.toggleUnderline())}><UnderlineIcon size={15} /></button>
+      <button type="button" disabled={disabled} className={editor.isActive("bulletList") ? "active" : ""} title="Lista" onClick={() => command((chain) => chain.toggleBulletList())}><List size={15} /></button>
+      <button type="button" disabled={disabled} className={editor.isActive("orderedList") ? "active" : ""} title="Lista numerada" onClick={() => command((chain) => chain.toggleOrderedList())}><ListOrdered size={15} /></button>
+      <span className="studio-dossier-toolbar-divider" />
+      <button type="button" disabled={disabled} title="Insertar tabla" onClick={() => command((chain) => chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }))}>Tabla</button>
+      <button type="button" disabled={disabled || !editor.isActive("table")} title="Agregar fila" onClick={() => command((chain) => chain.addRowAfter())}>+ fila</button>
+      <button type="button" disabled={disabled || !editor.isActive("table")} title="Eliminar fila" onClick={() => command((chain) => chain.deleteRow())}>− fila</button>
+      <button type="button" disabled={disabled || !editor.isActive("table")} title="Agregar columna" onClick={() => command((chain) => chain.addColumnAfter())}>+ columna</button>
+      <button type="button" disabled={disabled || !editor.isActive("table")} title="Eliminar columna" onClick={() => command((chain) => chain.deleteColumn())}>− columna</button>
+      <button type="button" disabled={disabled || !editor.isActive("table")} title="Eliminar tabla" onClick={() => command((chain) => chain.deleteTable())}>Eliminar tabla</button>
+    </div>
+    <EditorContent editor={editor} />
+  </div>;
+}
+
+function DossierSection({ title, value, disabled, custom, onChange, onRemove }) {
+  const [open, setOpen] = useState(Boolean(value));
+  const count = dossierPlainText(value).length;
+  return <details className="studio-dossier-section" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <summary><span>{title}</span><small>{count ? `${count.toLocaleString("es")} caracteres` : "Vacío"}</small></summary>
+    {open && <DossierRichEditor value={value} disabled={disabled} onChange={onChange} />}
+    {custom && open && <button type="button" className="studio-text-link studio-dossier-remove" disabled={disabled} onClick={onRemove}>Eliminar esta sección personalizada</button>}
+  </details>;
+}
+
 function CharacterDossier({ details = {}, disabled, onChange, onImport }) {
   const [customTitle, setCustomTitle] = useState("");
   const changeSection = (title, value) => onChange({ ...details, [title]: value });
@@ -550,11 +605,7 @@ function CharacterDossier({ details = {}, disabled, onChange, onImport }) {
     onChange({ ...details, [title]: "" });
     setCustomTitle("");
   };
-  const renderSection = (title, custom = false) => <details className="studio-dossier-section" key={title} open={Boolean(details[title])}>
-    <summary><span>{title}</span><small>{details[title]?.trim() ? `${details[title].trim().length.toLocaleString("es")} caracteres` : "Vacío"}</small></summary>
-    <textarea rows="8" value={details[title] || ""} disabled={disabled} placeholder={`Escribe o pega aquí: ${title.toLocaleLowerCase()}`} onChange={(event) => changeSection(title, event.target.value)} />
-    {custom && <button type="button" className="studio-text-link studio-dossier-remove" disabled={disabled} onClick={() => { const next = { ...details }; delete next[title]; onChange(next); }}>Eliminar esta sección personalizada</button>}
-  </details>;
+  const renderSection = (title, custom = false) => <DossierSection key={title} title={title} value={details[title] || ""} disabled={disabled} custom={custom} onChange={(value) => changeSection(title, value)} onRemove={() => { const next = { ...details }; delete next[title]; onChange(next); }} />;
 
   return <section className="studio-dossier">
     <header className="studio-dossier-heading"><div><p className="studio-kicker">Opciones avanzadas</p><h3>Expediente del personaje</h3><p>Organiza aquí biografía, cronología, voz, cuerpo, habilidades, relaciones y documentación extensa.</p></div><label className="studio-button studio-button--secondary"><Upload size={16} /> Importar ficha<input hidden type="file" accept=".docx,.md,.markdown,.txt" disabled={disabled} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImport(file); event.target.value = ""; }} /></label></header>
@@ -564,9 +615,9 @@ function CharacterDossier({ details = {}, disabled, onChange, onImport }) {
   </section>;
 }
 
-function DossierImportDialog({ preview, onApply, onCancel }) {
+function DossierImportDialog({ preview, onMerge, onReplace, onCancel }) {
   const sections = Object.entries(preview.sections);
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="dossier-import-title"><div className="studio-modal__card studio-dossier-import"><p className="studio-kicker">Importar ficha de personaje</p><h2 id="dossier-import-title">{preview.fileName}</h2><p>Se detectaron {sections.length} secciones. Se combinarán con el expediente actual sin borrar su contenido.</p><div className="studio-dossier-import-list">{sections.map(([title, content]) => <div key={title}><strong>{title}</strong><span>{content.length.toLocaleString("es")} caracteres</span><p>{content.slice(0, 180)}{content.length > 180 ? "…" : ""}</p></div>)}</div>{preview.warnings?.length > 0 && <details><summary>Advertencias del archivo</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}<div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!sections.length} onClick={onApply}><Upload size={16} /> Combinar con la ficha</button></div></div></div>;
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="dossier-import-title"><div className="studio-modal__card studio-dossier-import"><p className="studio-kicker">Importar ficha de personaje</p><h2 id="dossier-import-title">{preview.fileName}</h2><p>Se detectaron {sections.length} secciones con su formato y tablas. Puedes combinarlas o reemplazar solamente las secciones detectadas; el resto de la ficha no cambiará.</p><div className="studio-dossier-import-list">{sections.map(([title, content]) => { const plain = dossierPlainText(content); return <div key={title}><strong>{title}</strong><span>{plain.length.toLocaleString("es")} caracteres</span><p>{plain.slice(0, 180)}{plain.length > 180 ? "…" : ""}</p></div>; })}</div>{preview.warnings?.length > 0 && <details><summary>Advertencias del archivo</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}<div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button studio-button--secondary" disabled={!sections.length} onClick={onReplace}>Reemplazar secciones detectadas</button><button type="button" className="studio-button" disabled={!sections.length} onClick={onMerge}><Upload size={16} /> Combinar con la ficha</button></div></div></div>;
 }
 
 function CharactersPage({ novel, structure, entries, setEntries, aiSettings, readOnly, setSaveState }) {
@@ -662,9 +713,11 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   const importDossier = async (file) => {
     setDossierError("");
     try {
-      const { fileToMarkdown } = await import("./documentIO.js");
-      const { markdown, warnings } = await fileToMarkdown(file);
-      const sections = parseCharacterDossier(markdown, file.name.replace(/\.[^.]+$/, ""));
+      const { fileToHtml } = await import("./documentIO.js");
+      const { html, markdown, warnings } = await fileToHtml(file);
+      const fallbackTitle = file.name.replace(/\.[^.]+$/, "");
+      const rawSections = html ? parseCharacterDossierHtml(html, fallbackTitle) : parseCharacterDossier(markdown, fallbackTitle);
+      const sections = Object.fromEntries(Object.entries(rawSections).map(([title, content]) => [title, html ? sanitizeRichHtml(content) : markdownToHtml(content)]));
       setDossierImport({ fileName: file.name, sections, warnings });
     } catch (error) { setDossierError(error.message); }
   };
@@ -771,7 +824,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     </div>
     {categoryAi.proposal && <AiSuggestionDialog proposal={categoryAi.proposal} currentValue={(draft?.categories || []).join(", ")} onApply={() => applyCategories(categoryAi.proposal.value)} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
     {categoryAi.manual && <ManualChatGptDialog request={categoryAi.manual} onApply={applyCategories} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
-    {dossierImport && <DossierImportDialog preview={dossierImport} onCancel={() => setDossierImport(null)} onApply={() => { updateDraft({ details: mergeDossierDetails(draft.details || {}, dossierImport.sections) }); setDossierImport(null); }} />}
+    {dossierImport && <DossierImportDialog preview={dossierImport} onCancel={() => setDossierImport(null)} onMerge={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: mergeDossierDetails(current, dossierImport.sections) }); setDossierImport(null); }} onReplace={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: { ...current, ...dossierImport.sections } }); setDossierImport(null); }} />}
   </section>;
 }
 

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mergeDossierDetails, parseCharacterDossier } from "../src/novel-studio/codexDossier.js";
+import { mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml } from "../src/novel-studio/codexDossier.js";
 
 test("organiza una ficha importada en secciones avanzadas del personaje", () => {
   const parsed = parseCharacterDossier("# Índice general\n* 1. Ficha maestra\n# 1. Ficha maestra y cronología general\nNace en 1852.\n# 5. Perfil militar\nOficial de caballería.\n# Guía de voz y diálogo\nHabla con frases breves.");
@@ -14,4 +14,11 @@ test("combina una importación sin borrar el expediente existente", () => {
   const merged = mergeDossierDetails({ "Origen familiar e infancia": "Contenido anterior" }, { "Origen familiar e infancia": "Contenido importado", "Personas vinculadas": "Amanda" });
   assert.match(merged["Origen familiar e infancia"], /Contenido anterior\n\nContenido importado/);
   assert.equal(merged["Personas vinculadas"], "Amanda");
+});
+
+test("conserva tablas y formato HTML al separar una ficha de Word", () => {
+  const parsed = parseCharacterDossierHtml("<h1>Perfil militar</h1><p><strong>Rango:</strong> capitán</p><table><tbody><tr><td>Arma</td><td>Sable</td></tr></tbody></table><h1>Guía de voz y diálogo</h1><ul><li>Frases breves</li></ul>");
+  assert.match(parsed["Perfil profesional o militar"], /<strong>Rango:<\/strong>/);
+  assert.match(parsed["Perfil profesional o militar"], /<table>/);
+  assert.match(parsed["Guía de voz y diálogo"], /<ul>/);
 });

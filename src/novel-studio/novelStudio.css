@@ -306,7 +306,21 @@
 .studio-dossier-section { border: 1px solid var(--studio-line); border-radius: 5px; background: #fffdf8; }
 .studio-dossier-section summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; font-size: .84rem; font-weight: 700; cursor: pointer; }
 .studio-dossier-section summary small { color: var(--studio-muted); font-size: .68rem; font-weight: 400; }
-.studio-dossier-section textarea { min-height: 150px; margin: 0 12px 12px; width: calc(100% - 24px); resize: vertical; line-height: 1.55; }
+.studio-dossier-editor { overflow: hidden; margin: 0 12px 12px; border: 1px solid var(--studio-line); border-radius: 5px; background: #fff; }
+.studio-dossier-toolbar { display: flex; overflow-x: auto; align-items: center; gap: 3px; padding: 6px; border-bottom: 1px solid var(--studio-line); background: #f5f0e7; }
+.studio-dossier-toolbar button { display: inline-flex; min-width: 29px; min-height: 28px; flex: 0 0 auto; align-items: center; justify-content: center; padding: 4px 7px; border: 0; border-radius: 4px; color: #4c463c; background: transparent; font-size: .7rem; cursor: pointer; }
+.studio-dossier-toolbar button:hover, .studio-dossier-toolbar button.active { color: #fff; background: #6f5426; }
+.studio-dossier-toolbar button:disabled { opacity: .4; cursor: default; }
+.studio-dossier-toolbar-divider { width: 1px; height: 22px; flex: 0 0 auto; margin: 0 3px; background: var(--studio-line); }
+.studio-dossier-prose { overflow-x: auto; min-height: 180px; padding: 14px; outline: 0; font-size: .86rem; font-weight: 400; line-height: 1.6; }
+.studio-dossier-prose p { margin: 0 0 .75em; }
+.studio-dossier-prose ul, .studio-dossier-prose ol { padding-left: 24px; }
+.studio-dossier-prose table { width: 100%; margin: 10px 0; border-collapse: collapse; table-layout: auto; }
+.studio-dossier-prose th, .studio-dossier-prose td { min-width: 90px; padding: 7px 9px; border: 1px solid #bdb3a3; vertical-align: top; text-align: left; }
+.studio-dossier-prose th { background: #eee6d8; font-weight: 750; }
+.studio-dossier-prose .selectedCell { background: #fff0c8; }
+.studio-dossier-prose .tableWrapper { overflow-x: auto; }
+.studio-dossier-prose .column-resize-handle { position: absolute; top: 0; right: -2px; bottom: -2px; width: 4px; background: #9b7331; pointer-events: none; }
 .studio-dossier-remove { margin: -4px 12px 12px; color: #8a2632; font-size: .72rem; }
 .studio-dossier-add { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .studio-dossier-import { width: min(760px, calc(100vw - 30px)); }

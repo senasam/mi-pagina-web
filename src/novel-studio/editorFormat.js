@@ -19,6 +19,13 @@ export function markdownToHtml(markdown = "") {
   });
 }
 
+export function sanitizeRichHtml(html = "") {
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ["table", "thead", "tbody", "tfoot", "tr", "th", "td", "colgroup", "col"],
+    ADD_ATTR: ["colspan", "rowspan", "colwidth", "style"],
+  });
+}
+
 function inline(node) {
   if (node.nodeType === 3) return node.nodeValue || "";
   if (node.nodeType !== 1) return "";
@@ -63,4 +70,3 @@ export function htmlToMarkdown(html = "") {
   const document = new DOMParser().parseFromString(DOMPurify.sanitize(html, { ADD_TAGS: ["details", "summary"], ADD_ATTR: ["data-studio-section", "data-title", "data-color", "open"] }), "text/html");
   return [...document.body.childNodes].map((node) => block(node)).join("").replace(/\n{3,}/g, "\n\n").trimEnd();
 }
-

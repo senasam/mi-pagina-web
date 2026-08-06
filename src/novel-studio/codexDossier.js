@@ -108,12 +108,37 @@ export function parseCharacterDossier(markdown, fallbackTitle = "Documentación 
   return cleanSections;
 }
 
+function plainHtml(value) {
+  return String(value || "").replace(/<br\s*\/?\s*>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/\s+/g, " ").trim();
+}
+
+export function parseCharacterDossierHtml(html, fallbackTitle = "Documentación importada") {
+  const source = String(html || "");
+  const headings = [...source.matchAll(/<h[1-6][^>]*>([\s\S]*?)<\/h[1-6]>/gi)];
+  if (!headings.length) return plainHtml(source) ? { [fallbackTitle]: source.trim() } : {};
+  const sections = {};
+  const append = (title, content) => {
+    if (!title || !plainHtml(content)) return;
+    sections[title] = sections[title] ? `${sections[title]}<hr>${content.trim()}` : content.trim();
+  };
+  const prefix = source.slice(0, headings[0].index);
+  append(fallbackTitle, prefix);
+  headings.forEach((heading, index) => {
+    const title = canonicalSection(plainHtml(heading[1]));
+    const start = heading.index + heading[0].length;
+    const end = index + 1 < headings.length ? headings[index + 1].index : source.length;
+    append(title, source.slice(start, end));
+  });
+  return sections;
+}
+
 export function mergeDossierDetails(current = {}, imported = {}) {
   const merged = { ...current };
   for (const [title, content] of Object.entries(imported)) {
     if (!content.trim()) continue;
+    const separator = /<[^>]+>/.test(`${merged[title] || ""}${content}`) ? "<hr>" : "\n\n";
     merged[title] = merged[title]?.trim() && merged[title].trim() !== content.trim()
-      ? `${merged[title].trim()}\n\n${content.trim()}`
+      ? `${merged[title].trim()}${separator}${content.trim()}`
       : content.trim();
   }
   return merged;

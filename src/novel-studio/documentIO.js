@@ -11,6 +11,15 @@ export async function fileToMarkdown(file) {
   throw new Error("Formato no compatible. Usa DOCX, Markdown o TXT.");
 }
 
+export async function fileToHtml(file) {
+  if (/\.docx$/i.test(file.name)) {
+    const result = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+    return { html: result.value, warnings: result.messages.map((message) => message.message) };
+  }
+  if (/\.(md|markdown|txt)$/i.test(file.name)) return { html: null, markdown: await file.text(), warnings: [] };
+  throw new Error("Formato no compatible. Usa DOCX, Markdown o TXT.");
+}
+
 export function manuscriptImportPreview(markdown, fallbackTitle = "Importación") {
   const structure = { schemaVersion: 1, acts: [], scenes: {} };
   const contents = {};
