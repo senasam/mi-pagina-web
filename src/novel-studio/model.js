@@ -161,6 +161,49 @@ export function findMentions(text, entry) {
     .map((match) => ({ index: match.index, length: match[0].length, text: match[0] }));
 }
 
+export function groupMentionsByStory(mentions = []) {
+  const acts = [];
+  const actMap = new Map();
+  const variants = new Map();
+  let total = 0;
+
+  for (const mention of mentions) {
+    total += mention.count || 0;
+    for (const match of mention.matches || []) {
+      const label = match.text;
+      const key = label.toLocaleLowerCase();
+      const current = variants.get(key) || { label, count: 0 };
+      current.count += 1;
+      variants.set(key, current);
+    }
+
+    const actId = mention.actId || "sin-acto";
+    let act = actMap.get(actId);
+    if (!act) {
+      act = { id: actId, title: mention.actTitle || "Sin acto", count: 0, chapters: [] };
+      actMap.set(actId, act);
+      acts.push(act);
+    }
+    act.count += mention.count || 0;
+
+    const chapterId = mention.chapterId || "sin-capitulo";
+    let chapter = act.chapters.find((item) => item.id === chapterId);
+    if (!chapter) {
+      chapter = { id: chapterId, title: mention.chapterTitle || "Sin capítulo", count: 0, scenes: [] };
+      act.chapters.push(chapter);
+    }
+    chapter.count += mention.count || 0;
+    chapter.scenes.push(mention);
+  }
+
+  return {
+    total,
+    sceneCount: mentions.length,
+    acts,
+    variants: [...variants.values()].sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "es")),
+  };
+}
+
 export function flattenScenes(structure) {
   return structure.acts.filter((act) => !act.archived).flatMap((act, actIndex) => act.chapters.filter((chapter) => !chapter.archived).flatMap((chapter, chapterIndex) =>
     chapter.sceneIds.map((sceneId, sceneIndex) => ({

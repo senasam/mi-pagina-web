@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { workspaceRepository as repository, WorkspaceConflictError } from "./LocalWorkspaceRepository.js";
 import {
-  applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, flattenScenes,
+  applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, flattenScenes, groupMentionsByStory,
   makeId, nowIso, parseOutline,
 } from "./model.js";
 import { htmlToMarkdown, markdownToHtml } from "./editorFormat.js";
@@ -234,12 +234,12 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
   };
   if (error) return <div className="studio-app"><WorkspaceHeader manifest={manifest} saveState="error" readOnly={readOnly} onClose={onClose} /><main className="studio-fatal"><h1>No se pudo abrir la novela</h1><p>{error}</p><a className="studio-button" href="/estudio-novela">Volver a la biblioteca</a></main></div>;
   if (!novel || !structure || !preferences) return <StudioLoading />;
-  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "codex", label: "Codex", icon: Box }, { id: "configuracion", label: "Configuración", icon: Settings }];
+  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "codex", label: "Personajes", icon: UserRound }, { id: "configuracion", label: "Configuración", icon: Settings }];
   return <div className={`studio-app studio-workspace ${sidebar ? "" : "sidebar-closed"}`}><WorkspaceHeader manifest={manifest} saveState={saveState} readOnly={readOnly} onClose={onClose}><button type="button" className="studio-header-save-button" title="Forzar el guardado de todos los cambios pendientes" disabled={readOnly || saveState === "saving"} onClick={forceSave}><Save size={16} /><span>Guardar todo</span></button><button className="studio-icon-button" title="Mostrar u ocultar panel" onClick={() => setSidebar((value) => !value)}>{sidebar ? <PanelLeftClose size={18} /> : <Menu size={18} />}</button></WorkspaceHeader><aside className="studio-sidebar"><a className="studio-sidebar__back" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")}><ArrowLeft size={16} /> Biblioteca</a><div className="studio-sidebar__novel"><BookOpen size={19} /><div><strong>{novel.title}</strong><small>{countNovelWords(structure).toLocaleString("es")} palabras registradas</small></div></div><nav>{modes.map(({ id, label, icon: Icon }) => <a className={mode === id ? "active" : ""} href={studioHref(novelId, id)} onClick={(event) => handleStudioLink(event, studioHref(novelId, id))} key={id}><Icon size={18} />{label}</a>)}</nav></aside><main className="studio-main">
     {readOnly && <div className="studio-notice"><strong>Solo lectura:</strong> cierra la otra pestaña del estudio para editar.</div>}
     {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
-    {mode === "codex" && <CodexPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} readOnly={readOnly} setSaveState={setSaveState} />}
+    {mode === "codex" && <CharactersPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "configuracion" && <SettingsPage novel={novel} setNovel={setNovel} structure={structure} preferences={preferences} setPreferences={setPreferences} readOnly={readOnly} setSaveState={setSaveState} />}
   </main></div>;
 }
@@ -471,6 +471,143 @@ function ManualChatGptDialog({ request, onApply, onCancel }) {
   };
   const isTitle = request.task === "title" || request.task === "chapter-title";
   return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2><ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle ? 2 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
+}
+
+function MentionBreakdown({ novelId, mentions }) {
+  const summary = useMemo(() => groupMentionsByStory(mentions), [mentions]);
+  if (!summary.total) return <p className="studio-mentions-empty">Todavía no se encontraron menciones con el nombre o los alias guardados.</p>;
+  return <>
+    <div className="studio-mention-stats">
+      <strong>{summary.total} menciones</strong>
+      <span>en {summary.sceneCount} {summary.sceneCount === 1 ? "escena" : "escenas"}</span>
+      <span>y {summary.acts.length} {summary.acts.length === 1 ? "acto" : "actos"}</span>
+    </div>
+    <div className="studio-mention-variants"><span>Encontrado como:</span>{summary.variants.map((variant) => <span className="studio-mention-chip" key={variant.label.toLocaleLowerCase()}>{variant.label} <strong>{variant.count}</strong></span>)}</div>
+    <div className="studio-mention-tree">
+      {summary.acts.map((act) => <details open key={act.id}>
+        <summary><span>{act.title}</span><strong>{act.count}</strong></summary>
+        {act.chapters.map((chapter) => <details open key={chapter.id}>
+          <summary><span>{chapter.title}</span><strong>{chapter.count}</strong></summary>
+          {chapter.scenes.map((scene) => <a key={scene.sceneId} href={`${studioHref(novelId, "escribir")}?scene=${scene.sceneId}`} onClick={(event) => handleStudioLink(event, `${studioHref(novelId, "escribir")}?scene=${scene.sceneId}`)}>
+            <span>{scene.sceneTitle}</span><strong>{scene.count}</strong>
+          </a>)}
+        </details>)}
+      </details>)}
+    </div>
+  </>;
+}
+
+function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSaveState }) {
+  const initial = entries.find((entry) => entry.type === "character") || entries[0] || null;
+  const [selectedId, setSelectedId] = useState(initial?.id || null);
+  const [draft, setDraft] = useState(initial);
+  const [query, setQuery] = useState("");
+  const [kind, setKind] = useState("character");
+  const [mentions, setMentions] = useState({});
+
+  useEffect(() => {
+    const selected = entries.find((entry) => entry.id === selectedId);
+    if (selected) setDraft(selected);
+  }, [selectedId, entries]);
+
+  useEffect(() => {
+    let worker;
+    let cancelled = false;
+    (async () => {
+      const scenes = [];
+      for (const { act, chapter, scene } of flattenScenes(structure)) {
+        try {
+          const savedScene = await repository.readScene(novel.id, scene.id);
+          scenes.push({
+            ...scene,
+            prose: savedScene.prose,
+            actId: act.id,
+            actTitle: act.title,
+            chapterId: chapter.id,
+            chapterTitle: chapter.title,
+          });
+        } catch { /* Una escena ilegible no impide revisar las demás. */ }
+      }
+      if (cancelled) return;
+      worker = new Worker(new URL("./mentions.worker.js", import.meta.url), { type: "module" });
+      worker.onmessage = (event) => setMentions(event.data);
+      worker.postMessage({ scenes, entries });
+    })();
+    return () => { cancelled = true; worker?.terminate(); };
+  }, [entries, novel.id, structure]);
+
+  const save = async () => {
+    if (!draft || readOnly) return true;
+    setSaveState("saving");
+    try {
+      const saved = await repository.saveCodexEntry(novel.id, draft);
+      setEntries((current) => [...current.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, "es")));
+      setDraft(saved);
+      setSaveState("saved");
+      return true;
+    } catch {
+      setSaveState("error");
+      return false;
+    }
+  };
+  useForceSave(save);
+
+  const create = () => {
+    const entry = createCodexEntry("character");
+    entry.name = "Nuevo personaje";
+    setKind("character");
+    setEntries((current) => [...current, entry]);
+    setSelectedId(entry.id);
+    setDraft(entry);
+  };
+  const filtered = entries.filter((entry) => (kind === "all" || entry.type === "character")
+    && `${entry.name} ${(entry.aliases || []).join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
+  const selectedMentions = draft ? mentions[draft.id] || [] : [];
+
+  return <section className="studio-page studio-characters-page">
+    <PageTitle kicker="Personajes y mundo" title="Personajes" text="Guarda sus nombres y alias, y comprueba automáticamente dónde aparecen en el manuscrito.">
+      <button className="studio-button" disabled={readOnly} onClick={create}><Plus size={17} /> Nuevo personaje</button>
+    </PageTitle>
+    <p className="studio-notice studio-character-help"><UserRound size={18} /> La detección revisa el título, el resumen y el texto de cada escena. Sus resultados se agrupan por acto y capítulo; no modifica tu manuscrito.</p>
+    <div className="studio-codex-layout">
+      <aside className="studio-codex-list">
+        <div className="studio-segmented studio-character-filter">
+          <button className={kind === "character" ? "active" : ""} onClick={() => setKind("character")}>Personajes</button>
+          <button className={kind === "all" ? "active" : ""} onClick={() => setKind("all")}>Todo</button>
+        </div>
+        <label className="studio-search"><Search size={16} /><input aria-label="Buscar personajes" placeholder="Buscar por nombre o alias" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
+        {filtered.map((entry) => <button className={entry.id === selectedId ? "active" : ""} key={entry.id} onClick={() => setSelectedId(entry.id)}>
+          <span>{entry.type === "character" ? <UserRound size={17} /> : <Box size={17} />}{entry.name}</span>
+          <small>{(mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)} menciones</small>
+        </button>)}
+        {!filtered.length && <p className="studio-list-empty">No hay personajes que coincidan.</p>}
+      </aside>
+      {draft ? <div className="studio-codex-editor">
+        <div className="studio-form-grid">
+          <label>Nombre completo o principal<input value={draft.name} disabled={readOnly} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+          <label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        </div>
+        <label>Alias y otras formas de nombrarlo <small>Sepáralos con comas: apellido, apodo, título o tratamiento.</small><input placeholder="Ejemplo: Rainiero, Cardona, teniente, ingeniero" value={(draft.aliases || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, aliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
+        <label>Descripción<textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+        <div className="studio-form-grid">
+          <label>Categorías <small>Ejemplo: protagonista, antagonista, secundario.</small><input value={(draft.categories || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, categories: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
+          <label>Palabras que no deben contar <small>Útil para alias que también sean palabras comunes.</small><input value={(draft.exclusions || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, exclusions: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
+        </div>
+        <div className="studio-checks">
+          <label><input type="checkbox" checked={draft.trackMentions} disabled={readOnly} onChange={(event) => setDraft({ ...draft, trackMentions: event.target.checked })} /> Detectar menciones de este personaje</label>
+          <label><input type="checkbox" checked={draft.caseSensitive} disabled={readOnly} onChange={(event) => setDraft({ ...draft, caseSensitive: event.target.checked })} /> Distinguir mayúsculas y minúsculas</label>
+        </div>
+        <div className="studio-row">
+          <button className="studio-button" disabled={readOnly || !draft.name.trim()} onClick={save}><Save size={17} /> Guardar personaje</button>
+          <button className="studio-button studio-button--danger" disabled={readOnly} onClick={async () => { if (confirm("¿Eliminar este personaje?")) { await repository.deleteCodexEntry(novel.id, draft.id); setEntries((current) => current.filter((item) => item.id !== draft.id)); setSelectedId(null); setDraft(null); } }}><Trash2 size={17} /> Eliminar</button>
+        </div>
+        <section className="studio-mentions">
+          <div className="studio-mentions-heading"><div><p className="studio-kicker">Seguimiento automático</p><h3>Menciones en la novela</h3></div><small>Guarda los cambios para actualizar nombres y alias.</small></div>
+          {!draft.trackMentions ? <p className="studio-mentions-empty">Activa “Detectar menciones de este personaje” y guarda para comenzar el seguimiento.</p> : <MentionBreakdown novelId={novel.id} mentions={selectedMentions} />}
+        </section>
+      </div> : <div className="studio-empty"><UserRound size={28} /><p>Selecciona un personaje o crea el primero.</p></div>}
+    </div>
+  </section>;
 }
 
 function CodexPage({ novel, structure, entries, setEntries, readOnly, setSaveState }) {

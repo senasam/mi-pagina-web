@@ -6,7 +6,16 @@ self.onmessage = ({ data }) => {
     result[entry.id] = [];
     for (const scene of data.scenes || []) {
       const matches = findMentions(`${scene.title}\n${scene.summary}\n${scene.prose}`, entry);
-      if (matches.length) result[entry.id].push({ sceneId: scene.id, sceneTitle: scene.title, count: matches.length, matches });
+      if (matches.length) result[entry.id].push({
+        sceneId: scene.id,
+        sceneTitle: scene.title,
+        actId: scene.actId,
+        actTitle: scene.actTitle,
+        chapterId: scene.chapterId,
+        chapterTitle: scene.chapterTitle,
+        count: matches.length,
+        matches,
+      });
     }
   }
   self.postMessage(result);

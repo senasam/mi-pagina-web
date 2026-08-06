@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
-  applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, findMentions,
+  applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, findMentions, groupMentionsByStory,
   flattenScenes, markdownBody, parseOutline, safeFileName, sceneToMarkdown,
 } from "../src/novel-studio/model.js";
 import { manuscriptImportPreview } from "../src/novel-studio/documentIO.js";
@@ -39,6 +39,18 @@ test("mention engine supports aliases, exclusions and case sensitivity", () => {
   assert.deepEqual(findMentions("Will y will", sensitive).map((item) => item.text), ["Will"]);
 });
 
+test("mentions are grouped by act and chapter and summarize aliases", () => {
+  const grouped = groupMentionsByStory([
+    { actId: "a1", actTitle: "Acto I", chapterId: "c1", chapterTitle: "Llegada", sceneId: "s1", sceneTitle: "El tren", count: 2, matches: [{ text: "Rainiero" }, { text: "Cardona" }] },
+    { actId: "a1", actTitle: "Acto I", chapterId: "c1", chapterTitle: "Llegada", sceneId: "s2", sceneTitle: "La casa", count: 1, matches: [{ text: "rainiero" }] },
+  ]);
+  assert.equal(grouped.total, 3);
+  assert.equal(grouped.sceneCount, 2);
+  assert.equal(grouped.acts[0].count, 3);
+  assert.equal(grouped.acts[0].chapters[0].scenes.length, 2);
+  assert.deepEqual(grouped.variants.map(({ label, count }) => [label, count]), [["Rainiero", 2], ["Cardona", 1]]);
+});
+
 test("manuscript import previews acts, chapters, scenes and contents", () => {
   const preview = manuscriptImportPreview("# Acto 1\n## Capítulo 1\n### Escena A\nHola mundo.\n### Escena B\nAdiós mundo.");
   assert.deepEqual(preview.counts, { acts: 1, chapters: 1, scenes: 2, words: 4 });
@@ -53,6 +65,10 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /enabled: true/);
   assert.match(source, /Momentos clave de la escena/);
   assert.match(source, /no aparece en el manuscrito final/);
+  assert.match(source, /label: "Personajes"/);
+  assert.match(source, /Alias y otras formas de nombrarlo/);
+  assert.match(source, /Sus resultados se agrupan por acto y capítulo/);
+  assert.match(source, /Encontrado como:/);
   assert.doesNotMatch(source, /placeholder="Beats/);
 });
 
