@@ -20,7 +20,7 @@ import {
 import { htmlToMarkdown, markdownToHtml, sanitizeRichHtml } from "./editorFormat.js";
 import { SectionNode } from "./SectionNode.js";
 import { requestSceneSuggestion } from "./sceneAssistant.js";
-import { applyDossierClassification, CHARACTER_DOSSIER_GROUPS, CHARACTER_DOSSIER_SECTIONS, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml } from "./codexDossier.js";
+import { applyDossierClassification, CHARACTER_DOSSIER_GROUPS, createDossierClassificationBatches, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml, parseDossierClassification } from "./codexDossier.js";
 import { buildCharacterNetwork, normalizeRelationship, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
 import {
   OLLAMA_MODEL_PRESETS, buildChatGptManualPrompt, chooseOllamaModel, listOllamaModels, normalizeChatGptUrl,
@@ -479,7 +479,7 @@ function ManualChatGptDialog({ request, onApply, onCancel }) {
   const isCategories = request.task === "codex-categories";
   const isCodexField = request.task === "codex-field";
   const isImportClassification = request.task === "codex-import-classification";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2><ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isImportClassification ? "Clasificación JSON devuelta" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2>{request.batches?.length > 1 && <p className="studio-notice">Lote {request.batchNumber} de {request.batches.length}. Al aplicar este resultado se preparará automáticamente el siguiente.</p>}<ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isImportClassification ? "Clasificación JSON devuelta" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
 }
 
 function MentionBreakdown({ novelId, mentions }) {
@@ -679,7 +679,7 @@ function CharacterDossier({ details = {}, disabled, aiConfigured, aiBusy, onSugg
 function DossierImportDialog({ preview, aiConfigured, classificationAi, onClassify, onMerge, onReplace, onCancel }) {
   const sections = Object.entries(preview.sections);
   const customCount = customDossierSections(preview.sections).length;
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="dossier-import-title"><div className="studio-modal__card studio-dossier-import"><p className="studio-kicker">Importar ficha de personaje</p><h2 id="dossier-import-title">{preview.fileName}</h2><p>Se detectaron {sections.length} secciones con su formato y tablas. Puedes combinarlas o reemplazar solamente las secciones detectadas; el resto de la ficha no cambiará.</p>{customCount > 0 && <div className="studio-import-classification"><div><strong>{customCount} {customCount === 1 ? "sección personalizada" : "secciones personalizadas"}</strong><p>La IA puede revisar su título y contenido para ubicarlas en los atributos estándar. Las secciones dudosas se conservarán sin cambios.</p></div><button type="button" className="studio-button studio-button--secondary" disabled={!aiConfigured || classificationAi.busy} title={aiConfigured ? "Clasificar los campos personalizados sin reescribir su contenido" : "Configura la IA para clasificar estos campos"} onClick={onClassify}><Sparkles size={16} /> {classificationAi.busy ? "Clasificando…" : "Clasificar con IA"}</button></div>}{preview.classificationMessage && <p className="studio-notice">{preview.classificationMessage}</p>}{classificationAi.error && <p className="studio-ai-error" role="alert">{classificationAi.error}</p>}<div className="studio-dossier-import-list">{sections.map(([title, content]) => { const plain = dossierPlainText(content); return <div key={title}><strong>{title}</strong><span>{plain.length.toLocaleString("es")} caracteres</span><p>{plain.slice(0, 180)}{plain.length > 180 ? "…" : ""}</p></div>; })}</div>{preview.warnings?.length > 0 && <details><summary>Advertencias del archivo</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}<div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button studio-button--secondary" disabled={!sections.length} onClick={onReplace}>Reemplazar secciones detectadas</button><button type="button" className="studio-button" disabled={!sections.length} onClick={onMerge}><Upload size={16} /> Combinar con la ficha</button></div></div></div>;
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="dossier-import-title"><div className="studio-modal__card studio-dossier-import"><p className="studio-kicker">Importar ficha de personaje</p><h2 id="dossier-import-title">{preview.fileName}</h2><p>Se detectaron {sections.length} secciones con su formato y tablas. Puedes combinarlas o reemplazar solamente las secciones detectadas; el resto de la ficha no cambiará.</p>{customCount > 0 && <div className="studio-import-classification"><div><strong>{customCount} {customCount === 1 ? "sección personalizada" : "secciones personalizadas"}</strong><p>La IA puede revisar su título y contenido para ubicarlas en los atributos estándar. Las fichas extensas se procesan por lotes y las secciones dudosas se conservan sin cambios.</p></div><button type="button" className="studio-button studio-button--secondary" disabled={!aiConfigured || classificationAi.busy} title={aiConfigured ? "Clasificar los campos personalizados sin reescribir su contenido" : "Configura la IA para clasificar estos campos"} onClick={onClassify}><Sparkles size={16} /> {classificationAi.busy ? classificationAi.progress || "Clasificando…" : "Clasificar con IA"}</button></div>}{preview.classificationMessage && <p className="studio-notice">{preview.classificationMessage}</p>}{classificationAi.error && <p className="studio-ai-error" role="alert">{classificationAi.error}</p>}<div className="studio-dossier-import-list">{sections.map(([title, content]) => { const plain = dossierPlainText(content); return <div key={title}><strong>{title}</strong><span>{plain.length.toLocaleString("es")} caracteres</span><p>{plain.slice(0, 180)}{plain.length > 180 ? "…" : ""}</p></div>; })}</div>{preview.warnings?.length > 0 && <details><summary>Advertencias del archivo</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}<div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button studio-button--secondary" disabled={!sections.length} onClick={onReplace}>Reemplazar secciones detectadas</button><button type="button" className="studio-button" disabled={!sections.length} onClick={onMerge}><Upload size={16} /> Combinar con la ficha</button></div></div></div>;
 }
 
 function useCodexMentions(novelId, structure, entries) {
@@ -808,6 +808,21 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       setClassificationAi((current) => ({ ...current, busy: false, error: error.message }));
     }
   };
+  const applyManualImportClassification = (value) => {
+    try {
+      const manual = classificationAi.manual;
+      const assignments = [...(manual?.assignments || []), ...parseDossierClassification(value)];
+      const nextIndex = (manual?.batchIndex || 0) + 1;
+      if (manual && nextIndex < manual.batches.length) {
+        const metadata = { title: `${dossierImport.fileName} · lote ${nextIndex + 1} de ${manual.batches.length}`, summary: "Clasificación de secciones importadas", beats: [] };
+        const prompt = buildChatGptManualPrompt("codex-import-classification", manual.batches[nextIndex], metadata);
+        navigator.clipboard?.writeText(prompt)?.catch(() => {});
+        setClassificationAi({ busy: false, error: "", manual: { ...manual, batchIndex: nextIndex, assignments, prompt, batchNumber: nextIndex + 1 } });
+        return;
+      }
+      applyImportClassification(assignments);
+    } catch (error) { setClassificationAi((current) => ({ ...current, busy: false, error: error.message })); }
+  };
   const classifyDossierImport = async () => {
     if (!dossierImport || classificationAi.busy || !aiConfigured) return;
     const customTitles = customDossierSections(dossierImport.sections);
@@ -817,28 +832,27 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       if (!accepted) return;
       openAiConfirmedRef.current = true;
     }
-    const prose = [
-      "ATRIBUTOS ESTÁNDAR PERMITIDOS:",
-      ...CHARACTER_DOSSIER_SECTIONS.map((title) => `- ${title}`),
-      "",
-      "SECCIONES PERSONALIZADAS IMPORTADAS:",
-      ...customTitles.map((title) => `\n<TITULO>${title}</TITULO>\n<CONTENIDO>${dossierPlainText(dossierImport.sections[title]).slice(0, 6000)}</CONTENIDO>`),
-    ].join("\n");
-    const metadata = { title: dossierImport.fileName, summary: "Clasificación de secciones importadas", beats: [] };
+    const batches = createDossierClassificationBatches(dossierImport.sections);
+    const metadataFor = (index) => ({ title: `${dossierImport.fileName} · lote ${index + 1} de ${batches.length}`, summary: "Clasificación de secciones importadas", beats: [] });
     if (aiSettings.provider === "chatgpt-manual") {
       try {
-        const prompt = buildChatGptManualPrompt("codex-import-classification", prose, metadata);
+        const prompt = buildChatGptManualPrompt("codex-import-classification", batches[0], metadataFor(0));
         const url = normalizeChatGptUrl(aiSettings.manualUrl);
         window.open(url, "_blank", "noopener,noreferrer");
         navigator.clipboard?.writeText(prompt)?.catch(() => {});
-        setClassificationAi({ busy: false, error: "", manual: { task: "codex-import-classification", prompt, url } });
+        setClassificationAi({ busy: false, error: "", manual: { task: "codex-import-classification", prompt, url, batches, batchIndex: 0, batchNumber: 1, assignments: [] } });
       } catch (error) { setClassificationAi({ busy: false, manual: null, error: error.message }); }
       return;
     }
-    setClassificationAi({ busy: true, manual: null, error: "" });
+    setClassificationAi({ busy: true, progress: `Lote 1 de ${batches.length}`, manual: null, error: "" });
     try {
-      const value = await requestSceneSuggestion({ task: "codex-import-classification", prose, metadata, settings: aiSettings });
-      applyImportClassification(value);
+      const assignments = [];
+      for (let index = 0; index < batches.length; index += 1) {
+        setClassificationAi({ busy: true, progress: `Lote ${index + 1} de ${batches.length}`, manual: null, error: "" });
+        const value = await requestSceneSuggestion({ task: "codex-import-classification", prose: batches[index], metadata: metadataFor(index), settings: aiSettings });
+        assignments.push(...parseDossierClassification(value));
+      }
+      applyImportClassification(assignments);
     } catch (error) { setClassificationAi({ busy: false, manual: null, error: error.message }); }
   };
   const discardDossierSection = async (title, custom) => {
@@ -1036,7 +1050,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     {fieldAi.proposal && <AiSuggestionDialog proposal={fieldAi.proposal} currentValue={fieldAi.proposal.target === "Descripción" ? draft?.description || "" : dossierPlainText(draft?.details?.[fieldAi.proposal.target] || "")} onApply={() => applyCodexField(fieldAi.proposal.target, fieldAi.proposal.value)} onCancel={() => setFieldAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {fieldAi.manual && <ManualChatGptDialog request={fieldAi.manual} onApply={(value) => applyCodexField(fieldAi.manual.target, value)} onCancel={() => setFieldAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {dossierImport && <DossierImportDialog preview={dossierImport} aiConfigured={aiConfigured} classificationAi={classificationAi} onClassify={classifyDossierImport} onCancel={() => { setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onMerge={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: mergeDossierDetails(current, dossierImport.sections) }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onReplace={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: { ...current, ...dossierImport.sections } }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} />}
-    {classificationAi.manual && <ManualChatGptDialog request={classificationAi.manual} onApply={applyImportClassification} onCancel={() => setClassificationAi({ busy: false, manual: null, error: "" })} />}
+    {classificationAi.manual && <ManualChatGptDialog key={classificationAi.manual.batchIndex || 0} request={classificationAi.manual} onApply={applyManualImportClassification} onCancel={() => setClassificationAi({ busy: false, manual: null, error: "" })} />}
   </section>;
 }
 

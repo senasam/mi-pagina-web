@@ -149,6 +149,24 @@ export function customDossierSections(details = {}) {
   return Object.keys(details).filter((title) => !KNOWN_SECTIONS.includes(title));
 }
 
+export function createDossierClassificationBatches(sections = {}, maxChars = 40000) {
+  const header = ["ATRIBUTOS ESTÁNDAR PERMITIDOS:", ...KNOWN_SECTIONS.map((title) => `- ${title}`), "", "SECCIONES PERSONALIZADAS IMPORTADAS:"].join("\n");
+  const batches = [];
+  let blocks = [];
+  let length = header.length;
+  for (const title of customDossierSections(sections)) {
+    const content = plainHtml(sections[title]).slice(0, 3500);
+    const block = `\n<TITULO>${title}</TITULO>\n<CONTENIDO>${content}</CONTENIDO>`;
+    if (blocks.length && length + block.length > maxChars) {
+      batches.push(`${header}${blocks.join("")}`);
+      blocks = []; length = header.length;
+    }
+    blocks.push(block); length += block.length;
+  }
+  if (blocks.length) batches.push(`${header}${blocks.join("")}`);
+  return batches;
+}
+
 export function parseDossierClassification(value) {
   const source = String(value || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
   let payload;

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyDossierClassification, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml } from "../src/novel-studio/codexDossier.js";
+import { applyDossierClassification, createDossierClassificationBatches, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml } from "../src/novel-studio/codexDossier.js";
 
 test("organiza una ficha importada en secciones avanzadas del personaje", () => {
   const parsed = parseCharacterDossier("# Índice general\n* 1. Ficha maestra\n# 1. Ficha maestra y cronología general\nNace en 1852.\n# 5. Perfil militar\nOficial de caballería.\n# Guía de voz y diálogo\nHabla con frases breves.");
@@ -39,4 +39,12 @@ test("reubica con la clasificación de IA solo campos personalizados y conserva 
   assert.equal(result.sections["Datos de combate"], undefined);
   assert.equal(result.sections["Notas ambiguas"], "<p>Por revisar.</p>");
   assert.equal(result.sections["Guía de voz y diálogo"], "<p>Habla bajo.</p>");
+});
+
+test("divide 104 secciones personalizadas en lotes seguros sin omitir ninguna", () => {
+  const sections = Object.fromEntries(Array.from({ length: 104 }, (_, index) => [`Sección importada ${index + 1}`, `<p>${`Contenido ${index + 1} `.repeat(100)}</p>`]));
+  const batches = createDossierClassificationBatches(sections);
+  assert.ok(batches.length > 1);
+  assert.ok(batches.every((batch) => batch.length <= 40000));
+  for (let index = 1; index <= 104; index += 1) assert.equal(batches.filter((batch) => batch.includes(`<TITULO>Sección importada ${index}</TITULO>`)).length, 1);
 });

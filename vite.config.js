@@ -9,7 +9,7 @@ async function readJsonBody(request, limit = 75000) {
   let body = "";
   for await (const chunk of request) {
     body += chunk;
-    if (body.length > limit) throw new SceneAssistantError("La escena supera el tamaño permitido.", 413, "PAYLOAD_TOO_LARGE");
+    if (body.length > limit) throw new SceneAssistantError("La solicitud de IA supera el tamaño permitido.", 413, "PAYLOAD_TOO_LARGE");
   }
   try { return body ? JSON.parse(body) : {}; }
   catch { throw new SceneAssistantError("Solicitud JSON no válida.", 400, "INVALID_JSON"); }
