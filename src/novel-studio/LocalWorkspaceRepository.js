@@ -505,7 +505,7 @@ export class LocalWorkspaceRepository {
 
   async saveCodexEntry(novelId, entry, { reason = "editar-codex" } = {}) {
     const existsAlready = await exists(this.root, `novels/${novelId}/codex/${entry.id}.json`);
-    if (existsAlready) await this.createRevision(novelId, entry.id, "codex", reason);
+    if (existsAlready && (reason !== "autosave" || await this.shouldSnapshot(novelId, entry.id))) await this.createRevision(novelId, entry.id, "codex", reason);
     const { description = "", ...metadata } = entry;
     metadata.updatedAt = nowIso();
     await writeFile(this.root, `novels/${novelId}/codex/${entry.id}.md`, description.trimEnd() + "\n");

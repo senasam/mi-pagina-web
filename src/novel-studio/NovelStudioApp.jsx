@@ -19,6 +19,7 @@ import {
 import { htmlToMarkdown, markdownToHtml } from "./editorFormat.js";
 import { SectionNode } from "./SectionNode.js";
 import { requestSceneSuggestion } from "./sceneAssistant.js";
+import { CHARACTER_DOSSIER_GROUPS, customDossierSections, mergeDossierDetails, parseCharacterDossier } from "./codexDossier.js";
 import {
   OLLAMA_MODEL_PRESETS, buildChatGptManualPrompt, chooseOllamaModel, listOllamaModels, normalizeChatGptUrl,
   ollamaOriginCommand, pullOllamaModel,
@@ -540,6 +541,34 @@ function parseCategorySuggestions(value) {
   return categories.filter((category, index) => categories.findIndex((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()) === index);
 }
 
+function CharacterDossier({ details = {}, disabled, onChange, onImport }) {
+  const [customTitle, setCustomTitle] = useState("");
+  const changeSection = (title, value) => onChange({ ...details, [title]: value });
+  const addCustom = () => {
+    const title = customTitle.trim();
+    if (!title || Object.prototype.hasOwnProperty.call(details, title)) return;
+    onChange({ ...details, [title]: "" });
+    setCustomTitle("");
+  };
+  const renderSection = (title, custom = false) => <details className="studio-dossier-section" key={title} open={Boolean(details[title])}>
+    <summary><span>{title}</span><small>{details[title]?.trim() ? `${details[title].trim().length.toLocaleString("es")} caracteres` : "Vacío"}</small></summary>
+    <textarea rows="8" value={details[title] || ""} disabled={disabled} placeholder={`Escribe o pega aquí: ${title.toLocaleLowerCase()}`} onChange={(event) => changeSection(title, event.target.value)} />
+    {custom && <button type="button" className="studio-text-link studio-dossier-remove" disabled={disabled} onClick={() => { const next = { ...details }; delete next[title]; onChange(next); }}>Eliminar esta sección personalizada</button>}
+  </details>;
+
+  return <section className="studio-dossier">
+    <header className="studio-dossier-heading"><div><p className="studio-kicker">Opciones avanzadas</p><h3>Expediente del personaje</h3><p>Organiza aquí biografía, cronología, voz, cuerpo, habilidades, relaciones y documentación extensa.</p></div><label className="studio-button studio-button--secondary"><Upload size={16} /> Importar ficha<input hidden type="file" accept=".docx,.md,.markdown,.txt" disabled={disabled} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImport(file); event.target.value = ""; }} /></label></header>
+    {CHARACTER_DOSSIER_GROUPS.map((group) => <section className="studio-dossier-group" key={group.title}><h4>{group.title}</h4>{group.sections.map((title) => renderSection(title))}</section>)}
+    {customDossierSections(details).length > 0 && <section className="studio-dossier-group"><h4>Secciones personalizadas</h4>{customDossierSections(details).map((title) => renderSection(title, true))}</section>}
+    <div className="studio-dossier-add"><input aria-label="Nombre de la nueva sección" placeholder="Otra sección, por ejemplo: Objetivos pendientes" value={customTitle} disabled={disabled} onChange={(event) => setCustomTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustom(); } }} /><button type="button" className="studio-button studio-button--secondary" disabled={disabled || !customTitle.trim()} onClick={addCustom}><Plus size={15} /> Añadir sección</button></div>
+  </section>;
+}
+
+function DossierImportDialog({ preview, onApply, onCancel }) {
+  const sections = Object.entries(preview.sections);
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="dossier-import-title"><div className="studio-modal__card studio-dossier-import"><p className="studio-kicker">Importar ficha de personaje</p><h2 id="dossier-import-title">{preview.fileName}</h2><p>Se detectaron {sections.length} secciones. Se combinarán con el expediente actual sin borrar su contenido.</p><div className="studio-dossier-import-list">{sections.map(([title, content]) => <div key={title}><strong>{title}</strong><span>{content.length.toLocaleString("es")} caracteres</span><p>{content.slice(0, 180)}{content.length > 180 ? "…" : ""}</p></div>)}</div>{preview.warnings?.length > 0 && <details><summary>Advertencias del archivo</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}<div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!sections.length} onClick={onApply}><Upload size={16} /> Combinar con la ficha</button></div></div></div>;
+}
+
 function CharactersPage({ novel, structure, entries, setEntries, aiSettings, readOnly, setSaveState }) {
   const initial = entries.find((entry) => entry.type === "character") || entries[0] || null;
   const [selectedId, setSelectedId] = useState(initial?.id || null);
@@ -549,6 +578,8 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   const [mentions, setMentions] = useState({});
   const [codexDirty, setCodexDirty] = useState(false);
   const [categoryAi, setCategoryAi] = useState({ busy: false, proposal: null, manual: null, error: "" });
+  const [dossierImport, setDossierImport] = useState(null);
+  const [dossierError, setDossierError] = useState("");
   const openAiConfirmedRef = useRef(false);
   const draftVersionRef = useRef(0);
 
@@ -589,7 +620,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     const version = draftVersionRef.current;
     setSaveState("saving");
     try {
-      const saved = await repository.saveCodexEntry(novel.id, snapshot);
+      const saved = await repository.saveCodexEntry(novel.id, snapshot, { reason: "autosave" });
       if (version === draftVersionRef.current) {
         setEntries((current) => [...current.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, "es")));
         setDraft(saved);
@@ -627,6 +658,15 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     if (!saved) return;
     setCodexDirty(false);
     setSelectedId(entryId);
+  };
+  const importDossier = async (file) => {
+    setDossierError("");
+    try {
+      const { fileToMarkdown } = await import("./documentIO.js");
+      const { markdown, warnings } = await fileToMarkdown(file);
+      const sections = parseCharacterDossier(markdown, file.name.replace(/\.[^.]+$/, ""));
+      setDossierImport({ fileName: file.name, sections, warnings });
+    } catch (error) { setDossierError(error.message); }
   };
 
   const create = () => {
@@ -710,6 +750,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
         </div>
         <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => updateDraft({ aliases })} /></label>
         <label>Descripción<textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => updateDraft({ description: event.target.value })} /></label>
+        {draft.type === "character" && <><CharacterDossier details={draft.details || {}} disabled={readOnly} onChange={(details) => updateDraft({ details })} onImport={importDossier} />{dossierError && <p className="studio-ai-error" role="alert">{dossierError}</p>}</>}
         <div className="studio-form-grid">
           <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas en otras entradas de este tipo.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => updateDraft({ categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
           <label>Palabras que no deben contar <small>Útil para alias que también sean palabras comunes.</small><input value={(draft.exclusions || []).join(", ")} disabled={readOnly} onChange={(event) => updateDraft({ exclusions: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
@@ -730,6 +771,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     </div>
     {categoryAi.proposal && <AiSuggestionDialog proposal={categoryAi.proposal} currentValue={(draft?.categories || []).join(", ")} onApply={() => applyCategories(categoryAi.proposal.value)} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
     {categoryAi.manual && <ManualChatGptDialog request={categoryAi.manual} onApply={applyCategories} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
+    {dossierImport && <DossierImportDialog preview={dossierImport} onCancel={() => setDossierImport(null)} onApply={() => { updateDraft({ details: mergeDossierDetails(draft.details || {}, dossierImport.sections) }); setDossierImport(null); }} />}
   </section>;
 }
 

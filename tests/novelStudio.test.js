@@ -75,7 +75,11 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /task: "codex-categories"/);
   assert.match(source, /Personaliza libremente o elige las ya usadas/);
   assert.match(source, /setTimeout\(save, 600\)/);
+  assert.match(source, /reason: "autosave"/);
   assert.match(source, /Los cambios se guardan automáticamente/);
+  assert.match(source, /Expediente del personaje/);
+  assert.match(source, /Importar ficha/);
+  assert.match(source, /Combinar con la ficha/);
   assert.match(source, /Sus resultados se agrupan por acto y capítulo/);
   assert.match(source, /Encontrado como:/);
   assert.doesNotMatch(source, /placeholder="Beats/);
