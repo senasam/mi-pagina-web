@@ -515,14 +515,20 @@ function CharacterNetworkMap({ entries, mentionTotals, selectedId, onSelect }) {
   if (!network.nodes.length) return <p className="studio-mentions-empty">Crea personajes para comenzar el mapa de relaciones.</p>;
   return <div className="studio-network-wrap">
     <svg className="studio-character-network" viewBox="0 0 900 500" role="img" aria-label="Mapa de relaciones entre personajes">
+      <defs>{usedTypes.map((type) => <marker id={`studio-arrow-${type.value}`} key={type.value} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill={type.color} /></marker>)}</defs>
       {network.edges.map((edge) => {
         const source = nodesById.get(edge.sourceId);
         const target = nodesById.get(edge.targetId);
         const style = relationshipStyle(edge.type);
         if (!source || !target) return null;
+        const dx = target.x - source.x; const dy = target.y - source.y; const length = Math.hypot(dx, dy) || 1;
+        const offset = (edge.parallelIndex - (edge.parallelCount - 1) / 2) * 13;
+        const unitX = dx / length; const unitY = dy / length; const normalX = -unitY; const normalY = unitX;
+        const x1 = source.x + unitX * source.radius + normalX * offset; const y1 = source.y + unitY * source.radius + normalY * offset;
+        const x2 = target.x - unitX * target.radius + normalX * offset; const y2 = target.y - unitY * target.radius + normalY * offset;
         return <g className="studio-network-edge" key={edge.id}>
-          <title>{`${source.name} — ${target.name}: ${style.label}, intensidad ${edge.strength} de 5`}</title>
-          <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={style.color} strokeWidth={1.5 + edge.strength * 1.35} strokeDasharray={style.dash || undefined} />
+          <title>{`${source.name} ${edge.bidirectional ? "↔" : "→"} ${target.name}: ${style.label}, intensidad ${edge.strength} de 5`}</title>
+          <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={style.color} strokeWidth={1.5 + edge.strength * 1.35} strokeDasharray={style.dash || undefined} markerStart={edge.bidirectional ? `url(#studio-arrow-${edge.type})` : undefined} markerEnd={`url(#studio-arrow-${edge.type})`} />
         </g>;
       })}
       {network.nodes.map((node) => <g className={`studio-network-node${node.id === selectedId ? " is-selected" : ""}`} key={node.id} role="button" tabIndex="0" aria-label={`${node.name}, ${node.mentions} menciones`} transform={`translate(${node.x} ${node.y})`} onClick={() => onSelect(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(node.id); } }}>
@@ -540,8 +546,6 @@ function CharacterNetworkMap({ entries, mentionTotals, selectedId, onSelect }) {
 function RelationshipEditor({ entry, entries, disabled, onChange }) {
   const relationships = (entry.relations || []).map(normalizeRelationship);
   const characters = entries.filter((candidate) => candidate.type === "character" && candidate.id !== entry.id);
-  const usedTargets = new Set(relationships.map((relation) => relation.targetId));
-  const available = characters.filter((candidate) => !usedTargets.has(candidate.id));
   const update = (index, patch) => onChange(relationships.map((relation, relationIndex) => relationIndex === index ? { ...relation, ...patch } : relation));
   return <section className="studio-relationship-editor">
     <div className="studio-mentions-heading"><div><p className="studio-kicker">Red de personajes</p><h3>Relaciones</h3></div><small>El tipo cambia el conector; la intensidad determina su grosor.</small></div>
@@ -549,14 +553,14 @@ function RelationshipEditor({ entry, entries, disabled, onChange }) {
       const target = characters.find((candidate) => candidate.id === relation.targetId);
       const style = relationshipStyle(relation.type);
       return <div className="studio-relationship-row" key={`${relation.targetId}-${index}`}>
-        <label>Personaje<select value={relation.targetId} disabled={disabled} onChange={(event) => update(index, { targetId: event.target.value })}>{target && <option value={target.id}>{target.name}</option>}{available.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
+        <label>Personaje<select value={relation.targetId} disabled={disabled} onChange={(event) => update(index, { targetId: event.target.value })}>{characters.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
         <label>Tipo de relación<select value={relation.type} disabled={disabled} onChange={(event) => update(index, { type: event.target.value })}>{RELATIONSHIP_TYPES.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}</select></label>
         <label className="studio-relationship-strength">Intensidad: <strong>{relation.strength}/5</strong><input type="range" min="1" max="5" step="1" value={relation.strength} disabled={disabled} style={{ accentColor: style.color }} onChange={(event) => update(index, { strength: Number(event.target.value) })} /></label>
         <button type="button" className="studio-icon-button" disabled={disabled} title="Quitar relación" aria-label={`Quitar relación con ${target?.name || "personaje"}`} onClick={() => onChange(relationships.filter((_, relationIndex) => relationIndex !== index))}><Trash2 size={16} /></button>
       </div>;
     })}
     {!relationships.length && <p className="studio-mentions-empty">Este personaje todavía no tiene relaciones definidas.</p>}
-    <button type="button" className="studio-button studio-button--secondary" disabled={disabled || !available.length} onClick={() => onChange([...relationships, { targetId: available[0].id, type: "friendship", strength: 3 }])}><Plus size={16} /> Añadir relación</button>
+    <button type="button" className="studio-button studio-button--secondary" disabled={disabled || !characters.length} onClick={() => onChange([...relationships, { targetId: characters[0].id, type: "friendship", strength: 3 }])}><Plus size={16} /> Añadir otra relación</button>
   </section>;
 }
 
@@ -754,8 +758,17 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     setSaveState("saving");
     try {
       const saved = await repository.saveCodexEntry(novel.id, snapshot, { reason: "autosave" });
+      const previous = entries.find((entry) => entry.id === snapshot.id);
+      const addedRelations = (snapshot.relations || []).slice((previous?.relations || []).length).map(normalizeRelationship);
+      const savedById = new Map([[saved.id, saved]]);
+      for (const relation of addedRelations) {
+        const target = savedById.get(relation.targetId) || entries.find((entry) => entry.id === relation.targetId);
+        if (!target || (target.relations || []).map(normalizeRelationship).some((item) => item.targetId === snapshot.id)) continue;
+        const savedTarget = await repository.saveCodexEntry(novel.id, { ...target, relations: [...(target.relations || []).map(normalizeRelationship), { ...relation, targetId: snapshot.id }] }, { reason: "crear-relacion-inversa" });
+        savedById.set(savedTarget.id, savedTarget);
+      }
       if (version === draftVersionRef.current) {
-        setEntries((current) => [...current.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, "es")));
+        setEntries((current) => current.map((item) => savedById.get(item.id) || item).sort((a, b) => a.name.localeCompare(b.name, "es")));
         setDraft(saved);
         setCodexDirty(false);
         setSaveState("saved");
@@ -1106,7 +1119,7 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSetting
   const mentions = useCodexMentions(novel.id, structure, entries);
   const mentionTotals = useMemo(() => Object.fromEntries(entries.map((entry) => [entry.id, (mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)])), [entries, mentions]);
   const characters = entries.filter((entry) => entry.type === "character" && !entry.archived);
-  const [connection, setConnection] = useState({ sourceId: "", targetId: "", type: "friendship", strength: 3 });
+  const [connection, setConnection] = useState({ sourceId: "", targetId: "", relationIndex: null, type: "friendship", strength: 3 });
   const [connectionStatus, setConnectionStatus] = useState("");
   const [savingConnection, setSavingConnection] = useState(false);
   const [relationshipAi, setRelationshipAi] = useState({ busy: false, manual: null, error: "" });
@@ -1116,14 +1129,16 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSetting
     setConnection((current) => {
       const sourceId = characters.some((entry) => entry.id === current.sourceId) ? current.sourceId : characters[0].id;
       const targetId = characters.some((entry) => entry.id === current.targetId && entry.id !== sourceId) ? current.targetId : characters.find((entry) => entry.id !== sourceId)?.id || "";
-      return { ...current, sourceId, targetId };
+      return sourceId === current.sourceId && targetId === current.targetId ? current : { ...current, sourceId, targetId, relationIndex: null, type: "friendship", strength: 3 };
     });
   }, [entries]);
-  const selectedRelation = (entries.find((entry) => entry.id === connection.sourceId)?.relations || [])
-    .map(normalizeRelationship).find((relation) => relation.targetId === connection.targetId);
+  const selectedRelations = (entries.find((entry) => entry.id === connection.sourceId)?.relations || [])
+    .map((relation, relationIndex) => ({ ...normalizeRelationship(relation), relationIndex }))
+    .filter((relation) => relation.targetId === connection.targetId);
+  const selectedRelation = selectedRelations.find((relation) => relation.relationIndex === connection.relationIndex);
   useEffect(() => {
-    setConnection((current) => ({ ...current, type: selectedRelation?.type || "friendship", strength: selectedRelation?.strength || 3 }));
-  }, [connection.sourceId, connection.targetId, selectedRelation?.type, selectedRelation?.strength]);
+    if (selectedRelation) setConnection((current) => ({ ...current, type: selectedRelation.type, strength: selectedRelation.strength }));
+  }, [selectedRelation?.relationIndex, selectedRelation?.type, selectedRelation?.strength]);
   const saveConnection = async () => {
     if (readOnly || savingConnection || !connection.sourceId || !connection.targetId || connection.sourceId === connection.targetId) return;
     const updates = planRelationshipUpdates(entries, connection);
@@ -1172,8 +1187,9 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSetting
     <section className="studio-panel studio-network-create">
       <div><p className="studio-kicker">Relación dirigida</p><h2>Conectar dos personajes</h2><p>Editas la relación del primer personaje hacia el segundo. Al crearla, se añade la misma relación inversa solo si todavía no existe.</p></div>
       {characters.length >= 2 ? <div className="studio-network-create-form">
-        <label>Primer personaje<select value={connection.sourceId} disabled={readOnly || savingConnection} onChange={(event) => { const sourceId = event.target.value; setConnectionStatus(""); setConnection((current) => ({ ...current, sourceId, targetId: current.targetId === sourceId ? characters.find((entry) => entry.id !== sourceId)?.id || "" : current.targetId })); }}>{characters.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
-        <label>Segundo personaje<select value={connection.targetId} disabled={readOnly || savingConnection} onChange={(event) => { setConnectionStatus(""); setConnection((current) => ({ ...current, targetId: event.target.value })); }}>{characters.filter((entry) => entry.id !== connection.sourceId).map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
+        <label>Primer personaje<select value={connection.sourceId} disabled={readOnly || savingConnection} onChange={(event) => { const sourceId = event.target.value; setConnectionStatus(""); setConnection((current) => ({ ...current, sourceId, targetId: current.targetId === sourceId ? characters.find((entry) => entry.id !== sourceId)?.id || "" : current.targetId, relationIndex: null, type: "friendship", strength: 3 })); }}>{characters.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
+        <label>Segundo personaje<select value={connection.targetId} disabled={readOnly || savingConnection} onChange={(event) => { setConnectionStatus(""); setConnection((current) => ({ ...current, targetId: event.target.value, relationIndex: null, type: "friendship", strength: 3 })); }}>{characters.filter((entry) => entry.id !== connection.sourceId).map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
+        <label>Relación<select value={connection.relationIndex ?? ""} disabled={readOnly || savingConnection} onChange={(event) => { const relationIndex = event.target.value === "" ? null : Number(event.target.value); setConnectionStatus(""); setConnection((current) => ({ ...current, relationIndex, ...(relationIndex === null ? { type: "friendship", strength: 3 } : {}) })); }}><option value="">Nueva relación</option>{selectedRelations.map((relation) => <option value={relation.relationIndex} key={relation.relationIndex}>{relationshipStyle(relation.type).label} · {relation.strength}/5</option>)}</select></label>
         <label>Tipo<select value={connection.type} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, type: event.target.value }))}>{RELATIONSHIP_TYPES.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}</select></label>
         <label>Intensidad: <strong>{connection.strength}/5</strong><input type="range" min="1" max="5" value={connection.strength} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, strength: Number(event.target.value) }))} /></label>
         <div className="studio-network-create-actions"><button type="button" className="studio-button studio-button--secondary" disabled={readOnly || savingConnection || relationshipAi.busy || !aiConfigured || !connection.sourceId || !connection.targetId} title={aiConfigured ? "Sugerir tipo e intensidad usando ambas fichas" : "Configura la IA para sugerir relaciones"} onClick={suggestRelationship}><Sparkles size={16} />{relationshipAi.busy ? "Analizando…" : "Sugerir con IA"}</button><button type="button" className="studio-button" disabled={readOnly || savingConnection || !connection.sourceId || !connection.targetId} onClick={saveConnection}><Share2 size={16} />{savingConnection ? "Guardando…" : selectedRelation ? "Actualizar esta relación" : "Agregar conexión"}</button></div>

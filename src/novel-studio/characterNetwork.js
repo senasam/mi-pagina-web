@@ -26,7 +26,11 @@ export function planRelationshipUpdates(entries = [], connection = {}) {
   if (!source || !target || source.id === target.id) return null;
   const nextRelation = normalizeRelationship({ targetId: target.id, type: connection.type, strength: connection.strength });
   const sourceRelations = (source.relations || []).map(normalizeRelationship);
-  const sourceIndex = sourceRelations.findIndex((relation) => relation.targetId === target.id);
+  const requestedIndex = Number.isInteger(connection.relationIndex) ? connection.relationIndex : -1;
+  const requestedRelation = sourceRelations[requestedIndex];
+  const sourceIndex = requestedRelation?.targetId === target.id
+    ? requestedIndex
+    : sourceRelations.findIndex((relation) => relation.targetId === target.id && relation.type === nextRelation.type);
   const relations = sourceIndex >= 0
     ? sourceRelations.map((relation, index) => index === sourceIndex ? nextRelation : relation)
     : [...sourceRelations, nextRelation];
@@ -73,17 +77,18 @@ export function buildCharacterNetwork(entries = [], mentionTotals = {}) {
     const names = characterNameParts(entry);
     return { id: entry.id, name: names.firstName || entry.name, fullName: entry.name, mentions, radius: 25 + (maxMentions ? 23 * Math.sqrt(mentions / maxMentions) : 0), ...(positions.get(entry.id) || { x: 450, y: 250 }) };
   });
-  const edgesByPair = new Map();
+  const edges = [];
   for (const entry of characters) {
     for (const rawRelation of entry.relations || []) {
       const relation = normalizeRelationship(rawRelation);
       if (!relation.targetId || relation.targetId === entry.id || !byId.has(relation.targetId)) continue;
       const pair = [entry.id, relation.targetId].sort();
-      const key = pair.join("::");
-      const candidate = { id: key, sourceId: pair[0], targetId: pair[1], type: relation.type, strength: relation.strength };
-      const current = edgesByPair.get(key);
-      if (!current || candidate.strength > current.strength) edgesByPair.set(key, candidate);
+      const reciprocal = edges.find((edge) => edge.sourceId === relation.targetId && edge.targetId === entry.id && edge.type === relation.type && edge.strength === relation.strength && !edge.bidirectional);
+      if (reciprocal) reciprocal.bidirectional = true;
+      else edges.push({ id: `${entry.id}::${relation.targetId}::${relation.type}::${edges.length}`, pairId: pair.join("::"), sourceId: entry.id, targetId: relation.targetId, type: relation.type, strength: relation.strength, bidirectional: false });
     }
   }
-  return { nodes, edges: [...edgesByPair.values()] };
+  const edgesByPair = edges.reduce((groups, edge) => groups.set(edge.pairId, [...(groups.get(edge.pairId) || []), edge]), new Map());
+  for (const pairEdges of edgesByPair.values()) pairEdges.forEach((edge, index) => { edge.parallelIndex = index; edge.parallelCount = pairEdges.length; });
+  return { nodes, edges };
 }
