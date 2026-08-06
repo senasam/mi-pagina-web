@@ -92,6 +92,8 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /Archivar entrada/);
   assert.match(source, /Archivo del Codex/);
   assert.match(source, /restaurar-codex/);
+  assert.match(source, />Abrir todas<\/button>/);
+  assert.match(source, />Cerrar todas<\/button>/);
   assert.match(source, /Sus resultados se agrupan por acto y capítulo/);
   assert.match(source, /Encontrado como:/);
   assert.doesNotMatch(source, /placeholder="Beats/);

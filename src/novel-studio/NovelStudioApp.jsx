@@ -588,9 +588,10 @@ function DossierRichEditor({ value, disabled, onChange }) {
   </div>;
 }
 
-function DossierSection({ title, value, disabled, custom, aiConfigured, aiBusy, onSuggest, onChange, onDiscard }) {
+function DossierSection({ title, value, disabled, custom, aiConfigured, aiBusy, openRequest, onSuggest, onChange, onDiscard }) {
   const [open, setOpen] = useState(Boolean(value));
   const count = dossierPlainText(value).length;
+  useEffect(() => { if (openRequest?.id) setOpen(openRequest.open); }, [openRequest]);
   return <details className="studio-dossier-section" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
     <summary><span>{title}</span><span className="studio-dossier-section-actions"><small>{count ? `${count.toLocaleString("es")} caracteres` : "Vacío"}</small><button type="button" disabled={disabled || !aiConfigured || Boolean(aiBusy)} title={aiConfigured ? `Escribir ${title} con IA usando toda la ficha` : "Configura la IA para completar este apartado"} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onSuggest(title); }}><Sparkles size={13} />{aiBusy ? "Pensando…" : "IA"}</button>{(custom || count > 0) && <button type="button" className="is-danger" disabled={disabled} aria-label={custom ? `Eliminar sección ${title}` : `Vaciar sección ${title}`} title={custom ? "Eliminar sección personalizada" : "Vaciar contenido"} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDiscard(); }}><Trash2 size={13} /></button>}</span></summary>
     {open && <DossierRichEditor value={value} disabled={disabled} onChange={onChange} />}
@@ -599,6 +600,7 @@ function DossierSection({ title, value, disabled, custom, aiConfigured, aiBusy, 
 
 function CharacterDossier({ details = {}, disabled, aiConfigured, aiBusy, onSuggest, onDiscardSection, onChange, onImport }) {
   const [customTitle, setCustomTitle] = useState("");
+  const [openRequest, setOpenRequest] = useState({ id: 0, open: false });
   const changeSection = (title, value) => onChange({ ...details, [title]: value });
   const addCustom = () => {
     const title = customTitle.trim();
@@ -606,10 +608,10 @@ function CharacterDossier({ details = {}, disabled, aiConfigured, aiBusy, onSugg
     onChange({ ...details, [title]: "" });
     setCustomTitle("");
   };
-  const renderSection = (title, custom = false) => <DossierSection key={title} title={title} value={details[title] || ""} disabled={disabled} custom={custom} aiConfigured={aiConfigured} aiBusy={aiBusy === title} onSuggest={onSuggest} onChange={(value) => changeSection(title, value)} onDiscard={() => onDiscardSection(title, custom)} />;
+  const renderSection = (title, custom = false) => <DossierSection key={title} title={title} value={details[title] || ""} disabled={disabled} custom={custom} aiConfigured={aiConfigured} aiBusy={aiBusy === title} openRequest={openRequest} onSuggest={onSuggest} onChange={(value) => changeSection(title, value)} onDiscard={() => onDiscardSection(title, custom)} />;
 
   return <section className="studio-dossier">
-    <header className="studio-dossier-heading"><div><p className="studio-kicker">Opciones avanzadas</p><h3>Expediente del personaje</h3><p>Organiza aquí biografía, cronología, voz, cuerpo, habilidades, relaciones y documentación extensa.</p></div><label className="studio-button studio-button--secondary"><Upload size={16} /> Importar ficha<input hidden type="file" accept=".docx,.md,.markdown,.txt" disabled={disabled} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImport(file); event.target.value = ""; }} /></label></header>
+    <header className="studio-dossier-heading"><div><p className="studio-kicker">Opciones avanzadas</p><h3>Expediente del personaje</h3><p>Organiza aquí biografía, cronología, voz, cuerpo, habilidades, relaciones y documentación extensa.</p></div><div className="studio-dossier-heading-actions"><button type="button" className="studio-button studio-button--secondary" onClick={() => setOpenRequest((current) => ({ id: current.id + 1, open: true }))}>Abrir todas</button><button type="button" className="studio-button studio-button--secondary" onClick={() => setOpenRequest((current) => ({ id: current.id + 1, open: false }))}>Cerrar todas</button><label className="studio-button studio-button--secondary"><Upload size={16} /> Importar ficha<input hidden type="file" accept=".docx,.md,.markdown,.txt" disabled={disabled} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImport(file); event.target.value = ""; }} /></label></div></header>
     {CHARACTER_DOSSIER_GROUPS.map((group) => <section className="studio-dossier-group" key={group.title}><h4>{group.title}</h4>{group.sections.map((title) => renderSection(title))}</section>)}
     {customDossierSections(details).length > 0 && <section className="studio-dossier-group"><h4>Secciones personalizadas</h4>{customDossierSections(details).map((title) => renderSection(title, true))}</section>}
     <div className="studio-dossier-add"><input aria-label="Nombre de la nueva sección" placeholder="Otra sección, por ejemplo: Objetivos pendientes" value={customTitle} disabled={disabled} onChange={(event) => setCustomTitle(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addCustom(); } }} /><button type="button" className="studio-button studio-button--secondary" disabled={disabled || !customTitle.trim()} onClick={addCustom}><Plus size={15} /> Añadir sección</button></div>

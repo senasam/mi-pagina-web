@@ -303,6 +303,8 @@
 .studio-dossier-heading h3, .studio-dossier-heading p { margin: 0; }
 .studio-dossier-heading > div > p:last-child { max-width: 650px; margin-top: 5px; color: var(--studio-muted); font-size: .8rem; line-height: 1.5; }
 .studio-dossier-heading .studio-button { flex: 0 0 auto; }
+.studio-dossier-heading-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+.studio-dossier-heading-actions .studio-button { min-height: 35px; padding: 7px 10px; font-size: .72rem; }
 .studio-dossier-group { display: grid; gap: 7px; }
 .studio-dossier-group h4 { margin: 5px 0 1px; color: #66502c; font-size: .78rem; letter-spacing: .07em; text-transform: uppercase; }
 .studio-dossier-section { border: 1px solid var(--studio-line); border-radius: 5px; background: #fffdf8; }
@@ -473,6 +475,7 @@
   .studio-ai-field, .studio-ai-field--summary { grid-template-columns: 1fr; }
   .studio-ai-button { min-height: 38px; }
   .studio-dossier-heading { flex-direction: column; }
+  .studio-dossier-heading-actions { justify-content: flex-start; }
   .studio-dossier-add { grid-template-columns: 1fr; }
   .studio-prose { padding: 25px 20px; }
   .studio-editor-toolbar { top: 64px; }
