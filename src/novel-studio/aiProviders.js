@@ -47,9 +47,11 @@ export function buildScenePrompt(task, prose, metadata = {}) {
     ? "Sugiere entre 3 y 6 categorías breves y útiles para clasificar esta ficha del Codex. Considera su tipo, nombre, alias, descripción y las categorías ya usadas. No repitas categorías existentes. Devuelve únicamente las categorías separadas por comas, sin explicación."
     : task === "chapter-title"
     ? "Propón un título evocador y específico para este capítulo a partir del contexto y sus escenas. Devuelve únicamente el título, sin comillas, explicación ni punto final."
+    : task === "beats"
+    ? "Extrae entre 3 y 6 momentos clave de esta escena, en orden narrativo. Cada momento debe tener 80 caracteres o menos, ser concreto y describir una acción, revelación, decisión o giro presente en la prosa. No inventes hechos. Devuelve únicamente los momentos separados por punto y coma, sin viñetas ni explicación."
     : task === "title"
       ? "Propón un título evocador y específico para esta escena. Devuelve únicamente el título, sin comillas, explicación ni punto final."
-      : "Resume esta escena en español en un párrafo de 2 a 4 frases. Conserva personajes, giro, conflicto y resultado; no inventes hechos.";
+      : "Resume esta escena en español en una sola frase de 140 caracteres o menos. Conserva únicamente personajes, conflicto o giro y resultado esenciales; no inventes hechos.";
   const context = [
     metadata.title ? `Título actual: ${metadata.title}` : "",
     metadata.summary ? `Resumen actual: ${metadata.summary}` : "",
@@ -140,7 +142,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
       ...(task === "codex-import-classification" ? { format: { type: "object", properties: { assignments: { type: "array", items: { type: "object", properties: { source: { type: "string" }, target: { type: "string" } }, required: ["source", "target"] } } }, required: ["assignments"] } }
         : task === "codex-name" ? { format: { type: "object", properties: { firstName: { type: "string" }, lastName: { type: "string" } }, required: ["firstName", "lastName"] } }
         : task === "codex-relationship" ? { format: { type: "object", properties: { type: { type: "string", enum: ["family", "friendship", "romance", "alliance", "rivalry", "conflict", "mentor", "professional", "other"] }, strength: { type: "integer", minimum: 1, maximum: 5 } }, required: ["type", "strength"] } } : {}),
-      options: { temperature: ["codex-import-classification", "codex-name", "codex-relationship"].includes(task) ? 0 : task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-field" ? 900 : task === "codex-import-classification" ? 1600 : task === "codex-categories" ? 140 : ["codex-name", "codex-relationship"].includes(task) ? 180 : 80 },
+      options: { temperature: ["codex-import-classification", "codex-name", "codex-relationship"].includes(task) ? 0 : ["summary", "beats"].includes(task) ? 0.3 : 0.7, num_predict: task === "summary" ? 80 : task === "beats" ? 140 : task === "codex-field" ? 900 : task === "codex-import-classification" ? 1600 : task === "codex-categories" ? 140 : ["codex-name", "codex-relationship"].includes(task) ? 180 : 80 },
     }),
   });
   const payload = await response.json().catch(() => ({}));

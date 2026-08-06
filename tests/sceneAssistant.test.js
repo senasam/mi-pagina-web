@@ -34,6 +34,31 @@ test("genera un resumen y conserva el texto devuelto", async () => {
   assert.equal(result.task, "summary");
 });
 
+test("recorta una respuesta de resumen que excede 140 caracteres", async () => {
+  const result = await generateSceneSuggestion({
+    task: "summary",
+    prose: "Una escena extensa.",
+    apiKey: "test-key",
+    fetchImpl: async () => openAiResponse("El protagonista descubre una amenaza inesperada, discute con sus aliados y toma una decisión irreversible que cambia por completo el rumbo de la expedición y pone a todos en peligro."),
+  });
+  assert.ok(result.suggestion.length <= 140);
+});
+
+test("extrae momentos clave en un formato aplicable a la escena", async () => {
+  let body;
+  const result = await generateSceneSuggestion({
+    task: "beats",
+    prose: "Tomás encuentra el compás. Rainiero comprende el error y decide volver.",
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => { body = JSON.parse(options.body); return openAiResponse("Tomás encuentra el compás; Rainiero comprende el error; deciden regresar"); },
+  });
+  assert.equal(result.task, "beats");
+  assert.match(result.suggestion, /Tomás encuentra el compás/);
+  assert.match(body.input[1].content, /momentos clave/i);
+  assert.match(body.input[1].content, /punto y coma/i);
+  assert.match(body.input[1].content, /80 caracteres o menos/i);
+});
+
 test("genera un título de capítulo con una instrucción específica", async () => {
   let body;
   const result = await generateSceneSuggestion({

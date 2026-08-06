@@ -8,7 +8,7 @@ self.onmessage = ({ data }) => {
       const matches = findMentions(`${scene.title}\n${scene.summary}\n${scene.prose}`, entry);
       if (matches.length) result[entry.id].push({
         sceneId: scene.id,
-        sceneTitle: scene.title,
+        sceneTitle: scene.summary?.slice(0, 80) || "Escena sin resumen",
         actId: scene.actId,
         actTitle: scene.actTitle,
         chapterId: scene.chapterId,

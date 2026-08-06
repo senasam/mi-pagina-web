@@ -116,8 +116,16 @@ test("reports streamed Ollama model installation progress", async () => {
 
 test("manual ChatGPT prompt contains the scene and no hidden credentials", () => {
   const prompt = buildChatGptManualPrompt("summary", "La escena de prueba.", { title: "Prueba" });
+  assert.match(prompt, /140 caracteres o menos/i);
   assert.match(prompt, /La escena de prueba/);
   assert.match(prompt, /Resume esta escena/);
+});
+
+test("manual ChatGPT prompt can request scene beats", () => {
+  const prompt = buildChatGptManualPrompt("beats", "Tomás encuentra una brújula.", { title: "El hallazgo" });
+  assert.match(prompt, /momentos clave/i);
+  assert.match(prompt, /punto y coma/i);
+  assert.match(prompt, /Tomás encuentra una brújula/);
 });
 
 test("manual ChatGPT URL accepts projects and rejects unsafe destinations", () => {

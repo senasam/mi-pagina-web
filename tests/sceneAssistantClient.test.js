@@ -1,6 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { requestSceneSuggestion, splitAiRequestText } from "../src/novel-studio/sceneAssistant.js";
+import { normalizeSceneAiResult, parseSceneBeats, requestSceneSuggestion, splitAiRequestText } from "../src/novel-studio/sceneAssistant.js";
+
+test("normaliza momentos clave separados por punto y coma, viñetas o números", () => {
+  assert.deepEqual(parseSceneBeats("1. Encuentra el compás\n- Comprende el error; • Decide regresar"), [
+    "Encuentra el compás", "Comprende el error", "Decide regresar",
+  ]);
+});
+
+test("limita los resúmenes a 140 caracteres y cada momento clave a 80", () => {
+  const summary = normalizeSceneAiResult("summary", "Rainiero descubre que el carruaje está mal equilibrado y decide regresar para corregirlo antes de que el problema provoque un accidente durante el largo viaje de vuelta a Madrid.");
+  const beats = parseSceneBeats(`Rainiero examina cuidadosamente cada pieza del carruaje para descubrir por qué se inclina peligrosamente hacia un lado; ${"Tomás propone redistribuir todo el equipaje antes de continuar el viaje ".repeat(2)}`);
+  assert.ok(summary.length <= 140);
+  assert.ok(beats.every((beat) => beat.length <= 80));
+});
 
 test("divide cualquier solicitud extensa y sintetiza sus resultados parciales", async () => {
   const bodies = [];

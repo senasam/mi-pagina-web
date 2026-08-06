@@ -14,7 +14,7 @@ export function emptyStructure() {
 
 export function createScene(id = makeId(), title = "Nueva escena") {
   return {
-    id, title, subtitle: "", summary: "", beats: [], povId: null,
+    id, title, subtitle: "", summary: "", beats: [], participantIds: [], povId: null,
     status: "Borrador", temporal: "Presente", labels: [], subplots: [],
     wordCount: 0, contentHash: "", updatedAt: nowIso(), archived: false,
   };
@@ -40,7 +40,7 @@ export function buildChapterTitleContext(novel, act, chapter, scenesById) {
   const sceneLines = chapter.sceneIds
     .map((id, index) => scenesById[id])
     .filter((scene) => scene && !scene.archived)
-    .map((scene, index) => `${index + 1}. ${scene.title || "Escena sin título"}${scene.summary ? ` — ${scene.summary}` : ""}`);
+    .map((scene, index) => `${index + 1}. ${scene.summary || "Escena todavía sin resumen"}${scene.beats?.length ? ` — Momentos: ${scene.beats.join("; ")}` : ""}`);
   return [
     `Novela: ${novel.title || "Sin título"}`,
     novel.genre ? `Género: ${novel.genre}` : "",

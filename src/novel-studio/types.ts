@@ -45,6 +45,7 @@ export interface SceneMetadata {
   subtitle: string;
   summary: string;
   beats: string[];
+  participantIds: string[];
   povId: string | null;
   status: string;
   temporal: string;

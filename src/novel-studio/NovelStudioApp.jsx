@@ -6,20 +6,20 @@ import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import { TableKit } from "@tiptap/extension-table";
 import {
-  Archive, ArrowDown, ArrowLeft, ArrowUp, BookOpen, Bold, Box,
+  Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookOpen, Bold, Box,
   Clock3, Download, FileArchive, FilePlus2, FolderOpen, Grid2X2, Heading2,
-  Highlighter, Italic, Library, List, ListOrdered, Maximize2, Menu, NotebookPen,
+  Highlighter, Italic, Library, List, ListOrdered, Menu, NotebookPen,
   PanelLeftClose, Pencil, Plus, Quote, Redo2, RotateCcw, Save, Search, Settings, Strikethrough,
   Share2, Sparkles, Trash2, UnderlineIcon, Undo2, Upload, UserRound, X,
 } from "lucide-react";
 import { workspaceRepository as repository, WorkspaceConflictError } from "./LocalWorkspaceRepository.js";
 import {
-  applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, flattenScenes, groupMentionsByStory,
+  applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, findMentions, flattenScenes, groupMentionsByStory,
   makeId, nowIso, parseOutline,
 } from "./model.js";
 import { htmlToMarkdown, markdownToHtml, sanitizeRichHtml } from "./editorFormat.js";
 import { SectionNode } from "./SectionNode.js";
-import { requestSceneSuggestion } from "./sceneAssistant.js";
+import { normalizeSceneAiResult, parseSceneBeats, requestSceneSuggestion } from "./sceneAssistant.js";
 import { applyDossierClassification, CHARACTER_DOSSIER_GROUPS, createDossierClassificationBatches, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml, parseDossierClassification } from "./codexDossier.js";
 import { buildCharacterNetwork, characterNameParts, normalizeRelationship, planRelationshipUpdates, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
 import {
@@ -32,6 +32,11 @@ const routeParts = () => window.location.pathname.replace(/\/$/, "").split("/").
 const studioHref = (novelId, mode = "plan") => `/estudio-novela/${novelId}/${mode}`;
 const FORCE_SAVE_EVENT = "novel-studio:force-save";
 const STUDIO_ROUTE_EVENT = "novel-studio:navigate";
+const TOGGLE_HISTORY_EVENT = "novel-studio:toggle-history";
+const PREVIOUS_SCENE_EVENT = "novel-studio:previous-scene";
+const NEXT_SCENE_EVENT = "novel-studio:next-scene";
+const SCENE_NAVIGATION_STATE_EVENT = "novel-studio:scene-navigation-state";
+const SCENE_STATUSES = ["Idea", "Esquema", "Borrador", "Revisión", "Final"];
 
 function goStudio(href) {
   history.pushState({}, "", href);
@@ -188,9 +193,9 @@ function ConnectionScreen({ connection, onConnected, onReconnect }) {
   </div></main>;
 }
 
-function WorkspaceHeader({ manifest, saveState = "saved", readOnly, onClose, children }) {
+function WorkspaceHeader({ manifest, saveState = "saved", readOnly, onClose, navigation, children }) {
   const labels = { modified: "Modificado", saving: "Guardando…", saved: "Guardado", error: "Error al guardar", conflict: "Conflicto", idle: "Listo" };
-  return <header className="studio-header"><a className="studio-logo" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")} aria-label="Biblioteca"><NotebookPen size={21} /><span>Estudio</span></a><div className="studio-header__folder"><FolderOpen size={16} /><span>{repository.workspaceName}</span><span className="studio-permission">Permiso activo</span></div><div className="studio-header__right">{children}<span className={`studio-save studio-save--${saveState}`}><Save size={15} />{readOnly ? "Solo lectura · otra pestaña activa" : labels[saveState]}</span><button className="studio-icon-button" title="Cerrar workspace" onClick={onClose}><X size={19} /></button></div></header>;
+  return <header className="studio-header"><div className="studio-logo-wrap"><a className="studio-logo" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")} aria-label="Biblioteca"><NotebookPen size={21} /><span>Estudio</span></a>{navigation}</div><div className="studio-header__folder"><FolderOpen size={16} /><span>{repository.workspaceName}</span><span className="studio-permission">Permiso activo</span></div><div className="studio-header__right">{children}<span className={`studio-save studio-save--${saveState}`}><Save size={15} />{readOnly ? "Solo lectura · otra pestaña activa" : labels[saveState]}</span><button className="studio-icon-button" title="Cerrar workspace" onClick={onClose}><X size={19} /></button></div></header>;
 }
 
 function LibraryPage({ manifest, readOnly, onManifest, onClose }) {
@@ -222,8 +227,14 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
   const [novel, setNovel] = useState(null); const [structure, setStructure] = useState(null); const [codex, setCodex] = useState([]);
   const [preferences, setPreferences] = useState(null);
   const [saveState, setSaveState] = useState("idle"); const [error, setError] = useState(""); const [sidebar, setSidebar] = useState(true);
+  const [sceneNavigation, setSceneNavigation] = useState({ index: 0, total: 0, canGoBack: false, canGoForward: false, loading: true });
   const reload = useCallback(async () => { try { const [n, s, c, p] = await Promise.all([repository.readNovel(novelId), repository.readStructure(novelId), repository.listCodex(novelId), repository.preferences()]); setNovel(n); setStructure(s); setCodex(c); setPreferences(p); setSaveState("saved"); } catch (e) { setError(e.message); } }, [novelId]);
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    const updateSceneNavigation = (event) => setSceneNavigation(event.detail);
+    addEventListener(SCENE_NAVIGATION_STATE_EVENT, updateSceneNavigation);
+    return () => removeEventListener(SCENE_NAVIGATION_STATE_EVENT, updateSceneNavigation);
+  }, []);
   const forceSave = async () => {
     if (readOnly || saveState === "saving") return;
     setSaveState("saving");
@@ -238,7 +249,8 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
   if (error) return <div className="studio-app"><WorkspaceHeader manifest={manifest} saveState="error" readOnly={readOnly} onClose={onClose} /><main className="studio-fatal"><h1>No se pudo abrir la novela</h1><p>{error}</p><a className="studio-button" href="/estudio-novela">Volver a la biblioteca</a></main></div>;
   if (!novel || !structure || !preferences) return <StudioLoading />;
   const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "codex", label: "Codex", icon: Box }, { id: "relaciones", label: "Relaciones", icon: Share2 }, { id: "configuracion", label: "Configuración", icon: Settings }];
-  return <div className={`studio-app studio-workspace ${sidebar ? "" : "sidebar-closed"}`}><WorkspaceHeader manifest={manifest} saveState={saveState} readOnly={readOnly} onClose={onClose}><button type="button" className="studio-header-save-button" title="Forzar el guardado de todos los cambios pendientes" disabled={readOnly || saveState === "saving"} onClick={forceSave}><Save size={16} /><span>Guardar todo</span></button><button className="studio-icon-button" title="Mostrar u ocultar panel" onClick={() => setSidebar((value) => !value)}>{sidebar ? <PanelLeftClose size={18} /> : <Menu size={18} />}</button></WorkspaceHeader><aside className="studio-sidebar"><a className="studio-sidebar__back" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")}><ArrowLeft size={16} /> Biblioteca</a><div className="studio-sidebar__novel"><BookOpen size={19} /><div><strong>{novel.title}</strong><small>{countNovelWords(structure).toLocaleString("es")} palabras registradas</small></div></div><nav>{modes.map(({ id, label, icon: Icon }) => <a className={mode === id ? "active" : ""} href={studioHref(novelId, id)} onClick={(event) => handleStudioLink(event, studioHref(novelId, id))} key={id}><Icon size={18} />{label}</a>)}</nav></aside><main className="studio-main">
+  const sidebarToggle = <button className="studio-icon-button studio-sidebar-toggle" title="Mostrar u ocultar menú" aria-label="Mostrar u ocultar menú" onClick={() => setSidebar((value) => !value)}>{sidebar ? <PanelLeftClose size={18} /> : <Menu size={18} />}</button>;
+  return <div className={`studio-app studio-workspace ${sidebar ? "" : "sidebar-closed"}`}><WorkspaceHeader manifest={manifest} saveState={saveState} readOnly={readOnly} onClose={onClose} navigation={sidebarToggle}>{mode === "escribir" && <div className="studio-header-scene-navigation"><button type="button" className="studio-icon-button" disabled={sceneNavigation.loading || !sceneNavigation.canGoBack} title="Escena anterior" aria-label="Ir a la escena anterior" onClick={() => dispatchEvent(new CustomEvent(PREVIOUS_SCENE_EVENT))}><ArrowLeft size={17} /></button><span>{sceneNavigation.index} de {sceneNavigation.total}</span><button type="button" className="studio-icon-button" disabled={sceneNavigation.loading || !sceneNavigation.canGoForward} title="Escena siguiente" aria-label="Ir a la escena siguiente" onClick={() => dispatchEvent(new CustomEvent(NEXT_SCENE_EVENT))}><ArrowRight size={17} /></button></div>}{mode === "escribir" && <button type="button" className="studio-header-history-button" title="Ver historial de la escena" onClick={() => dispatchEvent(new CustomEvent(TOGGLE_HISTORY_EVENT))}><Clock3 size={16} /><span>Historial</span></button>}<button type="button" className="studio-header-save-button" title="Guardar los cambios pendientes" disabled={readOnly || saveState === "saving"} onClick={forceSave}><Save size={16} /><span>Guardar</span></button></WorkspaceHeader><aside className="studio-sidebar"><a className="studio-sidebar__back" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")}><ArrowLeft size={16} /> Biblioteca</a><div className="studio-sidebar__novel"><BookOpen size={19} /><div><strong>{novel.title}</strong><small>{countNovelWords(structure).toLocaleString("es")} palabras registradas</small></div></div><nav>{modes.map(({ id, label, icon: Icon }) => <a className={mode === id ? "active" : ""} href={studioHref(novelId, id)} onClick={(event) => handleStudioLink(event, studioHref(novelId, id))} key={id}><Icon size={18} />{label}</a>)}</nav></aside><main className="studio-main">
     {readOnly && <div className="studio-notice"><strong>Solo lectura:</strong> cierra la otra pestaña del estudio para editar.</div>}
     {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
@@ -250,12 +262,46 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
 
 function countNovelWords(structure) { return Object.values(structure.scenes).filter((scene) => !scene.archived).reduce((sum, scene) => sum + (scene.wordCount || 0), 0); }
 
+function proseExcerpt(value, maxWords = 36) {
+  const words = String(value || "").replace(/<[^>]+>|[#>*_~`\[\](){}]/g, " ").replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+  if (!words.length) return "Resumen de la escena";
+  return `${words.slice(0, maxWords).join(" ")}${words.length > maxWords ? "…" : ""}`;
+}
+
+function characterChipLabel(entry) {
+  const { firstName } = characterNameParts(entry);
+  return String(firstName || entry?.name || "Personaje").trim().split(/\s+/)[0] || "Personaje";
+}
+
 function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly, setSaveState }) {
   const [view, setView] = useState("grid"); const [query, setQuery] = useState(""); const [outline, setOutline] = useState(""); const [showArchived, setShowArchived] = useState(false);
   const [statusFilter, setStatusFilter] = useState(""); const [povFilter, setPovFilter] = useState(""); const [codexFilter, setCodexFilter] = useState("");
   const [showOutline, setShowOutline] = useState(false); const [importPreview, setImportPreview] = useState(null); const [notice, setNotice] = useState("");
   const [chapterAi, setChapterAi] = useState({ busy: "", proposal: null, manual: null, error: "" });
+  const [sceneAi, setSceneAi] = useState({ busy: "", proposal: null, manual: null, error: "", sceneId: "" });
+  const [sceneProse, setSceneProse] = useState({});
+  const [focusStoryId, setFocusStoryId] = useState("");
+  const [collapsedActs, setCollapsedActs] = useState(() => new Set());
+  const [collapsedChapters, setCollapsedChapters] = useState(() => new Set());
   const openAiConfirmedRef = useRef(false);
+  const sceneIdsKey = flattenScenes(structure).map(({ scene }) => scene.id).join("|");
+  useEffect(() => {
+    let active = true;
+    const ids = sceneIdsKey ? sceneIdsKey.split("|") : [];
+    Promise.all(ids.map(async (id) => [id, (await repository.readScene(novel.id, id)).prose])).then((entries) => { if (active) setSceneProse(Object.fromEntries(entries)); }).catch(() => { if (active) setNotice("No se pudieron cargar algunos extractos de las escenas."); });
+    return () => { active = false; };
+  }, [novel.id, sceneIdsKey]);
+  useEffect(() => {
+    if (!focusStoryId || view === "matrix") return undefined;
+    const frame = requestAnimationFrame(() => {
+      const target = document.getElementById(`story-${focusStoryId}`);
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      target.querySelector("input")?.focus({ preventScroll: true });
+      setFocusStoryId("");
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusStoryId, structure, view]);
   const persist = async (next) => { setStructure(next); setSaveState("saving"); try { await repository.saveStructure(novel.id, next); setSaveState("saved"); } catch { setSaveState("error"); } };
   const changeScene = async (id, patch) => {
     const scene = { ...structure.scenes[id], ...patch, updatedAt: nowIso() };
@@ -264,8 +310,8 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
     try { await Promise.all([repository.saveSceneMetadata(novel.id, scene), repository.saveStructure(novel.id, next)]); setSaveState("saved"); }
     catch { setSaveState("error"); }
   };
-  const addAct = async () => { const next = structuredClone(structure); const { act, scene } = createActWithContent(next.acts.length + 1); next.acts.push(act); next.scenes[scene.id] = scene; setSaveState("saving"); try { await repository.writeNewScene(novel.id, scene, ""); await persist(next); } catch (error) { setNotice(error.message); setSaveState("error"); } };
-  const addChapter = async (actId) => { const next = structuredClone(structure); const act = next.acts.find((item) => item.id === actId); const { chapter, scene } = createChapterWithScene(act.chapters.length + 1); act.chapters.push(chapter); next.scenes[scene.id] = scene; setSaveState("saving"); try { await repository.writeNewScene(novel.id, scene, ""); await persist(next); } catch (error) { setNotice(error.message); setSaveState("error"); } };
+  const addAct = async () => { const next = structuredClone(structure); const { act, scene } = createActWithContent(next.acts.length + 1); next.acts.push(act); next.scenes[scene.id] = scene; setView("grid"); setFocusStoryId(act.id); setSaveState("saving"); try { await repository.writeNewScene(novel.id, scene, ""); await persist(next); } catch (error) { setFocusStoryId(""); setNotice(error.message); setSaveState("error"); } };
+  const addChapter = async (actId) => { const next = structuredClone(structure); const act = next.acts.find((item) => item.id === actId); const { chapter, scene } = createChapterWithScene(act.chapters.length + 1); act.chapters.push(chapter); next.scenes[scene.id] = scene; setView("grid"); setFocusStoryId(chapter.id); setSaveState("saving"); try { await repository.writeNewScene(novel.id, scene, ""); await persist(next); } catch (error) { setFocusStoryId(""); setNotice(error.message); setSaveState("error"); } };
   const addSceneTo = async (chapterId) => { const next = structuredClone(structure); const chapter = next.acts.flatMap((act) => act.chapters).find((item) => item.id === chapterId); const scene = createScene(makeId(), `Escena ${chapter.sceneIds.length + 1}`); next.scenes[scene.id] = scene; chapter.sceneIds.push(scene.id); setSaveState("saving"); await repository.writeNewScene(novel.id, scene, ""); await persist(next); };
   const moveScene = (chapterId, sceneId, offset) => { const next = structuredClone(structure); const chapter = next.acts.flatMap((act) => act.chapters).find((item) => item.id === chapterId); const index = chapter.sceneIds.indexOf(sceneId); const target = index + offset; if (target < 0 || target >= chapter.sceneIds.length) return; [chapter.sceneIds[index], chapter.sceneIds[target]] = [chapter.sceneIds[target], chapter.sceneIds[index]]; persist(next); };
   const moveSceneTo = (sceneId, targetChapterId, targetIndex = Number.MAX_SAFE_INTEGER) => {
@@ -276,11 +322,64 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
     target.sceneIds.splice(Math.min(targetIndex, target.sceneIds.length), 0, sceneId);
     persist(next);
   };
+  const moveActTo = (actId, targetActId) => {
+    if (!actId || actId === targetActId) return;
+    const next = structuredClone(structure);
+    const sourceIndex = next.acts.findIndex((act) => act.id === actId);
+    if (sourceIndex < 0) return;
+    const [source] = next.acts.splice(sourceIndex, 1);
+    const targetIndex = next.acts.findIndex((act) => act.id === targetActId);
+    if (targetIndex < 0) return;
+    next.acts.splice(targetIndex, 0, source);
+    persist(next);
+  };
+  const moveChapterTo = (chapterId, targetActId, targetChapterId = "") => {
+    if (!chapterId || chapterId === targetChapterId) return;
+    const next = structuredClone(structure);
+    let source = null;
+    for (const act of next.acts) {
+      const sourceIndex = act.chapters.findIndex((chapter) => chapter.id === chapterId);
+      if (sourceIndex >= 0) [source] = act.chapters.splice(sourceIndex, 1);
+    }
+    const targetAct = next.acts.find((act) => act.id === targetActId);
+    if (!source || !targetAct) return;
+    const targetIndex = targetChapterId ? targetAct.chapters.findIndex((chapter) => chapter.id === targetChapterId) : targetAct.chapters.length;
+    targetAct.chapters.splice(targetIndex < 0 ? targetAct.chapters.length : targetIndex, 0, source);
+    persist(next);
+  };
+  const toggleCollapsed = (setter, id) => setter((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const chapterOptions = structure.acts.filter((act) => !act.archived).flatMap((act) => act.chapters.filter((chapter) => !chapter.archived).map((chapter) => ({ id: chapter.id, label: `${act.title} · ${chapter.title}` })));
   const setArchived = async (kind, id, archived) => { setSaveState("saving"); try { const next = await repository.archiveStoryItem(novel.id, kind, id, archived); setStructure(next); setSaveState("saved"); } catch (error) { setNotice(error.message); setSaveState("error"); } };
   const deleteArchived = async (kind, id, title) => { if (!confirm(`¿Eliminar definitivamente ${kind === "act" ? "el acto" : kind === "chapter" ? "el capítulo" : "la escena"} “${title}”? Esta acción también eliminará su contenido y no se puede deshacer.`)) return; setSaveState("saving"); try { const next = await repository.deleteStoryItem(novel.id, kind, id); setStructure(next); setSaveState("saved"); } catch (error) { setNotice(error.message); setSaveState("error"); } };
   const aiConfigured = aiSettings?.provider === "chatgpt-manual"
     || (aiSettings?.provider === "ollama" ? Boolean(aiSettings.ollamaModel) : Boolean(aiSettings?.apiKey));
+  const applySceneSummary = async (sceneId, value) => {
+    await changeScene(sceneId, { summary: normalizeSceneAiResult("summary", value) });
+    setSceneAi({ busy: "", proposal: null, manual: null, error: "", sceneId: "" });
+  };
+  const suggestSceneSummary = async (scene) => {
+    const prose = sceneProse[scene.id] || "";
+    if (readOnly || !aiConfigured || !prose.trim() || sceneAi.busy) return;
+    if (aiSettings.provider === "openai" && !openAiConfirmedRef.current) {
+      const accepted = confirm("Esta acción enviará la prosa de la escena a OpenAI y puede generar costos en tu cuenta API. ¿Quieres continuar?");
+      if (!accepted) return;
+      openAiConfirmedRef.current = true;
+    }
+    if (aiSettings.provider === "chatgpt-manual") {
+      try {
+        const prompt = buildChatGptManualPrompt("summary", prose, scene);
+        const url = normalizeChatGptUrl(aiSettings.manualUrl);
+        window.open(url, "_blank", "noopener,noreferrer"); navigator.clipboard?.writeText(prompt)?.catch(() => {});
+        setSceneAi({ busy: "", proposal: null, error: "", sceneId: scene.id, manual: { task: "summary", sceneId: scene.id, prompt, url } });
+      } catch (error) { setSceneAi({ busy: "", proposal: null, manual: null, error: error.message, sceneId: scene.id }); }
+      return;
+    }
+    setSceneAi({ busy: scene.id, proposal: null, manual: null, error: "", sceneId: scene.id });
+    try {
+      const value = await requestSceneSuggestion({ task: "summary", prose, metadata: scene, settings: aiSettings });
+      setSceneAi({ busy: "", manual: null, error: "", sceneId: scene.id, proposal: { task: "summary", sceneId: scene.id, currentValue: scene.summary, value } });
+    } catch (error) { setSceneAi({ busy: "", proposal: null, manual: null, error: error.message, sceneId: scene.id }); }
+  };
   const applyChapterTitle = async (chapterId, value) => {
     const next = structuredClone(structure);
     const chapter = next.acts.flatMap((act) => act.chapters).find((item) => item.id === chapterId);
@@ -315,7 +414,7 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
     } catch (error) { setChapterAi({ busy: "", proposal: null, manual: null, error: error.message }); }
   };
   const scenes = flattenScenes(structure).filter(({ scene }) =>
-    `${scene.title} ${scene.summary} ${scene.status} ${scene.labels.join(" ")} ${(scene.subplots || []).join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())
+    `${scene.summary} ${(scene.beats || []).join(" ")} ${scene.status} ${scene.labels.join(" ")} ${(scene.subplots || []).join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase())
     && (!statusFilter || scene.status === statusFilter)
     && (!povFilter || scene.povId === povFilter)
     && (!codexFilter || scene.povId === codexFilter || (scene.subplots || []).includes(codexFilter)));
@@ -323,7 +422,7 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
   const archivedItems = [
     ...structure.acts.filter((act) => act.archived).map((act) => ({ kind: "act", id: act.id, title: act.title, detail: `${act.chapters.length} capítulo(s)` })),
     ...structure.acts.flatMap((act) => act.chapters.filter((chapter) => chapter.archived).map((chapter) => ({ kind: "chapter", id: chapter.id, title: chapter.title, detail: `${act.title} · ${chapter.sceneIds.length} escena(s)` }))),
-    ...structure.acts.flatMap((act) => act.chapters.flatMap((chapter) => chapter.sceneIds.map((id) => structure.scenes[id]).filter((scene) => scene?.archived).map((scene) => ({ kind: "scene", id: scene.id, title: scene.title, detail: `${act.title} · ${chapter.title} · ${scene.wordCount || 0} palabras` })))),
+    ...structure.acts.flatMap((act) => act.chapters.flatMap((chapter) => chapter.sceneIds.map((id) => structure.scenes[id]).filter((scene) => scene?.archived).map((scene) => ({ kind: "scene", id: scene.id, title: scene.summary?.slice(0, 80) || "Escena sin resumen", detail: `${act.title} · ${chapter.title} · ${scene.wordCount || 0} palabras` })))),
   ];
   const importFile = async (file) => { if (!file) return; try { const { fileToMarkdown, manuscriptImportPreview } = await import("./documentIO.js"); const { markdown, warnings } = await fileToMarkdown(file); setImportPreview({ ...manuscriptImportPreview(markdown, file.name.replace(/\.[^.]+$/, "")), warnings, fileName: file.name }); } catch (e) { setNotice(e.message); } };
   return <section className="studio-page"><PageTitle kicker="Arquitectura narrativa" title="Plan" text="Organiza actos, capítulos y escenas; todas las vistas actualizan el mismo structure.json."><button className="studio-button studio-button--secondary" onClick={() => setShowOutline((value) => !value)}><List size={17} /> Crear desde esquema</button><label className="studio-button studio-button--secondary"><Upload size={17} /> Importar manuscrito<input hidden type="file" accept=".docx,.md,.markdown,.txt" onChange={(e) => importFile(e.target.files[0])} /></label></PageTitle>
@@ -331,12 +430,35 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
     {showOutline && <div className="studio-panel"><h2>Crear desde esquema</h2><p>Usa <code># Acto</code>, <code>## Capítulo</code> y <code>### Escena</code>.</p><textarea rows="9" value={outline} onChange={(e) => setOutline(e.target.value)} placeholder="# Acto 1&#10;## Capítulo 1&#10;### La llegada" /><div className="studio-row"><span>{parseOutline(outline).reduce((sum, act) => sum + act.chapters.reduce((inner, chapter) => inner + chapter.scenes.length, 0), 0)} escenas detectadas</span><button className="studio-button" disabled={readOnly || !outline.trim()} onClick={async () => { const parsed = parseOutline(outline); const next = applyOutline(structure, parsed); setSaveState("saving"); for (const act of parsed) for (const chapter of act.chapters) for (const scene of chapter.scenes) await repository.writeNewScene(novel.id, scene, ""); await persist(next); setOutline(""); setShowOutline(false); }}>Agregar al final</button></div></div>}
     {importPreview && <ImportPreview preview={importPreview} readOnly={readOnly} onCancel={() => setImportPreview(null)} onConfirm={async () => { setSaveState("saving"); await repository.importDocument(novel.id, importPreview.structure, importPreview.contents); setStructure(importPreview.structure); setImportPreview(null); setSaveState("saved"); }} />}
     <div className="studio-toolbar"><div className="studio-segmented">{[["grid", Grid2X2, "Cuadrícula"], ["outline", List, "Esquema"], ["matrix", Menu, "Matriz"]].map(([id, Icon, label]) => <button className={view === id ? "active" : ""} onClick={() => setView(id)} key={id}><Icon size={16} />{label}</button>)}</div><label className="studio-search"><Search size={16} /><input placeholder="Buscar escenas" value={query} onChange={(e) => setQuery(e.target.value)} /></label><select aria-label="Filtrar por estado" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Todos los estados</option>{["Idea", "Esquema", "Borrador", "Revisión", "Final"].map((value) => <option key={value}>{value}</option>)}</select><select aria-label="Filtrar por POV" value={povFilter} onChange={(e) => setPovFilter(e.target.value)}><option value="">Todos los POV</option>{codex.filter((entry) => entry.type === "character").map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select><select aria-label="Filtrar por Codex" value={codexFilter} onChange={(e) => setCodexFilter(e.target.value)}><option value="">Todo el Codex</option>{codex.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select><button className="studio-button studio-button--secondary" onClick={() => setShowArchived((value) => !value)}><Archive size={16} /> Archivo</button><button className="studio-button" disabled={readOnly} onClick={addAct}><Plus size={16} /> Acto</button></div>
-    {view === "matrix" ? <PlanMatrix items={scenes} codex={codex} readOnly={readOnly} onChange={changeScene} /> : <div className={view === "grid" ? "studio-plan-grid" : "studio-plan-outline"}>{activeActs.map((act) => <section className="studio-act" key={act.id}><header><input aria-label="Título del acto" value={act.title} disabled={readOnly} onChange={(e) => { const next = structuredClone(structure); next.acts.find((item) => item.id === act.id).title = e.target.value; persist(next); }} /><div className="studio-heading-actions"><button disabled={readOnly} onClick={() => setArchived("act", act.id, true)} title="Archivar acto"><Archive size={15} /></button><button disabled={readOnly} onClick={() => addChapter(act.id)}><Plus size={15} /> Capítulo</button></div></header><div className="studio-chapters">{act.chapters.filter((chapter) => !chapter.archived).map((chapter) => <section className="studio-chapter" key={chapter.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); const dragged = event.dataTransfer.getData("text/x-studio-scene"); if (dragged) moveSceneTo(dragged, chapter.id); }}><header><input aria-label="Título del capítulo" value={chapter.title} disabled={readOnly} onChange={(e) => { const next = structuredClone(structure); next.acts.flatMap((item) => item.chapters).find((item) => item.id === chapter.id).title = e.target.value; persist(next); }} /><div className="studio-heading-actions"><button disabled={readOnly || !aiConfigured || Boolean(chapterAi.busy)} onClick={() => suggestChapterTitle(act, chapter)} title={aiConfigured ? "Sugerir nombre con IA" : "Configura la IA para sugerir un nombre"}><Sparkles size={14} />{chapterAi.busy === chapter.id ? "Pensando…" : "Nombrar"}</button><button disabled={readOnly} onClick={() => setArchived("chapter", chapter.id, true)} title="Archivar capítulo"><Archive size={14} /></button><button disabled={readOnly} onClick={() => addSceneTo(chapter.id)}><Plus size={14} /> Escena</button></div></header><div className="studio-scenes">{chapter.sceneIds.map((sceneId, index) => { const scene = structure.scenes[sceneId]; if (!scene || scene.archived || !scenes.some((item) => item.scene.id === sceneId)) return null; return <article className="studio-scene-card" key={sceneId} draggable={!readOnly} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/x-studio-scene", sceneId); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const dragged = event.dataTransfer.getData("text/x-studio-scene"); if (dragged && dragged !== sceneId) moveSceneTo(dragged, chapter.id, index); }}><div className="studio-scene-card__top"><span title="Arrastra para reordenar">⋮⋮ {index + 1}</span><div><button title="Subir" disabled={readOnly || index === 0} onClick={() => moveScene(chapter.id, sceneId, -1)}><ArrowUp size={14} /></button><button title="Bajar" disabled={readOnly || index === chapter.sceneIds.length - 1} onClick={() => moveScene(chapter.id, sceneId, 1)}><ArrowDown size={14} /></button></div></div><input className="studio-scene-title" value={scene.title} disabled={readOnly} onChange={(e) => changeScene(sceneId, { title: e.target.value })} /><textarea rows={view === "grid" ? 4 : 2} placeholder="Resumen de la escena" value={scene.summary} disabled={readOnly} onChange={(e) => changeScene(sceneId, { summary: e.target.value })} /><label className="studio-move-select">Mover a<select aria-label={`Mover ${scene.title} a otro capítulo`} value={chapter.id} disabled={readOnly} onChange={(e) => moveSceneTo(sceneId, e.target.value)}>{chapterOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label><footer><span className="studio-tag">{scene.status}</span><span>{scene.wordCount || 0} palabras</span><button className="studio-inline-action" disabled={readOnly} onClick={() => setArchived("scene", scene.id, true)} title="Archivar escena"><Archive size={14} /></button><a className="studio-edit-link" href={`${studioHref(novel.id, "escribir")}?scene=${scene.id}`} aria-label={`Editar ${scene.title}`} title="Editar escena"><Pencil size={15} /></a></footer></article>; })}</div></section>)}</div></section>)}</div>}
+    {view === "matrix" ? <PlanMatrix items={scenes} codex={codex} readOnly={readOnly} onChange={changeScene} /> : <div className={view === "grid" ? "studio-plan-grid" : "studio-plan-outline"}>
+      {activeActs.map((act, actIndex) => { const actCollapsed = collapsedActs.has(act.id); const activeChapters = act.chapters.filter((chapter) => !chapter.archived); return <section className={`studio-act ${actCollapsed ? "is-collapsed" : ""}`} id={`story-${act.id}`} key={act.id} onDragOver={(event) => { if (event.dataTransfer.types.includes("text/x-studio-act") || event.dataTransfer.types.includes("text/x-studio-chapter")) event.preventDefault(); }} onDrop={(event) => { const draggedAct = event.dataTransfer.getData("text/x-studio-act"); const draggedChapter = event.dataTransfer.getData("text/x-studio-chapter"); if (draggedAct || draggedChapter) { event.preventDefault(); event.stopPropagation(); if (draggedAct) moveActTo(draggedAct, act.id); else moveChapterTo(draggedChapter, act.id); } }}>
+        <header><div className="studio-story-heading"><button type="button" className="studio-collapse-button" title={actCollapsed ? "Expandir acto" : "Contraer acto"} aria-label={actCollapsed ? "Expandir acto" : "Contraer acto"} aria-expanded={!actCollapsed} onClick={() => toggleCollapsed(setCollapsedActs, act.id)}>{actCollapsed ? <ArrowRight size={15} /> : <ArrowDown size={15} />}</button><button type="button" className="studio-drag-handle" draggable={!readOnly} disabled={readOnly} title="Arrastrar acto para reordenar" aria-label={`Mover acto ${actIndex + 1}`} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/x-studio-act", act.id); }}><Menu size={15} /></button><span className="studio-story-order">Acto {actIndex + 1}</span><input aria-label="Título del acto" value={act.title} disabled={readOnly} onChange={(e) => { const next = structuredClone(structure); next.acts.find((item) => item.id === act.id).title = e.target.value; persist(next); }} /></div><div className="studio-heading-actions"><button disabled={readOnly} onClick={() => setArchived("act", act.id, true)} title="Archivar acto"><Archive size={15} /></button><button disabled={readOnly} onClick={() => addChapter(act.id)}><Plus size={15} /> Capítulo</button></div></header>
+        {!actCollapsed && <div className="studio-chapters" onDragOver={(event) => { if (event.dataTransfer.types.includes("text/x-studio-chapter")) event.preventDefault(); }} onDrop={(event) => { const draggedChapter = event.dataTransfer.getData("text/x-studio-chapter"); if (draggedChapter) { event.preventDefault(); event.stopPropagation(); moveChapterTo(draggedChapter, act.id); } }}>{activeChapters.map((chapter, chapterIndex) => { const chapterCollapsed = collapsedChapters.has(chapter.id); return <section className={`studio-chapter ${chapterCollapsed ? "is-collapsed" : ""}`} id={`story-${chapter.id}`} key={chapter.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const draggedChapter = event.dataTransfer.getData("text/x-studio-chapter"); const draggedScene = event.dataTransfer.getData("text/x-studio-scene"); if (!draggedChapter && !draggedScene) return; event.preventDefault(); event.stopPropagation(); if (draggedChapter) moveChapterTo(draggedChapter, act.id, chapter.id); else moveSceneTo(draggedScene, chapter.id); }}>
+          <header><div className="studio-story-heading"><button type="button" className="studio-collapse-button" title={chapterCollapsed ? "Expandir capítulo" : "Contraer capítulo"} aria-label={chapterCollapsed ? "Expandir capítulo" : "Contraer capítulo"} aria-expanded={!chapterCollapsed} onClick={() => toggleCollapsed(setCollapsedChapters, chapter.id)}>{chapterCollapsed ? <ArrowRight size={14} /> : <ArrowDown size={14} />}</button><button type="button" className="studio-drag-handle" draggable={!readOnly} disabled={readOnly} title="Arrastrar capítulo para reordenar" aria-label={`Mover capítulo ${chapterIndex + 1}`} onDragStart={(event) => { event.stopPropagation(); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/x-studio-chapter", chapter.id); }}><Menu size={14} /></button><span className="studio-story-order">Cap. {chapterIndex + 1}</span><input aria-label="Título del capítulo" value={chapter.title} disabled={readOnly} onChange={(e) => { const next = structuredClone(structure); next.acts.flatMap((item) => item.chapters).find((item) => item.id === chapter.id).title = e.target.value; persist(next); }} /></div><div className="studio-heading-actions"><button disabled={readOnly || !aiConfigured || Boolean(chapterAi.busy)} onClick={() => suggestChapterTitle(act, chapter)} title={aiConfigured ? "Sugerir nombre con IA" : "Configura la IA para sugerir un nombre"}><Sparkles size={14} />{chapterAi.busy === chapter.id ? "Pensando…" : "Nombrar"}</button><button disabled={readOnly} onClick={() => setArchived("chapter", chapter.id, true)} title="Archivar capítulo"><Archive size={14} /></button><button disabled={readOnly} onClick={() => addSceneTo(chapter.id)}><Plus size={14} /> Escena</button></div></header>
+          {!chapterCollapsed && <div className="studio-scenes">{chapter.sceneIds.map((sceneId, index) => { const scene = structure.scenes[sceneId]; if (!scene || scene.archived || !scenes.some((item) => item.scene.id === sceneId)) return null; return <PlanSceneCard key={sceneId} novelId={novel.id} scene={scene} index={index} total={chapter.sceneIds.length} chapter={chapter} view={view} prose={sceneProse[sceneId] || ""} codex={codex} readOnly={readOnly} aiConfigured={aiConfigured} aiBusy={sceneAi.busy === sceneId} aiError={sceneAi.sceneId === sceneId ? sceneAi.error : ""} chapterOptions={chapterOptions} onChange={changeScene} onSuggestSummary={suggestSceneSummary} onMove={moveScene} onMoveTo={moveSceneTo} onArchive={(id) => setArchived("scene", id, true)} />; })}</div>}
+        </section>; })}</div>}
+      </section>; })}
+    </div>}
     {showArchived && <section className="studio-panel"><h2>Archivo</h2><p>Restaura un elemento o elimínalo definitivamente. Al eliminar un acto o capítulo también se eliminan todas las escenas que contiene.</p>{archivedItems.length ? <div className="studio-archive-list">{archivedItems.map((item) => <div key={`${item.kind}:${item.id}`}><span><strong>{item.title}</strong><small>{item.kind === "act" ? "Acto" : item.kind === "chapter" ? "Capítulo" : "Escena"} · {item.detail}</small></span><div className="studio-row"><button className="studio-button studio-button--secondary" disabled={readOnly} onClick={() => setArchived(item.kind, item.id, false)}><RotateCcw size={15} /> Restaurar</button><button className="studio-button studio-button--danger" disabled={readOnly} onClick={() => deleteArchived(item.kind, item.id, item.title)}><Trash2 size={15} /> Eliminar</button></div></div>)}</div> : <p>No hay actos, capítulos ni escenas archivados.</p>}</section>}
+    {sceneAi.proposal && <AiSuggestionDialog proposal={sceneAi.proposal} currentValue={sceneAi.proposal.currentValue} onApply={() => applySceneSummary(sceneAi.proposal.sceneId, sceneAi.proposal.value)} onCancel={() => setSceneAi({ busy: "", proposal: null, manual: null, error: "", sceneId: "" })} />}
+    {sceneAi.manual && <ManualChatGptDialog request={sceneAi.manual} onApply={(value) => applySceneSummary(sceneAi.manual.sceneId, value)} onCancel={() => setSceneAi({ busy: "", proposal: null, manual: null, error: "", sceneId: "" })} />}
     {chapterAi.error && <p className="studio-ai-error" role="alert">{chapterAi.error}</p>}
     {chapterAi.proposal && <AiSuggestionDialog proposal={chapterAi.proposal} currentValue={chapterAi.proposal.currentValue} onApply={() => applyChapterTitle(chapterAi.proposal.chapterId, chapterAi.proposal.value)} onCancel={() => setChapterAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {chapterAi.manual && <ManualChatGptDialog request={chapterAi.manual} onApply={(value) => applyChapterTitle(chapterAi.manual.chapterId, value)} onCancel={() => setChapterAi({ busy: "", proposal: null, manual: null, error: "" })} />}
   </section>;
+}
+
+function PlanSceneCard({ novelId, scene, index, total, chapter, view, prose, codex, readOnly, aiConfigured, aiBusy, aiError, chapterOptions, onChange, onSuggestSummary, onMove, onMoveTo, onArchive }) {
+  const participants = codex.filter((entry) => entry.type === "character" && (scene.participantIds || []).includes(entry.id));
+  const summaryPlaceholder = proseExcerpt(prose);
+  return <article className="studio-scene-card" draggable={!readOnly} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/x-studio-scene", scene.id); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const dragged = event.dataTransfer.getData("text/x-studio-scene"); if (dragged && dragged !== scene.id) onMoveTo(dragged, chapter.id, index); }}>
+    <div className="studio-scene-card__top"><span title="Arrastra para reordenar">Escena {index + 1}</span><div><button type="button" title="Subir" disabled={readOnly || index === 0} onClick={() => onMove(chapter.id, scene.id, -1)}><ArrowUp size={14} /></button><button type="button" title="Bajar" disabled={readOnly || index === total - 1} onClick={() => onMove(chapter.id, scene.id, 1)}><ArrowDown size={14} /></button></div></div>
+    <div className={`studio-plan-summary ${scene.summary ? "has-summary" : "is-excerpt"}`}><textarea rows={view === "grid" ? 4 : 2} aria-label={`Resumen de la escena ${index + 1}`} placeholder={summaryPlaceholder} value={scene.summary} disabled={readOnly} onChange={(event) => onChange(scene.id, { summary: event.target.value })} /><button type="button" disabled={readOnly || !aiConfigured || !prose.trim() || aiBusy} title={!aiConfigured ? "Configura la IA para generar el resumen" : !prose.trim() ? "Escribe primero la escena" : "Generar resumen con IA"} onClick={() => onSuggestSummary(scene)}><Sparkles size={14} />{aiBusy ? "Resumiendo…" : "Resumir con IA"}</button></div>
+    {aiError && <p className="studio-scene-card__error" role="alert">{aiError}</p>}
+    {participants.length > 0 && <div className="studio-plan-participants" aria-label="Personajes confirmados">{participants.map((character) => <span title={character.name} key={character.id}><UserRound size={13} />{characterChipLabel(character)}</span>)}</div>}
+    <label className="studio-move-select">Mover a<select aria-label={`Mover escena ${index + 1} a otro capítulo`} value={chapter.id} disabled={readOnly} onChange={(event) => onMoveTo(scene.id, event.target.value)}>{chapterOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label>
+    <footer><span className="studio-tag">{scene.status}</span><span>{scene.wordCount || 0} palabras</span><button className="studio-inline-action" disabled={readOnly} onClick={() => onArchive(scene.id)} title="Archivar escena"><Archive size={14} /></button><a className="studio-edit-link" href={`${studioHref(novelId, "escribir")}?scene=${scene.id}`} aria-label={`Editar escena ${index + 1}`} title="Editar escena"><Pencil size={15} /></a></footer>
+  </article>;
 }
 
 function PlanMatrix({ items, codex, readOnly, onChange }) {
@@ -352,12 +474,39 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
   const available = flattenScenes(structure); const requested = new URLSearchParams(location.search).get("scene");
   const [sceneId, setSceneId] = useState(requested && structure.scenes[requested] ? requested : available[0]?.scene.id);
   const [metadata, setMetadata] = useState(null); const [prose, setProse] = useState(""); const [dirty, setDirty] = useState(false);
-  const [conflict, setConflict] = useState(null); const [focus, setFocus] = useState(false); const [revisions, setRevisions] = useState([]); const [showHistory, setShowHistory] = useState(false);
+  const [conflict, setConflict] = useState(null); const [revisions, setRevisions] = useState([]); const [showHistory, setShowHistory] = useState(false);
+  const [loadingScene, setLoadingScene] = useState(true);
+  const [sceneLoadError, setSceneLoadError] = useState("");
+  const [characterQuery, setCharacterQuery] = useState("");
+  const [editingStoryNames, setEditingStoryNames] = useState(false);
+  const [storyNameDraft, setStoryNameDraft] = useState({ actTitle: "", chapterTitle: "", busy: false, error: "" });
   const [aiState, setAiState] = useState({ busy: "", proposal: null, error: "" });
   const aiRequestRef = useRef(0);
+  const sceneLoadRef = useRef(0);
   const openAiConfirmedRef = useRef(false);
-  const load = useCallback(async (id) => { if (!id) return; aiRequestRef.current += 1; const scene = await repository.readScene(novel.id, id); setMetadata(scene.metadata); setProse(scene.prose); setDirty(false); setAiState({ busy: "", proposal: null, error: "" }); setSaveState("saved"); setRevisions(await repository.listRevisions(novel.id, id)); }, [novel.id, setSaveState]);
+  const load = useCallback(async (id) => {
+    if (!id) return;
+    const loadId = ++sceneLoadRef.current;
+    aiRequestRef.current += 1;
+    setLoadingScene(true);
+    setSceneLoadError("");
+    try {
+      const [scene, nextRevisions] = await Promise.all([repository.readScene(novel.id, id), repository.listRevisions(novel.id, id)]);
+      if (loadId !== sceneLoadRef.current) return;
+      setMetadata(scene.metadata); setProse(scene.prose); setDirty(false);
+      setAiState({ busy: "", proposal: null, error: "" }); setCharacterQuery(""); setRevisions(nextRevisions); setSaveState("saved");
+    } catch {
+      if (loadId === sceneLoadRef.current) { setSceneLoadError("No se pudo cargar esta escena. Intenta cambiar de escena o recargar la página."); setSaveState("error"); }
+    } finally {
+      if (loadId === sceneLoadRef.current) setLoadingScene(false);
+    }
+  }, [novel.id, setSaveState]);
   useEffect(() => { load(sceneId); }, [sceneId, load]);
+  useEffect(() => {
+    const toggleHistory = () => setShowHistory((value) => !value);
+    addEventListener(TOGGLE_HISTORY_EVENT, toggleHistory);
+    return () => removeEventListener(TOGGLE_HISTORY_EVENT, toggleHistory);
+  }, []);
   useEffect(() => { const warn = (event) => { if (dirty) { event.preventDefault(); event.returnValue = ""; } }; addEventListener("beforeunload", warn); return () => removeEventListener("beforeunload", warn); }, [dirty]);
   useEffect(() => {
     const inspectDisk = async () => {
@@ -379,7 +528,7 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
       const saved = await repository.saveScene(novel.id, metadata, prose);
       setMetadata(saved); setDirty(false);
       const nextStructure = { ...structure, scenes: { ...structure.scenes, [saved.id]: saved } };
-      setStructure(nextStructure); await repository.saveStructure(novel.id, nextStructure); setSaveState("saved"); return true;
+      setStructure(nextStructure); await repository.saveStructure(novel.id, nextStructure); setSaveState("saved"); return saved;
     } catch (error) {
       if (error instanceof WorkspaceConflictError) { setConflict(error.conflict); setSaveState("conflict"); }
       else setSaveState("error");
@@ -390,6 +539,76 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
   useEffect(() => { if (!dirty) return undefined; const timer = setTimeout(save, 800); return () => clearTimeout(timer); }, [dirty, prose, metadata, save]);
   const updateProse = (value) => { setProse(value); setDirty(true); setSaveState("modified"); };
   const updateMeta = (patch) => { setMetadata((current) => ({ ...current, ...patch })); setDirty(true); setSaveState("modified"); };
+  const sceneIndex = available.findIndex(({ scene }) => scene.id === sceneId);
+  const sceneLocation = sceneIndex >= 0 ? available[sceneIndex] : null;
+  const previousScene = sceneIndex > 0 ? available[sceneIndex - 1].scene : null;
+  const nextScene = sceneIndex >= 0 && sceneIndex < available.length - 1 ? available[sceneIndex + 1].scene : null;
+  const startEditingStoryNames = () => {
+    if (!sceneLocation || readOnly) return;
+    setStoryNameDraft({ actTitle: sceneLocation.act.title, chapterTitle: sceneLocation.chapter.title, busy: false, error: "" });
+    setEditingStoryNames(true);
+  };
+  const saveStoryNames = async () => {
+    if (!sceneLocation || storyNameDraft.busy) return;
+    const actTitle = storyNameDraft.actTitle.trim();
+    const chapterTitle = storyNameDraft.chapterTitle.trim();
+    if (!actTitle || !chapterTitle) { setStoryNameDraft((current) => ({ ...current, error: "El acto y el capítulo necesitan un nombre." })); return; }
+    const savedScene = await save();
+    if (!savedScene) { setStoryNameDraft((current) => ({ ...current, error: "Primero hay que resolver el guardado pendiente de la escena." })); return; }
+    const next = structuredClone(structure);
+    if (savedScene !== true) next.scenes[savedScene.id] = savedScene;
+    const act = next.acts.find((item) => item.id === sceneLocation.act.id);
+    const chapter = act?.chapters.find((item) => item.id === sceneLocation.chapter.id);
+    if (!act || !chapter) return;
+    act.title = actTitle;
+    chapter.title = chapterTitle;
+    setStoryNameDraft((current) => ({ ...current, busy: true, error: "" }));
+    setSaveState("saving");
+    try {
+      await repository.saveStructure(novel.id, next);
+      setStructure(next);
+      setEditingStoryNames(false);
+      setStoryNameDraft({ actTitle: "", chapterTitle: "", busy: false, error: "" });
+      setSaveState("saved");
+    } catch {
+      setStoryNameDraft((current) => ({ ...current, busy: false, error: "No se pudieron guardar los nombres." }));
+      setSaveState("error");
+    }
+  };
+  const characters = codex.filter((entry) => entry.type === "character" && !entry.archived);
+  const selectedCharacterIds = metadata?.participantIds || [];
+  const suggestedCharacters = characters.filter((entry) => findMentions(prose, entry).length > 0);
+  const visibleCharacters = characters.filter((entry) => selectedCharacterIds.includes(entry.id) || suggestedCharacters.some((suggested) => suggested.id === entry.id));
+  const characterMatches = characterQuery.trim() ? characters.filter((entry) => !selectedCharacterIds.includes(entry.id) && [entry.name, ...(entry.aliases || [])].some((value) => value.toLocaleLowerCase().includes(characterQuery.trim().toLocaleLowerCase()))).slice(0, 6) : [];
+  const toggleCharacter = (characterId) => updateMeta({ participantIds: selectedCharacterIds.includes(characterId) ? selectedCharacterIds.filter((id) => id !== characterId) : [...selectedCharacterIds, characterId] });
+  const addCharacter = (characterId) => { if (!selectedCharacterIds.includes(characterId)) updateMeta({ participantIds: [...selectedCharacterIds, characterId] }); setCharacterQuery(""); };
+  const goToScene = useCallback(async (target) => {
+    if (!target || !(await save())) return;
+    setLoadingScene(true);
+    setSceneLoadError("");
+    setShowHistory(false);
+    setSceneId(target.id);
+    history.replaceState({}, "", `${studioHref(novel.id, "escribir")}?scene=${target.id}`);
+  }, [novel.id, save]);
+  useEffect(() => {
+    dispatchEvent(new CustomEvent(SCENE_NAVIGATION_STATE_EVENT, { detail: {
+      index: sceneIndex >= 0 ? sceneIndex + 1 : 0,
+      total: available.length,
+      canGoBack: Boolean(previousScene),
+      canGoForward: Boolean(nextScene),
+      loading: loadingScene,
+    } }));
+  }, [available.length, loadingScene, nextScene?.id, previousScene?.id, sceneIndex]);
+  useEffect(() => {
+    const goBack = () => { if (!loadingScene) goToScene(previousScene); };
+    const goForward = () => { if (!loadingScene) goToScene(nextScene); };
+    addEventListener(PREVIOUS_SCENE_EVENT, goBack);
+    addEventListener(NEXT_SCENE_EVENT, goForward);
+    return () => {
+      removeEventListener(PREVIOUS_SCENE_EVENT, goBack);
+      removeEventListener(NEXT_SCENE_EVENT, goForward);
+    };
+  }, [goToScene, loadingScene, nextScene, previousScene]);
   const suggestWithAi = async (task) => {
     if (readOnly || !prose.trim() || aiState.busy) return;
     if (aiSettings?.provider === "openai" && !openAiConfirmedRef.current) {
@@ -427,27 +646,54 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
   const applyAiProposal = () => {
     const proposal = aiState.proposal;
     if (!proposal) return;
-    updateMeta(proposal.task === "title" ? { title: proposal.value } : { summary: proposal.value });
+    updateMeta(proposal.task === "title" ? { title: proposal.value } : proposal.task === "beats" ? { beats: parseSceneBeats(proposal.value) } : { summary: normalizeSceneAiResult("summary", proposal.value) });
     setAiState({ busy: "", proposal: null, error: "" });
   };
   if (!metadata) return <div className="studio-empty"><NotebookPen size={30} /><h2>No hay escenas activas</h2><p>Crea una escena desde Plan.</p></div>;
-  return <section className={`studio-page studio-write ${focus ? "is-focus" : ""}`}><PageTitle kicker="Manuscrito" title={metadata.title} text={`${countWords(prose).toLocaleString("es")} palabras en esta escena`}><button className="studio-button studio-button--secondary" onClick={() => setShowHistory((value) => !value)}><Clock3 size={17} /> Historial</button><button className="studio-button studio-button--secondary" onClick={() => setFocus((value) => !value)}><Maximize2 size={17} /> Concentración</button></PageTitle>
-    <div className="studio-write-layout"><aside className="studio-scene-nav"><strong>Escenas</strong>{available.map(({ act, chapter, scene }) => <button className={scene.id === sceneId ? "active" : ""} key={scene.id} onClick={async () => { await save(); setSceneId(scene.id); history.replaceState({}, "", `${studioHref(novel.id, "escribir")}?scene=${scene.id}`); }}><small>{act.title} · {chapter.title}</small><span>{scene.title}</span><em>{scene.wordCount || 0}</em></button>)}</aside><div className="studio-editor-column"><div className="studio-scene-meta"><div className="studio-ai-field"><input aria-label="Título de escena" className="studio-write-title" value={metadata.title} disabled={readOnly} onChange={(e) => updateMeta({ title: e.target.value })} /><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} onClick={() => suggestWithAi("title")}><Sparkles size={15} /> {aiState.busy === "title" ? "Pensando…" : "Sugerir título"}</button></div><input aria-label="Subtítulo" placeholder="Subtítulo opcional" value={metadata.subtitle} disabled={readOnly} onChange={(e) => updateMeta({ subtitle: e.target.value })} /><div className="studio-ai-field studio-ai-field--summary"><textarea aria-label="Resumen" rows="3" placeholder="Resumen" value={metadata.summary} disabled={readOnly} onChange={(e) => updateMeta({ summary: e.target.value })} /><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} onClick={() => suggestWithAi("summary")}><Sparkles size={15} /> {aiState.busy === "summary" ? "Resumiendo…" : "Generar resumen"}</button></div><label className="studio-scene-beats"><span>Momentos clave de la escena <small>(opcional)</small></span><input aria-label="Momentos clave de la escena" aria-describedby="scene-beats-help" placeholder="Ejemplo: encuentra una carta; reconoce la firma; decide esconderla" value={(metadata.beats || []).join("; ")} disabled={readOnly} onChange={(e) => updateMeta({ beats: e.target.value.split(";").map((x) => x.trim()).filter(Boolean) })} /><small id="scene-beats-help">Anota brevemente qué ocurre, separado por punto y coma. Sirve como guía y no aparece en el manuscrito final.</small></label>{aiState.error && <p className="studio-ai-error" role="alert">{aiState.error}</p>}<small className="studio-ai-hint">{aiHint}</small></div><RichEditor sceneId={sceneId} value={prose} readOnly={readOnly} onChange={updateProse} /></div>{showHistory && <HistoryPanel revisions={revisions} onClose={() => setShowHistory(false)} onRestore={async (revision) => { if (!confirm("¿Restaurar esta revisión? La versión actual también quedará guardada.")) return; await repository.restoreRevision(novel.id, revision); await load(sceneId); setShowHistory(false); }} />}</div>
+  const sceneNumber = (sceneLocation?.sceneIndex ?? 0) + 1;
+  const sceneHeading = sceneLocation ? editingStoryNames
+    ? <span className="studio-scene-heading-editor" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); saveStoryNames(); } else if (event.key === "Escape") setEditingStoryNames(false); }}><input autoFocus aria-label="Nombre del acto" value={storyNameDraft.actTitle} disabled={storyNameDraft.busy} onChange={(event) => setStoryNameDraft((current) => ({ ...current, actTitle: event.target.value, error: "" }))} /><b aria-hidden="true">›</b><input aria-label="Nombre del capítulo" value={storyNameDraft.chapterTitle} disabled={storyNameDraft.busy} onChange={(event) => setStoryNameDraft((current) => ({ ...current, chapterTitle: event.target.value, error: "" }))} /><b aria-hidden="true">›</b><span>Escena {sceneNumber}</span><button type="button" className="studio-heading-edit-action" disabled={storyNameDraft.busy} title="Guardar nombres" aria-label="Guardar nombres del acto y del capítulo" onClick={saveStoryNames}><Save size={14} /></button><button type="button" className="studio-heading-edit-action" disabled={storyNameDraft.busy} title="Cancelar" aria-label="Cancelar edición de nombres" onClick={() => setEditingStoryNames(false)}><X size={14} /></button></span>
+    : <span className="studio-scene-breadcrumb"><span>{sceneLocation.act.title}</span><b aria-hidden="true">›</b><span>{sceneLocation.chapter.title}</span><b aria-hidden="true">›</b><span>Escena {sceneNumber}</span>{!readOnly && <button type="button" className="studio-heading-edit-action" title="Editar nombres del acto y del capítulo" aria-label="Editar nombres del acto y del capítulo" onClick={startEditingStoryNames}><Pencil size={13} /></button>}</span>
+    : `Escena ${sceneIndex + 1}`;
+  return <section className="studio-page studio-write"><PageTitle kicker={novel.title} title={sceneHeading} />
+    {editingStoryNames && storyNameDraft.error && <p className="studio-heading-edit-error" role="alert">{storyNameDraft.error}</p>}
+    <section className="studio-scene-context" aria-label="Información de la escena">
+      <p>{loadingScene ? "Cargando escena…" : sceneLoadError || `${countWords(prose).toLocaleString("es")} palabras en esta escena`}</p>
+      {!loadingScene && !sceneLoadError && <label className={`studio-scene-status is-${(metadata.status || "Borrador").toLocaleLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")}`}><span>Estado</span><select aria-label="Estado de la escena" value={metadata.status || "Borrador"} disabled={readOnly} onChange={(event) => updateMeta({ status: event.target.value })}>{SCENE_STATUSES.map((status) => <option value={status} key={status}>{status}</option>)}</select></label>}
+      {!loadingScene && !sceneLoadError && <div className="studio-scene-characters"><div className="studio-character-suggestions">{visibleCharacters.map((character) => { const selected = selectedCharacterIds.includes(character.id); const suggested = suggestedCharacters.some((entry) => entry.id === character.id); return <button type="button" className={`${selected ? "is-selected" : ""} ${suggested ? "is-suggested" : ""}`} aria-pressed={selected} title={`${character.name} · ${suggested ? "Sugerido porque su nombre o alias aparece en la escena" : "Personaje seleccionado"}`} onClick={() => toggleCharacter(character.id)} key={character.id}><UserRound size={14} />{characterChipLabel(character)}</button>; })}</div><div className="studio-character-picker"><Search size={14} /><input value={characterQuery} onChange={(event) => setCharacterQuery(event.target.value)} placeholder="Añadir personaje…" aria-label="Buscar personaje para añadir" role="combobox" aria-autocomplete="list" aria-expanded={characterMatches.length > 0} aria-controls="scene-character-options" />{characterMatches.length > 0 && <div id="scene-character-options" className="studio-character-options" role="listbox">{characterMatches.map((character) => <button type="button" role="option" aria-selected="false" onClick={() => addCharacter(character.id)} key={character.id}><UserRound size={14} /><span>{character.name}{character.aliases?.length > 0 && <small>{character.aliases.join(", ")}</small>}</span></button>)}</div>}</div></div>}
+    </section>
+    <div className="studio-write-layout">
+      <div className={`studio-editor-column ${loadingScene || sceneLoadError ? "is-loading" : ""}`} aria-busy={loadingScene}>
+        {(loadingScene || sceneLoadError) && <div className="studio-scene-loading" role={sceneLoadError ? "alert" : "status"}>{loadingScene && <span className="studio-loading-spinner" />}{sceneLoadError || "Cargando escena…"}</div>}
+        <div className="studio-scene-meta">
+          <div className="studio-ai-field studio-ai-field--summary"><textarea aria-label="Resumen" rows="3" placeholder="Resumen" value={metadata.summary} disabled={readOnly} onChange={(e) => updateMeta({ summary: e.target.value })} /><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} onClick={() => suggestWithAi("summary")}><Sparkles size={15} /> {aiState.busy === "summary" ? "Resumiendo…" : "Generar resumen"}</button></div>
+          <div className="studio-scene-beats"><label htmlFor="scene-beats">Momentos clave de la escena <small>(opcional)</small></label><div className="studio-ai-field"><input id="scene-beats" aria-label="Momentos clave de la escena" aria-describedby="scene-beats-help" placeholder="Ejemplo: encuentra una carta; reconoce la firma; decide esconderla" value={(metadata.beats || []).join("; ")} disabled={readOnly} onChange={(e) => updateMeta({ beats: e.target.value.split(";").map((x) => x.trim()).filter(Boolean) })} /><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} onClick={() => suggestWithAi("beats")}><Sparkles size={15} /> {aiState.busy === "beats" ? "Extrayendo…" : "Generar momentos"}</button></div><small id="scene-beats-help">Anota brevemente qué ocurre, separado por punto y coma. Sirve como guía y no aparece en el manuscrito final.</small></div>
+          {aiState.error && <p className="studio-ai-error" role="alert">{aiState.error}</p>}<small className="studio-ai-hint">{aiHint}</small>
+        </div>
+        <RichEditor sceneId={sceneId} value={prose} readOnly={readOnly} onChange={updateProse} />
+      </div>
+      {showHistory && <HistoryPanel revisions={revisions} onClose={() => setShowHistory(false)} onRestore={async (revision) => { if (!confirm("¿Restaurar esta revisión? La versión actual también quedará guardada.")) return; await repository.restoreRevision(novel.id, revision); await load(sceneId); setShowHistory(false); }} />}
+    </div>
     {conflict && <ConflictDialog conflict={conflict} onResolve={async (resolution) => { const result = await repository.resolveConflict(novel.id, metadata, prose, resolution, conflict); setConflict(null); if (resolution === "disk") { setMetadata(result.metadata); setProse(result.prose); } else setMetadata(result.metadata); setDirty(false); setSaveState("saved"); }} onEmergency={() => downloadText(prose, `${metadata.title || "escena"}-emergencia.md`)} />}
-    {aiState.proposal && <AiSuggestionDialog proposal={aiState.proposal} currentValue={aiState.proposal.task === "title" ? metadata.title : metadata.summary} onApply={applyAiProposal} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} />}
-    {aiState.manual && <ManualChatGptDialog request={aiState.manual} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} onApply={(value) => { updateMeta(aiState.manual.task === "title" ? { title: value } : { summary: value }); setAiState({ busy: "", proposal: null, error: "" }); }} />}
+    {aiState.proposal && <AiSuggestionDialog proposal={aiState.proposal} currentValue={aiState.proposal.task === "title" ? metadata.title : aiState.proposal.task === "beats" ? (metadata.beats || []).join("; ") : metadata.summary} onApply={applyAiProposal} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} />}
+    {aiState.manual && <ManualChatGptDialog request={aiState.manual} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} onApply={(value) => { updateMeta(aiState.manual.task === "title" ? { title: value } : aiState.manual.task === "beats" ? { beats: parseSceneBeats(value) } : { summary: normalizeSceneAiResult("summary", value) }); setAiState({ busy: "", proposal: null, error: "" }); }} />}
   </section>;
 }
 
 function RichEditor({ sceneId, value, readOnly, onChange }) {
   const suppress = useRef(false);
+  const lastValue = useRef(value);
   const editor = useEditor({
     extensions: [StarterKit, Underline, Highlight.configure({ multicolor: true }), TextAlign.configure({ types: ["heading", "paragraph"] }), SectionNode],
     content: markdownToHtml(value), editable: !readOnly,
-    onUpdate: ({ editor: active }) => { if (!suppress.current) onChange(htmlToMarkdown(active.getHTML())); },
+    onUpdate: ({ editor: active }) => { const next = htmlToMarkdown(active.getHTML()); lastValue.current = next; if (!suppress.current) onChange(next); },
     editorProps: { attributes: { class: "studio-prose", "aria-label": "Texto de la escena" } },
   });
-  useEffect(() => { if (!editor) return; suppress.current = true; editor.commands.setContent(markdownToHtml(value), { emitUpdate: false }); suppress.current = false; }, [sceneId, editor]);
+  useEffect(() => {
+    if (!editor || value === lastValue.current) return;
+    suppress.current = true; editor.commands.setContent(markdownToHtml(value), { emitUpdate: false });
+    lastValue.current = value; suppress.current = false;
+  }, [sceneId, editor, value]);
   useEffect(() => { editor?.setEditable(!readOnly); }, [editor, readOnly]);
   if (!editor) return null;
   const button = (label, Icon, action, active) => <button type="button" title={label} className={active ? "active" : ""} onClick={action}><Icon size={17} /></button>;
@@ -467,7 +713,9 @@ function AiSuggestionDialog({ proposal, currentValue, onApply, onCancel }) {
   const isCategories = proposal.task === "codex-categories";
   const isCodexField = proposal.task === "codex-field";
   const isName = proposal.task === "codex-name";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="ai-suggestion-title"><div className="studio-modal__card studio-ai-dialog"><p className="studio-kicker"><Sparkles size={15} /> Sugerencia de IA</p><h2 id="ai-suggestion-title">{isName ? "Nombre y apellido propuestos" : isCategories ? "Categorías propuestas" : isCodexField ? `${proposal.target || "Contenido"} propuesto` : isTitle ? "Título propuesto" : "Resumen propuesto"}</h2><p className="studio-ai-privacy">Revisa el resultado antes de aplicarlo. Nada cambiará si cancelas.</p>{currentValue && <div className="studio-ai-comparison"><small>Actual</small><p>{currentValue}</p></div>}<div className="studio-ai-comparison is-proposal"><small>Propuesta</small><p>{proposal.value}</p></div><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" onClick={onApply}><Sparkles size={16} /> Aplicar sugerencia</button></div></div></div>;
+  const isBeats = proposal.task === "beats";
+  const title = isName ? "Nombre y apellido propuestos" : isCategories ? "Categorías propuestas" : isCodexField ? `${proposal.target || "Contenido"} propuesto` : isTitle ? "Título propuesto" : isBeats ? "Momentos clave propuestos" : "Resumen propuesto";
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="ai-suggestion-title"><div className="studio-modal__card studio-ai-dialog"><p className="studio-kicker"><Sparkles size={15} /> Sugerencia de IA</p><h2 id="ai-suggestion-title">{title}</h2><p className="studio-ai-privacy">Revisa el resultado antes de aplicarlo. Nada cambiará si cancelas.</p>{currentValue && <div className="studio-ai-comparison"><small>Actual</small><p>{currentValue}</p></div>}<div className="studio-ai-comparison is-proposal"><small>Propuesta</small><p>{proposal.value}</p></div><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" onClick={onApply}><Sparkles size={16} /> Aplicar sugerencia</button></div></div></div>;
 }
 
 function ManualChatGptDialog({ request, onApply, onCancel }) {
@@ -478,10 +726,12 @@ function ManualChatGptDialog({ request, onApply, onCancel }) {
   };
   const isTitle = request.task === "title" || request.task === "chapter-title";
   const isCategories = request.task === "codex-categories";
+  const isBeats = request.task === "beats";
   const isCodexField = request.task === "codex-field";
   const isImportClassification = request.task === "codex-import-classification";
   const isStructuredCodex = request.task === "codex-name" || request.task === "codex-relationship";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2>{request.batches?.length > 1 && <p className="studio-notice">Lote {request.batchNumber} de {request.batches.length}. Al aplicar este resultado se preparará automáticamente el siguiente.</p>}<ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isImportClassification ? "Clasificación JSON devuelta" : isStructuredCodex ? "Resultado JSON devuelto" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
+  const resultLabel = isImportClassification ? "Clasificación JSON devuelta" : isStructuredCodex ? "Resultado JSON devuelto" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : isBeats ? "Momentos clave devueltos" : "Resumen devuelto";
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2>{request.batches?.length > 1 && <p className="studio-notice">Lote {request.batchNumber} de {request.batches.length}. Al aplicar este resultado se preparará automáticamente el siguiente.</p>}<ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{resultLabel}<textarea autoFocus rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
 }
 
 function MentionBreakdown({ novelId, mentions }) {
@@ -1374,5 +1624,5 @@ function AiStatusDialog({ dialog, onClose, onCancel, onCopy }) {
 }
 
 function PageTitle({ kicker, title, text, children }) {
-  return <header className="studio-page-title"><div><p className="studio-kicker">{kicker}</p><h1>{title}</h1><p>{text}</p></div><div className="studio-page-title__actions">{children}</div></header>;
+  return <header className="studio-page-title"><div><p className="studio-kicker">{kicker}</p><h1>{title}</h1>{text && <p>{text}</p>}</div><div className="studio-page-title__actions">{children}</div></header>;
 }

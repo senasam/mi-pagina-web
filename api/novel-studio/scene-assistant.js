@@ -40,9 +40,14 @@ const TASKS = Object.freeze({
     maxChars: 120,
   },
   summary: {
-    instruction: "Resume esta escena en español en un párrafo de 2 a 4 frases. Conserva personajes, giro, conflicto y resultado; no inventes hechos.",
-    maxOutputTokens: 600,
-    maxChars: 1200,
+    instruction: "Resume esta escena en español en una sola frase de 140 caracteres o menos. Conserva únicamente personajes, conflicto o giro y resultado esenciales; no inventes hechos.",
+    maxOutputTokens: 100,
+    maxChars: 140,
+  },
+  beats: {
+    instruction: "Extrae entre 3 y 6 momentos clave de esta escena, en orden narrativo. Cada momento debe tener 80 caracteres o menos, ser concreto y describir una acción, revelación, decisión o giro presente en la prosa. No inventes hechos. Devuelve únicamente los momentos separados por punto y coma, sin viñetas ni explicación.",
+    maxOutputTokens: 220,
+    maxChars: 500,
   },
 });
 
@@ -57,6 +62,20 @@ export class SceneAssistantError extends Error {
 
 function cleanString(value, maxLength) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
+}
+
+function shortenAtWord(value, maxChars) {
+  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  if (clean.length <= maxChars) return clean;
+  const available = clean.slice(0, maxChars - 1);
+  const boundary = available.lastIndexOf(" ");
+  return `${(boundary >= Math.floor(maxChars * .6) ? available.slice(0, boundary) : available).trimEnd()}…`;
+}
+
+function normalizeTaskResult(task, value) {
+  if (task === "summary") return shortenAtWord(value, 140);
+  if (task === "beats") return String(value || "").split(/;|\r?\n/).map((beat) => beat.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim()).filter(Boolean).slice(0, 6).map((beat) => shortenAtWord(beat, 80)).join("; ");
+  return value;
 }
 
 function extractOutputText(payload) {
@@ -131,9 +150,9 @@ export async function generateSceneSuggestion({
     throw new SceneAssistantError(message, status, response.status === 429 ? "AI_RATE_LIMIT" : "AI_RESPONSE_ERROR");
   }
 
-  const result = cleanString(extractOutputText(await response.json()), TASKS[task].maxChars)
+  const result = normalizeTaskResult(task, cleanString(extractOutputText(await response.json()), TASKS[task].maxChars)
     .replace(task !== "summary" && !["codex-import-classification", "codex-name", "codex-relationship"].includes(task) ? /^[“”"']+|[“”"'.]+$/g : /$^/, "")
-    .trim();
+    .trim());
   if (!result) throw new SceneAssistantError("La IA no devolvió una sugerencia utilizable.", 502, "EMPTY_AI_RESPONSE");
   return { suggestion: result, task, model: cleanModel };
 }

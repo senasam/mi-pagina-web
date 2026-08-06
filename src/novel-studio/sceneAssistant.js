@@ -2,6 +2,31 @@ import { requestOllamaSuggestion } from "./aiProviders.js";
 
 const SAFE_PROSE_CHARS = 40000;
 const MIN_CHUNK_CHARS = 12000;
+export const SCENE_SUMMARY_MAX_CHARS = 140;
+export const SCENE_BEAT_MAX_CHARS = 80;
+
+function shortenAtWord(value, maxChars) {
+  const clean = String(value || "").replace(/\s+/g, " ").trim();
+  if (clean.length <= maxChars) return clean;
+  const available = clean.slice(0, maxChars - 1);
+  const boundary = available.lastIndexOf(" ");
+  return `${(boundary >= Math.floor(maxChars * .6) ? available.slice(0, boundary) : available).trimEnd()}…`;
+}
+
+export function parseSceneBeats(value) {
+  return String(value || "")
+    .split(/;|\r?\n/)
+    .map((beat) => beat.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean)
+    .slice(0, 6)
+    .map((beat) => shortenAtWord(beat, SCENE_BEAT_MAX_CHARS));
+}
+
+export function normalizeSceneAiResult(task, value) {
+  if (task === "summary") return shortenAtWord(value, SCENE_SUMMARY_MAX_CHARS);
+  if (task === "beats") return parseSceneBeats(value).join("; ");
+  return String(value || "").trim();
+}
 
 export function splitAiRequestText(value, maxChars = SAFE_PROSE_CHARS) {
   const source = String(value || "");
@@ -77,5 +102,5 @@ async function requestManaged(params, depth = 0, chunkChars = SAFE_PROSE_CHARS) 
 }
 
 export async function requestSceneSuggestion({ task, prose, metadata, settings, fetchImpl = fetch }) {
-  return requestManaged({ task, prose, metadata, settings, fetchImpl });
+  return normalizeSceneAiResult(task, await requestManaged({ task, prose, metadata, settings, fetchImpl }));
 }
