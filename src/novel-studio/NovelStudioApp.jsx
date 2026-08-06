@@ -588,17 +588,16 @@ function DossierRichEditor({ value, disabled, onChange }) {
   </div>;
 }
 
-function DossierSection({ title, value, disabled, custom, aiConfigured, aiBusy, onSuggest, onChange, onRemove }) {
+function DossierSection({ title, value, disabled, custom, aiConfigured, aiBusy, onSuggest, onChange, onDiscard }) {
   const [open, setOpen] = useState(Boolean(value));
   const count = dossierPlainText(value).length;
   return <details className="studio-dossier-section" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-    <summary><span>{title}</span><span className="studio-dossier-section-actions"><small>{count ? `${count.toLocaleString("es")} caracteres` : "Vacío"}</small><button type="button" disabled={disabled || !aiConfigured || Boolean(aiBusy)} title={aiConfigured ? `Escribir ${title} con IA usando toda la ficha` : "Configura la IA para completar este apartado"} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onSuggest(title); }}><Sparkles size={13} />{aiBusy ? "Pensando…" : "IA"}</button></span></summary>
+    <summary><span>{title}</span><span className="studio-dossier-section-actions"><small>{count ? `${count.toLocaleString("es")} caracteres` : "Vacío"}</small><button type="button" disabled={disabled || !aiConfigured || Boolean(aiBusy)} title={aiConfigured ? `Escribir ${title} con IA usando toda la ficha` : "Configura la IA para completar este apartado"} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onSuggest(title); }}><Sparkles size={13} />{aiBusy ? "Pensando…" : "IA"}</button>{(custom || count > 0) && <button type="button" className="is-danger" disabled={disabled} aria-label={custom ? `Eliminar sección ${title}` : `Vaciar sección ${title}`} title={custom ? "Eliminar sección personalizada" : "Vaciar contenido"} onClick={(event) => { event.preventDefault(); event.stopPropagation(); onDiscard(); }}><Trash2 size={13} /></button>}</span></summary>
     {open && <DossierRichEditor value={value} disabled={disabled} onChange={onChange} />}
-    {custom && open && <button type="button" className="studio-text-link studio-dossier-remove" disabled={disabled} onClick={onRemove}>Eliminar esta sección personalizada</button>}
   </details>;
 }
 
-function CharacterDossier({ details = {}, disabled, aiConfigured, aiBusy, onSuggest, onChange, onImport }) {
+function CharacterDossier({ details = {}, disabled, aiConfigured, aiBusy, onSuggest, onDiscardSection, onChange, onImport }) {
   const [customTitle, setCustomTitle] = useState("");
   const changeSection = (title, value) => onChange({ ...details, [title]: value });
   const addCustom = () => {
@@ -607,7 +606,7 @@ function CharacterDossier({ details = {}, disabled, aiConfigured, aiBusy, onSugg
     onChange({ ...details, [title]: "" });
     setCustomTitle("");
   };
-  const renderSection = (title, custom = false) => <DossierSection key={title} title={title} value={details[title] || ""} disabled={disabled} custom={custom} aiConfigured={aiConfigured} aiBusy={aiBusy === title} onSuggest={onSuggest} onChange={(value) => changeSection(title, value)} onRemove={() => { const next = { ...details }; delete next[title]; onChange(next); }} />;
+  const renderSection = (title, custom = false) => <DossierSection key={title} title={title} value={details[title] || ""} disabled={disabled} custom={custom} aiConfigured={aiConfigured} aiBusy={aiBusy === title} onSuggest={onSuggest} onChange={(value) => changeSection(title, value)} onDiscard={() => onDiscardSection(title, custom)} />;
 
   return <section className="studio-dossier">
     <header className="studio-dossier-heading"><div><p className="studio-kicker">Opciones avanzadas</p><h3>Expediente del personaje</h3><p>Organiza aquí biografía, cronología, voz, cuerpo, habilidades, relaciones y documentación extensa.</p></div><label className="studio-button studio-button--secondary"><Upload size={16} /> Importar ficha<input hidden type="file" accept=".docx,.md,.markdown,.txt" disabled={disabled} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImport(file); event.target.value = ""; }} /></label></header>
@@ -634,6 +633,8 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   const [fieldAi, setFieldAi] = useState({ busy: "", proposal: null, manual: null, error: "" });
   const [dossierImport, setDossierImport] = useState(null);
   const [dossierError, setDossierError] = useState("");
+  const [archivedEntries, setArchivedEntries] = useState([]);
+  const [showArchivedEntries, setShowArchivedEntries] = useState(false);
   const openAiConfirmedRef = useRef(false);
   const draftVersionRef = useRef(0);
 
@@ -641,6 +642,13 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     const selected = entries.find((entry) => entry.id === selectedId);
     if (selected) { setDraft(selected); setCategoryAi({ busy: false, proposal: null, manual: null, error: "" }); setFieldAi({ busy: "", proposal: null, manual: null, error: "" }); }
   }, [selectedId, entries]);
+  useEffect(() => {
+    let cancelled = false;
+    repository.listCodex(novel.id, { includeArchived: true }).then((allEntries) => {
+      if (!cancelled) setArchivedEntries(allEntries.filter((entry) => entry.archived));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [novel.id]);
 
   useEffect(() => {
     let worker;
@@ -723,6 +731,42 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       const sections = Object.fromEntries(Object.entries(rawSections).map(([title, content]) => [title, html ? sanitizeRichHtml(content) : markdownToHtml(content)]));
       setDossierImport({ fileName: file.name, sections, warnings });
     } catch (error) { setDossierError(error.message); }
+  };
+  const discardDossierSection = async (title, custom) => {
+    if (!draft || readOnly) return;
+    await save();
+    await repository.createRevision(novel.id, draft.id, "codex", custom ? "antes-de-eliminar-seccion" : "antes-de-vaciar-seccion");
+    const details = { ...(draft.details || {}) };
+    if (custom) delete details[title];
+    else details[title] = "";
+    updateDraft({ details });
+  };
+  const archiveEntry = async () => {
+    if (!draft || readOnly) return;
+    await save();
+    setSaveState("saving");
+    try {
+      const archived = await repository.saveCodexEntry(novel.id, { ...draft, archived: true }, { reason: "archivar-codex" });
+      setEntries((current) => current.filter((entry) => entry.id !== draft.id));
+      setArchivedEntries((current) => [...current.filter((entry) => entry.id !== archived.id), archived].sort((a, b) => a.name.localeCompare(b.name, "es")));
+      setCodexDirty(false); setSelectedId(null); setDraft(null); setSaveState("saved");
+    } catch { setSaveState("error"); }
+  };
+  const restoreEntry = async (entry) => {
+    if (readOnly) return;
+    setSaveState("saving");
+    try {
+      const restored = await repository.saveCodexEntry(novel.id, { ...entry, archived: false }, { reason: "restaurar-codex" });
+      setArchivedEntries((current) => current.filter((item) => item.id !== entry.id));
+      setEntries((current) => [...current, restored].sort((a, b) => a.name.localeCompare(b.name, "es")));
+      setSaveState("saved");
+    } catch { setSaveState("error"); }
+  };
+  const deleteArchivedEntry = async (entry) => {
+    if (readOnly || !confirm(`¿Eliminar definitivamente “${entry.name}”? Esta acción no se puede deshacer.`)) return;
+    setSaveState("saving");
+    try { await repository.deleteCodexEntry(novel.id, entry.id); setArchivedEntries((current) => current.filter((item) => item.id !== entry.id)); setSaveState("saved"); }
+    catch { setSaveState("error"); }
   };
 
   const create = () => {
@@ -830,9 +874,11 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
 
   return <section className="studio-page studio-characters-page">
     <PageTitle kicker="Biblia de la historia" title="Codex" text="Organiza personajes, lugares, objetos, conocimientos y subtramas, y comprueba dónde aparecen en el manuscrito.">
+      <button className="studio-button studio-button--secondary" onClick={() => setShowArchivedEntries((value) => !value)}><Archive size={16} /> Archivo{archivedEntries.length ? ` (${archivedEntries.length})` : ""}</button>
       <button className="studio-button" disabled={readOnly} onClick={create}><Plus size={17} /> Nueva entrada</button>
     </PageTitle>
     <p className="studio-notice studio-character-help"><UserRound size={18} /> La detección revisa el título, el resumen y el texto de cada escena. Sus resultados se agrupan por acto y capítulo; no modifica tu manuscrito.</p>
+    {showArchivedEntries && <section className="studio-panel studio-codex-archive"><div><h2>Archivo del Codex</h2><p>Las entradas archivadas dejan de aparecer en el Codex activo. Puedes restaurarlas o eliminarlas definitivamente.</p></div>{archivedEntries.length ? <div className="studio-archive-list">{archivedEntries.map((entry) => <div key={entry.id}><span><strong>{entry.name}</strong><small>{entry.type === "character" ? "Personaje" : entry.type === "location" ? "Ubicación" : entry.type === "object" ? "Objeto" : entry.type === "lore" ? "Conocimiento" : entry.type === "subplot" ? "Subtrama" : "Otro"}</small></span><div className="studio-row"><button className="studio-button studio-button--secondary" disabled={readOnly} onClick={() => restoreEntry(entry)}><RotateCcw size={15} /> Restaurar</button><button className="studio-button studio-button--danger" disabled={readOnly} onClick={() => deleteArchivedEntry(entry)}><Trash2 size={15} /> Eliminar</button></div></div>)}</div> : <p>No hay entradas archivadas.</p>}</section>}
     <div className="studio-codex-layout">
       <aside className="studio-codex-list">
         <div className="studio-segmented studio-character-filter">
@@ -853,7 +899,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
         </div>
         <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => updateDraft({ aliases })} /></label>
         <div className="studio-codex-description"><div className="studio-category-heading"><span>Descripción</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || Boolean(fieldAi.busy)} title={aiConfigured ? "Escribir la descripción con IA usando toda la ficha" : "Configura la IA para escribir la descripción"} onClick={() => suggestCodexField("Descripción")}><Sparkles size={14} />{fieldAi.busy === "Descripción" ? "Escribiendo…" : draft.description?.trim() ? "Mejorar con IA" : "Escribir con IA"}</button></div><textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => updateDraft({ description: event.target.value })} /></div>
-        {draft.type === "character" && <><CharacterDossier details={draft.details || {}} disabled={readOnly} aiConfigured={aiConfigured} aiBusy={fieldAi.busy} onSuggest={suggestCodexField} onChange={(details) => updateDraft({ details })} onImport={importDossier} />{dossierError && <p className="studio-ai-error" role="alert">{dossierError}</p>}</>}
+        {draft.type === "character" && <><CharacterDossier details={draft.details || {}} disabled={readOnly} aiConfigured={aiConfigured} aiBusy={fieldAi.busy} onSuggest={suggestCodexField} onDiscardSection={discardDossierSection} onChange={(details) => updateDraft({ details })} onImport={importDossier} />{dossierError && <p className="studio-ai-error" role="alert">{dossierError}</p>}</>}
         {fieldAi.error && <p className="studio-ai-error" role="alert">{fieldAi.error}</p>}
         <div className="studio-form-grid">
           <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas en otras entradas de este tipo.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => updateDraft({ categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
@@ -865,7 +911,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
         </div>
         <div className="studio-row">
           <button className="studio-button" disabled={readOnly || !draft.name.trim()} onClick={save}><Save size={17} /> Guardar entrada</button>
-          <button className="studio-button studio-button--danger" disabled={readOnly} onClick={async () => { if (confirm("¿Eliminar esta entrada del Codex?")) { await repository.deleteCodexEntry(novel.id, draft.id); setEntries((current) => current.filter((item) => item.id !== draft.id)); setCodexDirty(false); setSelectedId(null); setDraft(null); } }}><Trash2 size={17} /> Eliminar</button>
+          <button className="studio-button studio-button--secondary" disabled={readOnly} onClick={archiveEntry}><Archive size={17} /> Archivar entrada</button>
         </div>
         <section className="studio-mentions">
           <div className="studio-mentions-heading"><div><p className="studio-kicker">Seguimiento automático</p><h3>Menciones en la novela</h3></div><small>Los cambios se guardan automáticamente y luego se actualizan las menciones.</small></div>
