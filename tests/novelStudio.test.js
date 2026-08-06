@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import {
   applyOutline, countWords, createCodexEntry, createScene, findMentions,
   markdownBody, parseOutline, safeFileName, sceneToMarkdown,
@@ -42,4 +43,12 @@ test("manuscript import previews acts, chapters, scenes and contents", () => {
   const preview = manuscriptImportPreview("# Acto 1\n## Capítulo 1\n### Escena A\nHola mundo.\n### Escena B\nAdiós mundo.");
   assert.deepEqual(preview.counts, { acts: 1, chapters: 1, scenes: 2, words: 4 });
   assert.deepEqual(Object.values(preview.contents), ["Hola mundo.", "Adiós mundo."]);
+});
+
+test("AI actions activate from valid settings without an extra checkbox", async () => {
+  const source = await readFile(new URL("../src/novel-studio/NovelStudioApp.jsx", import.meta.url), "utf8");
+  assert.doesNotMatch(source, /Habilitar botones de IA/);
+  assert.doesNotMatch(source, /!aiSettings\?\.enabled/);
+  assert.match(source, /puede generar costos en tu cuenta API/);
+  assert.match(source, /enabled: true/);
 });
