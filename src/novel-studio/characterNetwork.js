@@ -20,6 +20,22 @@ export function relationshipStyle(type) {
   return RELATIONSHIP_TYPES.find((item) => item.value === type) || RELATIONSHIP_TYPES.at(-1);
 }
 
+export function planRelationshipUpdates(entries = [], connection = {}) {
+  const source = entries.find((entry) => entry.id === connection.sourceId);
+  const target = entries.find((entry) => entry.id === connection.targetId);
+  if (!source || !target || source.id === target.id) return null;
+  const nextRelation = normalizeRelationship({ targetId: target.id, type: connection.type, strength: connection.strength });
+  const sourceRelations = (source.relations || []).map(normalizeRelationship);
+  const sourceIndex = sourceRelations.findIndex((relation) => relation.targetId === target.id);
+  const relations = sourceIndex >= 0
+    ? sourceRelations.map((relation, index) => index === sourceIndex ? nextRelation : relation)
+    : [...sourceRelations, nextRelation];
+  const targetRelations = (target.relations || []).map(normalizeRelationship);
+  const reverseExists = targetRelations.some((relation) => relation.targetId === source.id);
+  const reverse = reverseExists ? null : { ...target, relations: [...targetRelations, { ...nextRelation, targetId: source.id }] };
+  return { source: { ...source, relations }, reverse, sourceExisted: sourceIndex >= 0 };
+}
+
 export function characterNameParts(entry = {}) {
   const full = String(entry.name || "").trim();
   const words = full.split(/\s+/).filter(Boolean);

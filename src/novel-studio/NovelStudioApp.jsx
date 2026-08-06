@@ -21,7 +21,7 @@ import { htmlToMarkdown, markdownToHtml, sanitizeRichHtml } from "./editorFormat
 import { SectionNode } from "./SectionNode.js";
 import { requestSceneSuggestion } from "./sceneAssistant.js";
 import { applyDossierClassification, CHARACTER_DOSSIER_GROUPS, createDossierClassificationBatches, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml, parseDossierClassification } from "./codexDossier.js";
-import { buildCharacterNetwork, characterNameParts, normalizeRelationship, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
+import { buildCharacterNetwork, characterNameParts, normalizeRelationship, planRelationshipUpdates, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
 import {
   OLLAMA_MODEL_PRESETS, buildChatGptManualPrompt, chooseOllamaModel, listOllamaModels, normalizeChatGptUrl,
   ollamaOriginCommand, pullOllamaModel,
@@ -1119,22 +1119,24 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSetting
       return { ...current, sourceId, targetId };
     });
   }, [entries]);
+  const selectedRelation = (entries.find((entry) => entry.id === connection.sourceId)?.relations || [])
+    .map(normalizeRelationship).find((relation) => relation.targetId === connection.targetId);
+  useEffect(() => {
+    setConnection((current) => ({ ...current, type: selectedRelation?.type || "friendship", strength: selectedRelation?.strength || 3 }));
+  }, [connection.sourceId, connection.targetId, selectedRelation?.type, selectedRelation?.strength]);
   const saveConnection = async () => {
     if (readOnly || savingConnection || !connection.sourceId || !connection.targetId || connection.sourceId === connection.targetId) return;
-    const pairIds = new Set([connection.sourceId, connection.targetId]);
-    let owner = entries.find((entry) => pairIds.has(entry.id) && (entry.relations || []).some((raw) => pairIds.has(normalizeRelationship(raw).targetId) && normalizeRelationship(raw).targetId !== entry.id));
-    owner ||= entries.find((entry) => entry.id === connection.sourceId);
-    if (!owner) return;
-    const otherId = owner.id === connection.sourceId ? connection.targetId : connection.sourceId;
-    const relations = (owner.relations || []).map(normalizeRelationship);
-    const existingIndex = relations.findIndex((relation) => relation.targetId === otherId);
-    const nextRelation = { targetId: otherId, type: connection.type, strength: connection.strength };
-    const nextRelations = existingIndex >= 0 ? relations.map((relation, index) => index === existingIndex ? nextRelation : relation) : [...relations, nextRelation];
+    const updates = planRelationshipUpdates(entries, connection);
+    if (!updates) return;
     setSavingConnection(true); setSaveState("saving"); setConnectionStatus("");
     try {
-      const saved = await repository.saveCodexEntry(novel.id, { ...owner, relations: nextRelations }, { reason: existingIndex >= 0 ? "actualizar-relacion" : "crear-relacion" });
-      setEntries((current) => current.map((entry) => entry.id === saved.id ? saved : entry));
-      setSaveState("saved"); setConnectionStatus(existingIndex >= 0 ? "La conexión existente fue actualizada." : "Conexión agregada al mapa.");
+      const savedSource = await repository.saveCodexEntry(novel.id, updates.source, { reason: updates.sourceExisted ? "actualizar-relacion" : "crear-relacion" });
+      const savedReverse = updates.reverse ? await repository.saveCodexEntry(novel.id, updates.reverse, { reason: "crear-relacion-inversa" }) : null;
+      setEntries((current) => current.map((entry) => entry.id === savedSource.id ? savedSource : entry.id === savedReverse?.id ? savedReverse : entry));
+      setSaveState("saved");
+      setConnectionStatus(savedReverse
+        ? "La relación quedó registrada en las fichas de ambos personajes."
+        : updates.sourceExisted ? "Se actualizó solamente la relación del primer personaje hacia el segundo." : "Conexión creada; la relación inversa existente se conservó sin cambios.");
     } catch { setSaveState("error"); setConnectionStatus("No se pudo guardar la conexión."); }
     finally { setSavingConnection(false); }
   };
@@ -1168,13 +1170,13 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSetting
       <a className="studio-button studio-button--secondary" href={studioHref(novel.id, "codex")} onClick={(event) => handleStudioLink(event, studioHref(novel.id, "codex"))}><Box size={16} /> Volver al Códex</a>
     </PageTitle>
     <section className="studio-panel studio-network-create">
-      <div><p className="studio-kicker">Nueva conexión</p><h2>Conectar dos personajes</h2><p>Selecciona ambos personajes, el tipo de relación y su intensidad.</p></div>
+      <div><p className="studio-kicker">Relación dirigida</p><h2>Conectar dos personajes</h2><p>Editas la relación del primer personaje hacia el segundo. Al crearla, se añade la misma relación inversa solo si todavía no existe.</p></div>
       {characters.length >= 2 ? <div className="studio-network-create-form">
-        <label>Primer personaje<select value={connection.sourceId} disabled={readOnly || savingConnection} onChange={(event) => { const sourceId = event.target.value; setConnection((current) => ({ ...current, sourceId, targetId: current.targetId === sourceId ? characters.find((entry) => entry.id !== sourceId)?.id || "" : current.targetId })); }}>{characters.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
-        <label>Segundo personaje<select value={connection.targetId} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, targetId: event.target.value }))}>{characters.filter((entry) => entry.id !== connection.sourceId).map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
+        <label>Primer personaje<select value={connection.sourceId} disabled={readOnly || savingConnection} onChange={(event) => { const sourceId = event.target.value; setConnectionStatus(""); setConnection((current) => ({ ...current, sourceId, targetId: current.targetId === sourceId ? characters.find((entry) => entry.id !== sourceId)?.id || "" : current.targetId })); }}>{characters.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
+        <label>Segundo personaje<select value={connection.targetId} disabled={readOnly || savingConnection} onChange={(event) => { setConnectionStatus(""); setConnection((current) => ({ ...current, targetId: event.target.value })); }}>{characters.filter((entry) => entry.id !== connection.sourceId).map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
         <label>Tipo<select value={connection.type} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, type: event.target.value }))}>{RELATIONSHIP_TYPES.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}</select></label>
         <label>Intensidad: <strong>{connection.strength}/5</strong><input type="range" min="1" max="5" value={connection.strength} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, strength: Number(event.target.value) }))} /></label>
-        <div className="studio-network-create-actions"><button type="button" className="studio-button studio-button--secondary" disabled={readOnly || savingConnection || relationshipAi.busy || !aiConfigured || !connection.sourceId || !connection.targetId} title={aiConfigured ? "Sugerir tipo e intensidad usando ambas fichas" : "Configura la IA para sugerir relaciones"} onClick={suggestRelationship}><Sparkles size={16} />{relationshipAi.busy ? "Analizando…" : "Sugerir con IA"}</button><button type="button" className="studio-button" disabled={readOnly || savingConnection || !connection.sourceId || !connection.targetId} onClick={saveConnection}><Share2 size={16} />{savingConnection ? "Guardando…" : "Agregar conexión"}</button></div>
+        <div className="studio-network-create-actions"><button type="button" className="studio-button studio-button--secondary" disabled={readOnly || savingConnection || relationshipAi.busy || !aiConfigured || !connection.sourceId || !connection.targetId} title={aiConfigured ? "Sugerir tipo e intensidad usando ambas fichas" : "Configura la IA para sugerir relaciones"} onClick={suggestRelationship}><Sparkles size={16} />{relationshipAi.busy ? "Analizando…" : "Sugerir con IA"}</button><button type="button" className="studio-button" disabled={readOnly || savingConnection || !connection.sourceId || !connection.targetId} onClick={saveConnection}><Share2 size={16} />{savingConnection ? "Guardando…" : selectedRelation ? "Actualizar esta relación" : "Agregar conexión"}</button></div>
       </div> : <p className="studio-notice">Necesitas al menos dos entradas de tipo Personaje en el Códex. Actualmente hay {characters.length}.</p>}
       {connectionStatus && <p className="studio-network-status" role="status">{connectionStatus}</p>}
       {relationshipAi.error && <p className="studio-ai-error" role="alert">{relationshipAi.error}</p>}
