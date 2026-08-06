@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
-  applyOutline, countWords, createCodexEntry, createScene, findMentions,
-  markdownBody, parseOutline, safeFileName, sceneToMarkdown,
+  applyOutline, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, findMentions,
+  flattenScenes, markdownBody, parseOutline, safeFileName, sceneToMarkdown,
 } from "../src/novel-studio/model.js";
 import { manuscriptImportPreview } from "../src/novel-studio/documentIO.js";
 
@@ -51,4 +51,39 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.doesNotMatch(source, /!aiSettings\?\.enabled/);
   assert.match(source, /puede generar costos en tu cuenta API/);
   assert.match(source, /enabled: true/);
+});
+
+test("new acts and chapters include a blank scene ready to write", () => {
+  const { act, scene: actScene } = createActWithContent(2);
+  assert.equal(act.title, "Acto 2");
+  assert.equal(act.chapters.length, 1);
+  assert.deepEqual(act.chapters[0].sceneIds, [actScene.id]);
+  const { chapter, scene } = createChapterWithScene(3);
+  assert.equal(chapter.title, "Capítulo 3");
+  assert.deepEqual(chapter.sceneIds, [scene.id]);
+  assert.equal(scene.title, "Escena 1");
+});
+
+test("archived acts chapters and scenes disappear from the active manuscript", () => {
+  const { act, scene } = createActWithContent(1);
+  const structure = { schemaVersion: 1, acts: [act], scenes: { [scene.id]: scene } };
+  assert.equal(flattenScenes(structure).length, 1);
+  act.chapters[0].archived = true;
+  assert.equal(flattenScenes(structure).length, 0);
+  act.chapters[0].archived = false;
+  act.archived = true;
+  assert.equal(flattenScenes(structure).length, 0);
+});
+
+test("studio retries the edit lock and exposes archive lifecycle actions", async () => {
+  const [app, repository] = await Promise.all([
+    readFile(new URL("../src/novel-studio/NovelStudioApp.jsx", import.meta.url), "utf8"),
+    readFile(new URL("../src/novel-studio/LocalWorkspaceRepository.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(app, /setTimeout\(acquire, 600\)/);
+  assert.match(app, /className="studio-edit-link"/);
+  assert.match(app, /<Pencil size=\{15\}/);
+  assert.match(repository, /archiveStoryItem/);
+  assert.match(repository, /deleteStoryItem/);
+  assert.match(repository, /Primero debes archivar el capítulo/);
 });

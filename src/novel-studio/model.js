@@ -4,13 +4,11 @@ export const nowIso = () => new Date().toISOString();
 export const makeId = () => crypto.randomUUID();
 
 export function emptyStructure() {
-  const sceneId = makeId();
-  const chapterId = makeId();
-  const actId = makeId();
+  const { act, scene } = createActWithContent(1);
   return {
     schemaVersion: SCHEMA_VERSION,
-    acts: [{ id: actId, title: "Acto 1", numbered: true, chapters: [{ id: chapterId, title: "Capítulo 1", numbered: true, sceneIds: [sceneId] }] }],
-    scenes: { [sceneId]: createScene(sceneId, "Escena 1") },
+    acts: [act],
+    scenes: { [scene.id]: scene },
   };
 }
 
@@ -19,6 +17,22 @@ export function createScene(id = makeId(), title = "Nueva escena") {
     id, title, subtitle: "", summary: "", beats: [], povId: null,
     status: "Borrador", temporal: "Presente", labels: [], subplots: [],
     wordCount: 0, contentHash: "", updatedAt: nowIso(), archived: false,
+  };
+}
+
+export function createChapterWithScene(index = 1) {
+  const scene = createScene(makeId(), "Escena 1");
+  return {
+    chapter: { id: makeId(), title: `Capítulo ${index}`, numbered: true, archived: false, sceneIds: [scene.id] },
+    scene,
+  };
+}
+
+export function createActWithContent(index = 1) {
+  const { chapter, scene } = createChapterWithScene(1);
+  return {
+    act: { id: makeId(), title: `Acto ${index}`, numbered: true, archived: false, chapters: [chapter] },
+    scene,
   };
 }
 
@@ -85,15 +99,15 @@ export function parseOutline(text) {
     if (!line) continue;
     const heading = /^(#{1,3})\s+(.+)$/.exec(line);
     if (heading?.[1].length === 1) {
-      currentAct = { id: makeId(), title: heading[2], numbered: true, chapters: [] };
+      currentAct = { id: makeId(), title: heading[2], numbered: true, archived: false, chapters: [] };
       acts.push(currentAct); currentChapter = null;
     } else if (heading?.[1].length === 2) {
-      if (!currentAct) { currentAct = { id: makeId(), title: "Acto 1", numbered: true, chapters: [] }; acts.push(currentAct); }
-      currentChapter = { id: makeId(), title: heading[2], numbered: true, scenes: [] };
+      if (!currentAct) { currentAct = { id: makeId(), title: "Acto 1", numbered: true, archived: false, chapters: [] }; acts.push(currentAct); }
+      currentChapter = { id: makeId(), title: heading[2], numbered: true, archived: false, scenes: [] };
       currentAct.chapters.push(currentChapter);
     } else {
-      if (!currentAct) { currentAct = { id: makeId(), title: "Acto 1", numbered: true, chapters: [] }; acts.push(currentAct); }
-      if (!currentChapter) { currentChapter = { id: makeId(), title: "Capítulo 1", numbered: true, scenes: [] }; currentAct.chapters.push(currentChapter); }
+      if (!currentAct) { currentAct = { id: makeId(), title: "Acto 1", numbered: true, archived: false, chapters: [] }; acts.push(currentAct); }
+      if (!currentChapter) { currentChapter = { id: makeId(), title: "Capítulo 1", numbered: true, archived: false, scenes: [] }; currentAct.chapters.push(currentChapter); }
       const title = heading?.[2] || line.replace(/^[-*]\s+/, "");
       currentChapter.scenes.push({ ...createScene(), title });
     }
@@ -104,9 +118,9 @@ export function parseOutline(text) {
 export function applyOutline(structure, parsedActs) {
   const next = structuredClone(structure);
   for (const parsedAct of parsedActs) {
-    const act = { id: parsedAct.id, title: parsedAct.title, numbered: parsedAct.numbered, chapters: [] };
+    const act = { id: parsedAct.id, title: parsedAct.title, numbered: parsedAct.numbered, archived: false, chapters: [] };
     for (const parsedChapter of parsedAct.chapters) {
-      const chapter = { id: parsedChapter.id, title: parsedChapter.title, numbered: parsedChapter.numbered, sceneIds: [] };
+      const chapter = { id: parsedChapter.id, title: parsedChapter.title, numbered: parsedChapter.numbered, archived: false, sceneIds: [] };
       for (const scene of parsedChapter.scenes) {
         next.scenes[scene.id] = scene;
         chapter.sceneIds.push(scene.id);
@@ -132,7 +146,7 @@ export function findMentions(text, entry) {
 }
 
 export function flattenScenes(structure) {
-  return structure.acts.flatMap((act, actIndex) => act.chapters.flatMap((chapter, chapterIndex) =>
+  return structure.acts.filter((act) => !act.archived).flatMap((act, actIndex) => act.chapters.filter((chapter) => !chapter.archived).flatMap((chapter, chapterIndex) =>
     chapter.sceneIds.map((sceneId, sceneIndex) => ({
       act, chapter, scene: structure.scenes[sceneId], actIndex, chapterIndex, sceneIndex,
     })).filter((item) => item.scene && !item.scene.archived)));

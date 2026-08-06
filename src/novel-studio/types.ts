@@ -56,8 +56,8 @@ export interface SceneMetadata {
   archived: boolean;
 }
 
-export interface Chapter { id: string; title: string; numbered: boolean; sceneIds: string[] }
-export interface Act { id: string; title: string; numbered: boolean; chapters: Chapter[] }
+export interface Chapter { id: string; title: string; numbered: boolean; archived: boolean; sceneIds: string[] }
+export interface Act { id: string; title: string; numbered: boolean; archived: boolean; chapters: Chapter[] }
 export interface StoryStructure { schemaVersion: 1; acts: Act[]; scenes: Record<string, SceneMetadata> }
 
 export interface CodexProgression { id: string; sceneId: string; text: string; createdAt: string }

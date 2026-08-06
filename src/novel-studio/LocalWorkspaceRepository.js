@@ -424,13 +424,67 @@ export class LocalWorkspaceRepository {
     return structure;
   }
 
-  async archiveScene(novelId, sceneId, archived = true) {
+  async archiveStoryItem(novelId, kind, itemId, archived = true) {
     const structure = await this.readStructure(novelId);
-    const scene = structure.scenes[sceneId];
-    if (!scene) throw new Error("Escena no encontrada.");
-    await this.createRevision(novelId, sceneId, "scene", archived ? "archivar" : "restaurar");
-    scene.archived = archived;
-    scene.updatedAt = nowIso();
+    if (kind === "act") {
+      const act = structure.acts.find((item) => item.id === itemId);
+      if (!act) throw new Error("Acto no encontrado.");
+      act.archived = archived;
+    } else if (kind === "chapter") {
+      const owner = structure.acts.find((act) => act.chapters.some((chapter) => chapter.id === itemId));
+      const chapter = owner?.chapters.find((item) => item.id === itemId);
+      if (!chapter) throw new Error("Capítulo no encontrado.");
+      chapter.archived = archived;
+      if (!archived) owner.archived = false;
+    } else if (kind === "scene") {
+      const scene = structure.scenes[itemId];
+      if (!scene) throw new Error("Escena no encontrada.");
+      await this.createRevision(novelId, itemId, "scene", archived ? "archivar" : "restaurar");
+      scene.archived = archived;
+      scene.updatedAt = nowIso();
+      if (!archived) {
+        const ownerAct = structure.acts.find((act) => act.chapters.some((chapter) => chapter.sceneIds.includes(itemId)));
+        const ownerChapter = ownerAct?.chapters.find((chapter) => chapter.sceneIds.includes(itemId));
+        if (ownerAct) ownerAct.archived = false;
+        if (ownerChapter) ownerChapter.archived = false;
+      }
+    } else throw new Error("Tipo de elemento no válido.");
+    await this.saveStructure(novelId, structure);
+    return structure;
+  }
+
+  async deleteStoryItem(novelId, kind, itemId) {
+    const structure = await this.readStructure(novelId);
+    let sceneIds = [];
+    if (kind === "act") {
+      const act = structure.acts.find((item) => item.id === itemId);
+      if (!act) throw new Error("Acto no encontrado.");
+      if (!act.archived) throw new Error("Primero debes archivar el acto.");
+      sceneIds = act.chapters.flatMap((chapter) => chapter.sceneIds);
+      structure.acts = structure.acts.filter((item) => item.id !== itemId);
+    } else if (kind === "chapter") {
+      const owner = structure.acts.find((act) => act.chapters.some((chapter) => chapter.id === itemId));
+      const chapter = owner?.chapters.find((item) => item.id === itemId);
+      if (!chapter) throw new Error("Capítulo no encontrado.");
+      if (!chapter.archived) throw new Error("Primero debes archivar el capítulo.");
+      sceneIds = [...chapter.sceneIds];
+      owner.chapters = owner.chapters.filter((item) => item.id !== itemId);
+    } else if (kind === "scene") {
+      const scene = structure.scenes[itemId];
+      if (!scene) throw new Error("Escena no encontrada.");
+      if (!scene.archived) throw new Error("Primero debes archivar la escena.");
+      sceneIds = [itemId];
+      for (const act of structure.acts) for (const chapter of act.chapters) chapter.sceneIds = chapter.sceneIds.filter((id) => id !== itemId);
+    } else throw new Error("Tipo de elemento no válido.");
+    const scenesDirectory = await getDirectory(this.root, `novels/${novelId}/manuscript/scenes`.split("/"));
+    const historyDirectory = await getDirectory(this.root, `novels/${novelId}/history`.split("/"));
+    for (const sceneId of sceneIds) {
+      await scenesDirectory.removeEntry(`${sceneId}.json`).catch(() => {});
+      await scenesDirectory.removeEntry(`${sceneId}.md`).catch(() => {});
+      await historyDirectory.removeEntry(sceneId, { recursive: true }).catch(() => {});
+      delete structure.scenes[sceneId];
+      this.observed.delete(`${novelId}:${sceneId}`);
+    }
     await this.saveStructure(novelId, structure);
     return structure;
   }

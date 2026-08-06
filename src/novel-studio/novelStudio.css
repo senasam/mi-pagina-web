@@ -189,6 +189,7 @@
 .studio-act > header input { color: #fff; border-color: transparent; background: transparent; font-family: Georgia, serif; font-size: 1.25rem; }
 .studio-act > header button, .studio-chapter > header button { display: flex; align-items: center; gap: 5px; padding: 7px 9px; border: 1px solid currentColor; border-radius: 4px; color: inherit; background: transparent; cursor: pointer; white-space: nowrap; }
 .studio-act > header button { color: #fff; }
+.studio-heading-actions { display: flex; align-items: center; gap: 7px; }
 .studio-chapters { display: grid; gap: 14px; padding: 14px; }
 .studio-chapter { border: 1px solid var(--studio-line); border-radius: 5px; background: var(--studio-panel); }
 .studio-chapter > header { border-bottom: 1px solid var(--studio-line); }
@@ -203,6 +204,7 @@
 .studio-scene-title { padding: 3px 0 !important; border: 0 !important; font-weight: 750 !important; }
 .studio-scene-card footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--studio-muted); font-size: .7rem; }
 .studio-scene-card footer a { display: inline-flex; align-items: center; gap: 3px; margin-left: auto; color: var(--studio-accent); font-weight: 700; }
+.studio-scene-card footer .studio-edit-link { display: inline-grid; width: 28px; height: 28px; place-items: center; border: 1px solid currentColor; border-radius: 4px; }
 .studio-inline-action { display: inline-grid; width: 25px; height: 25px; place-items: center; border: 0; border-radius: 3px; color: var(--studio-muted); background: transparent; cursor: pointer; }
 .studio-move-select { display: flex; align-items: center; gap: 6px; color: var(--studio-muted); font-size: .68rem; }
 .studio-move-select select { padding: 5px 7px; font-size: .72rem; }
@@ -218,6 +220,7 @@
 .studio-archive-list > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px; border: 1px solid var(--studio-line); border-radius: 4px; }
 .studio-archive-list span, .studio-archive-list small { display: block; }
 .studio-archive-list small { margin-top: 3px; color: var(--studio-muted); }
+.studio-archive-list > div > .studio-row { flex: 0 0 auto; }
 
 .studio-write.is-focus .studio-page-title,
 .studio-write.is-focus .studio-scene-nav,
