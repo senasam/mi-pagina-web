@@ -78,6 +78,9 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /reason: "autosave"/);
   assert.match(source, /Los cambios se guardan automáticamente/);
   assert.match(source, /Expediente del personaje/);
+  assert.match(source, /<details className="studio-dossier">/);
+  assert.match(source, /Abrir o cerrar expediente/);
+  assert.ok(source.indexOf("Categorías del personaje") < source.indexOf('<div className="studio-codex-description"'));
   assert.match(source, /Importar ficha/);
   assert.match(source, /Combinar con la ficha/);
   assert.match(source, /Reemplazar secciones detectadas/);

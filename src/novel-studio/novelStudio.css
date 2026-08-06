@@ -328,7 +328,16 @@
 .studio-category-control .studio-ai-error { margin: 2px 0 0; }
 .studio-codex-description { display: grid; gap: 6px; color: #504b44; font-size: .84rem; font-weight: 650; }
 .studio-codex-description .studio-ai-button { min-height: 32px; padding: 5px 10px; font-size: .72rem; }
-.studio-dossier { display: grid; gap: 14px; padding: 17px; border: 1px solid #c8b896; border-radius: 6px; background: #f8f3e9; }
+.studio-dossier { display: block; padding: 0; border: 1px solid #c8b896; border-radius: 6px; background: #f8f3e9; }
+.studio-dossier-summary { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 17px; cursor: pointer; list-style: none; }
+.studio-dossier-summary::-webkit-details-marker { display: none; }
+.studio-dossier-summary::after { content: "⌄"; color: var(--studio-accent); font-size: 1.35rem; font-weight: 800; transition: transform .15s; }
+.studio-dossier[open] > .studio-dossier-summary::after { transform: rotate(180deg); }
+.studio-dossier-summary h3, .studio-dossier-summary p { margin: 0; }
+.studio-dossier-summary div > p:last-child { margin-top: 5px; color: var(--studio-muted); font-size: .8rem; line-height: 1.45; }
+.studio-dossier-summary > small { margin-left: auto; color: var(--studio-muted); white-space: nowrap; }
+.studio-dossier-body { display: grid; gap: 14px; padding: 0 17px 17px; border-top: 1px solid #ded1b9; }
+.studio-dossier-body > .studio-dossier-heading-actions { padding-top: 14px; }
 .studio-dossier-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .studio-dossier-heading h3, .studio-dossier-heading p { margin: 0; }
 .studio-dossier-heading > div > p:last-child { max-width: 650px; margin-top: 5px; color: var(--studio-muted); font-size: .8rem; line-height: 1.5; }
@@ -511,6 +520,7 @@
   .studio-ai-button { min-height: 38px; }
   .studio-dossier-heading { flex-direction: column; }
   .studio-dossier-heading-actions { justify-content: flex-start; }
+  .studio-dossier-summary > small { display: none; }
   .studio-dossier-add { grid-template-columns: 1fr; }
   .studio-network-page-heading { align-items: flex-start; flex-direction: column; }
   .studio-character-network { min-height: 250px; }
