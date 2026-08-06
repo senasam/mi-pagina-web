@@ -4,6 +4,16 @@ const MAX_PROSE_CHARS = 60000;
 const REQUEST_TIMEOUT_MS = 45000;
 
 const TASKS = Object.freeze({
+  "codex-name": {
+    instruction: "Propón un nombre y apellido coherentes con toda la ficha del personaje, su contexto cultural, época y atributos. Si ya existen, consérvalos o mejóralos solo cuando la ficha lo justifique. Devuelve exclusivamente JSON válido: {\"firstName\":\"Nombre\",\"lastName\":\"Apellido o apellidos\"}.",
+    maxOutputTokens: 250,
+    maxChars: 1000,
+  },
+  "codex-relationship": {
+    instruction: "Analiza las fichas de ambos personajes y sugiere la relación más coherente. El tipo debe ser exactamente uno de: family, friendship, romance, alliance, rivalry, conflict, mentor, professional, other. La intensidad debe ser un entero de 1 a 5. Devuelve exclusivamente JSON válido: {\"type\":\"friendship\",\"strength\":3}.",
+    maxOutputTokens: 250,
+    maxChars: 1000,
+  },
   "codex-import-classification": {
     instruction: "Clasifica únicamente las secciones personalizadas importadas en uno de los atributos estándar disponibles cuando la correspondencia sea clara por su título y contenido. No inventes, resumas ni reescribas contenido. Omite las secciones ambiguas para conservarlas como personalizadas. Devuelve exclusivamente JSON válido con esta forma exacta: {\"assignments\":[{\"source\":\"título personalizado exacto\",\"target\":\"atributo estándar exacto\"}]}. Usa solamente títulos source y target incluidos en el material.",
     maxOutputTokens: 1000,
@@ -122,7 +132,7 @@ export async function generateSceneSuggestion({
   }
 
   const result = cleanString(extractOutputText(await response.json()), TASKS[task].maxChars)
-    .replace(task !== "summary" && task !== "codex-import-classification" ? /^[“”"']+|[“”"'.]+$/g : /$^/, "")
+    .replace(task !== "summary" && !["codex-import-classification", "codex-name", "codex-relationship"].includes(task) ? /^[“”"']+|[“”"'.]+$/g : /$^/, "")
     .trim();
   if (!result) throw new SceneAssistantError("La IA no devolvió una sugerencia utilizable.", 502, "EMPTY_AI_RESPONSE");
   return { suggestion: result, task, model: cleanModel };

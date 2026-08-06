@@ -37,6 +37,10 @@ export function normalizeChatGptUrl(value = "https://chatgpt.com/") {
 export function buildScenePrompt(task, prose, metadata = {}) {
   const instruction = task === "codex-field"
     ? "Redacta en español el contenido del atributo objetivo de esta ficha del Codex usando todos los datos disponibles. Si el atributo ya tiene contenido, mejóralo y complétalo sin perder hechos. No contradigas la ficha ni repitas innecesariamente otros apartados. Puedes desarrollar detalles narrativos coherentes, pero no presentes como comprobado aquello que la ficha deja incierto. Devuelve únicamente el contenido listo para pegar, con párrafos o listas cuando ayuden."
+    : task === "codex-name"
+    ? "Propón un nombre y apellido coherentes con toda la ficha del personaje, su contexto cultural, época y atributos. Si ya existen, consérvalos o mejóralos solo cuando la ficha lo justifique. Devuelve exclusivamente JSON válido: {\"firstName\":\"Nombre\",\"lastName\":\"Apellido o apellidos\"}."
+    : task === "codex-relationship"
+    ? "Analiza las fichas de ambos personajes y sugiere la relación más coherente. El tipo debe ser exactamente uno de: family, friendship, romance, alliance, rivalry, conflict, mentor, professional, other. La intensidad debe ser un entero de 1 a 5. Devuelve exclusivamente JSON válido: {\"type\":\"friendship\",\"strength\":3}."
     : task === "codex-import-classification"
     ? "Clasifica únicamente las secciones personalizadas importadas en uno de los atributos estándar disponibles cuando la correspondencia sea clara por su título y contenido. No inventes, resumas ni reescribas contenido. Omite las secciones ambiguas para conservarlas como personalizadas. Devuelve exclusivamente JSON válido con esta forma exacta: {\"assignments\":[{\"source\":\"título personalizado exacto\",\"target\":\"atributo estándar exacto\"}]}. Usa solamente títulos source y target incluidos en el material."
     : task === "codex-categories"
@@ -133,8 +137,10 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
       system: "Eres un asistente editorial para ficción. Responde en el idioma de la escena y cumple exactamente el formato solicitado.",
       stream: false,
       think: false,
-      ...(task === "codex-import-classification" ? { format: { type: "object", properties: { assignments: { type: "array", items: { type: "object", properties: { source: { type: "string" }, target: { type: "string" } }, required: ["source", "target"] } } }, required: ["assignments"] } } : {}),
-      options: { temperature: task === "codex-import-classification" ? 0 : task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-field" ? 900 : task === "codex-import-classification" ? 1600 : task === "codex-categories" ? 140 : 80 },
+      ...(task === "codex-import-classification" ? { format: { type: "object", properties: { assignments: { type: "array", items: { type: "object", properties: { source: { type: "string" }, target: { type: "string" } }, required: ["source", "target"] } } }, required: ["assignments"] } }
+        : task === "codex-name" ? { format: { type: "object", properties: { firstName: { type: "string" }, lastName: { type: "string" } }, required: ["firstName", "lastName"] } }
+        : task === "codex-relationship" ? { format: { type: "object", properties: { type: { type: "string", enum: ["family", "friendship", "romance", "alliance", "rivalry", "conflict", "mentor", "professional", "other"] }, strength: { type: "integer", minimum: 1, maximum: 5 } }, required: ["type", "strength"] } } : {}),
+      options: { temperature: ["codex-import-classification", "codex-name", "codex-relationship"].includes(task) ? 0 : task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-field" ? 900 : task === "codex-import-classification" ? 1600 : task === "codex-categories" ? 140 : ["codex-name", "codex-relationship"].includes(task) ? 180 : 80 },
     }),
   });
   const payload = await response.json().catch(() => ({}));
@@ -144,7 +150,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
   }
   const result = String(payload.response || "").trim();
   if (!result) throw new Error("Ollama no devolvió una sugerencia utilizable.");
-  return task !== "summary" && task !== "codex-import-classification" ? result.replace(/^[“”"']+|[“”"'.]+$/g, "").trim() : result;
+  return task !== "summary" && !["codex-import-classification", "codex-name", "codex-relationship"].includes(task) ? result.replace(/^[“”"']+|[“”"'.]+$/g, "").trim() : result;
 }
 
 export function buildChatGptManualPrompt(task, prose, metadata) {

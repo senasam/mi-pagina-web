@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildCharacterNetwork, normalizeRelationship, relationshipStyle } from "../src/novel-studio/characterNetwork.js";
+import { buildCharacterNetwork, characterNameParts, normalizeRelationship, relationshipStyle } from "../src/novel-studio/characterNetwork.js";
 
 test("construye nodos de personajes cuyo tamaño depende de las menciones", () => {
   const entries = [
@@ -25,4 +25,11 @@ test("interpreta relaciones antiguas y evita duplicar conectores recíprocos", (
   assert.equal(network.edges[0].strength, 4);
   assert.deepEqual(normalizeRelationship("b"), { targetId: "b", type: "other", strength: 3 });
   assert.equal(relationshipStyle("conflict").label, "Conflicto");
+});
+
+test("muestra solo el nombre en el nodo y conserva el nombre completo", () => {
+  const network = buildCharacterNetwork([{ id: "r", name: "Rainiero Cardona y De la Fuente", type: "character", relations: [] }], { r: 2 });
+  assert.equal(network.nodes[0].name, "Rainiero");
+  assert.equal(network.nodes[0].fullName, "Rainiero Cardona y De la Fuente");
+  assert.deepEqual(characterNameParts({ name: "Rainiero Cardona y De la Fuente" }), { firstName: "Rainiero", lastName: "Cardona y De la Fuente" });
 });

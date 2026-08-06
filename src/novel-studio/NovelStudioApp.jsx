@@ -21,7 +21,7 @@ import { htmlToMarkdown, markdownToHtml, sanitizeRichHtml } from "./editorFormat
 import { SectionNode } from "./SectionNode.js";
 import { requestSceneSuggestion } from "./sceneAssistant.js";
 import { applyDossierClassification, CHARACTER_DOSSIER_GROUPS, createDossierClassificationBatches, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml, parseDossierClassification } from "./codexDossier.js";
-import { buildCharacterNetwork, normalizeRelationship, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
+import { buildCharacterNetwork, characterNameParts, normalizeRelationship, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
 import {
   OLLAMA_MODEL_PRESETS, buildChatGptManualPrompt, chooseOllamaModel, listOllamaModels, normalizeChatGptUrl,
   ollamaOriginCommand, pullOllamaModel,
@@ -243,7 +243,7 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
     {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "codex" && <CharactersPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
-    {mode === "relaciones" && <CharacterNetworkPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} readOnly={readOnly} setSaveState={setSaveState} />}
+    {mode === "relaciones" && <CharacterNetworkPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "configuracion" && <SettingsPage novel={novel} setNovel={setNovel} structure={structure} preferences={preferences} setPreferences={setPreferences} readOnly={readOnly} setSaveState={setSaveState} />}
   </main></div>;
 }
@@ -466,7 +466,8 @@ function AiSuggestionDialog({ proposal, currentValue, onApply, onCancel }) {
   const isTitle = proposal.task === "title" || proposal.task === "chapter-title";
   const isCategories = proposal.task === "codex-categories";
   const isCodexField = proposal.task === "codex-field";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="ai-suggestion-title"><div className="studio-modal__card studio-ai-dialog"><p className="studio-kicker"><Sparkles size={15} /> Sugerencia de IA</p><h2 id="ai-suggestion-title">{isCategories ? "Categorías propuestas" : isCodexField ? `${proposal.target || "Contenido"} propuesto` : isTitle ? "Título propuesto" : "Resumen propuesto"}</h2><p className="studio-ai-privacy">Revisa el resultado antes de aplicarlo. Nada cambiará si cancelas.</p>{currentValue && <div className="studio-ai-comparison"><small>Actual</small><p>{currentValue}</p></div>}<div className="studio-ai-comparison is-proposal"><small>Propuesta</small><p>{proposal.value}</p></div><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" onClick={onApply}><Sparkles size={16} /> Aplicar sugerencia</button></div></div></div>;
+  const isName = proposal.task === "codex-name";
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="ai-suggestion-title"><div className="studio-modal__card studio-ai-dialog"><p className="studio-kicker"><Sparkles size={15} /> Sugerencia de IA</p><h2 id="ai-suggestion-title">{isName ? "Nombre y apellido propuestos" : isCategories ? "Categorías propuestas" : isCodexField ? `${proposal.target || "Contenido"} propuesto` : isTitle ? "Título propuesto" : "Resumen propuesto"}</h2><p className="studio-ai-privacy">Revisa el resultado antes de aplicarlo. Nada cambiará si cancelas.</p>{currentValue && <div className="studio-ai-comparison"><small>Actual</small><p>{currentValue}</p></div>}<div className="studio-ai-comparison is-proposal"><small>Propuesta</small><p>{proposal.value}</p></div><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" onClick={onApply}><Sparkles size={16} /> Aplicar sugerencia</button></div></div></div>;
 }
 
 function ManualChatGptDialog({ request, onApply, onCancel }) {
@@ -479,7 +480,8 @@ function ManualChatGptDialog({ request, onApply, onCancel }) {
   const isCategories = request.task === "codex-categories";
   const isCodexField = request.task === "codex-field";
   const isImportClassification = request.task === "codex-import-classification";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2>{request.batches?.length > 1 && <p className="studio-notice">Lote {request.batchNumber} de {request.batches.length}. Al aplicar este resultado se preparará automáticamente el siguiente.</p>}<ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isImportClassification ? "Clasificación JSON devuelta" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
+  const isStructuredCodex = request.task === "codex-name" || request.task === "codex-relationship";
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2>{request.batches?.length > 1 && <p className="studio-notice">Lote {request.batchNumber} de {request.batches.length}. Al aplicar este resultado se preparará automáticamente el siguiente.</p>}<ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{isImportClassification ? "Clasificación JSON devuelta" : isStructuredCodex ? "Resultado JSON devuelto" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : "Resumen devuelto"}<textarea autoFocus rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
 }
 
 function MentionBreakdown({ novelId, mentions }) {
@@ -524,7 +526,7 @@ function CharacterNetworkMap({ entries, mentionTotals, selectedId, onSelect }) {
         </g>;
       })}
       {network.nodes.map((node) => <g className={`studio-network-node${node.id === selectedId ? " is-selected" : ""}`} key={node.id} role="button" tabIndex="0" aria-label={`${node.name}, ${node.mentions} menciones`} transform={`translate(${node.x} ${node.y})`} onClick={() => onSelect(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(node.id); } }}>
-        <title>{`${node.name}: ${node.mentions} ${node.mentions === 1 ? "mención" : "menciones"}`}</title>
+        <title>{`${node.fullName || node.name}: ${node.mentions} ${node.mentions === 1 ? "mención" : "menciones"}`}</title>
         <circle r={node.radius} />
         <text className="studio-network-node-name" textAnchor="middle" y="-2">{node.name.length > 20 ? `${node.name.slice(0, 19)}…` : node.name}</text>
         <text className="studio-network-node-count" textAnchor="middle" y="15">{node.mentions} menc.</text>
@@ -597,6 +599,14 @@ function parseCategorySuggestions(value) {
     .map((item) => item.replace(/^[-*•\d.)\s]+/, "").trim())
     .filter((item) => item && item.length <= 60);
   return categories.filter((category, index) => categories.findIndex((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()) === index);
+}
+
+function parseStructuredAiJson(value) {
+  const source = String(value || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const start = source.indexOf("{"); const end = source.lastIndexOf("}");
+  const candidate = start >= 0 && end > start ? source.slice(start, end + 1) : source.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  try { return JSON.parse(candidate.replace(/,\s*([}\]])/g, "$1")); }
+  catch { throw new Error("La IA no devolvió un resultado JSON válido."); }
 }
 
 function dossierValueToHtml(value) {
@@ -715,6 +725,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   const mentions = useCodexMentions(novel.id, structure, entries);
   const [codexDirty, setCodexDirty] = useState(false);
   const [categoryAi, setCategoryAi] = useState({ busy: false, proposal: null, manual: null, error: "" });
+  const [nameAi, setNameAi] = useState({ busy: false, proposal: null, manual: null, error: "" });
   const [fieldAi, setFieldAi] = useState({ busy: "", proposal: null, manual: null, error: "" });
   const [dossierImport, setDossierImport] = useState(null);
   const [dossierError, setDossierError] = useState("");
@@ -726,7 +737,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
 
   useEffect(() => {
     const selected = entries.find((entry) => entry.id === selectedId);
-    if (selected) { setDraft(selected); setCategoryAi({ busy: false, proposal: null, manual: null, error: "" }); setFieldAi({ busy: "", proposal: null, manual: null, error: "" }); }
+    if (selected) { setDraft(selected); setCategoryAi({ busy: false, proposal: null, manual: null, error: "" }); setNameAi({ busy: false, proposal: null, manual: null, error: "" }); setFieldAi({ busy: "", proposal: null, manual: null, error: "" }); }
   }, [selectedId, entries]);
   useEffect(() => {
     let cancelled = false;
@@ -968,6 +979,43 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       progressionLines.length ? `PROGRESIONES:\n${progressionLines.join("\n")}` : "",
     ].filter(Boolean).join("\n\n");
   };
+  const updateCharacterNames = (patch) => {
+    const current = characterNameParts(draft);
+    const firstName = patch.firstName ?? current.firstName;
+    const lastName = patch.lastName ?? current.lastName;
+    updateDraft({ firstName, lastName, name: [firstName, lastName].filter(Boolean).join(" ") });
+  };
+  const applySuggestedName = (value) => {
+    try {
+      const parsed = parseStructuredAiJson(value);
+      if (!String(parsed.firstName || "").trim()) throw new Error("La IA no propuso un nombre utilizable.");
+      updateCharacterNames({ firstName: String(parsed.firstName).trim(), lastName: String(parsed.lastName || "").trim() });
+      setNameAi({ busy: false, proposal: null, manual: null, error: "" });
+    } catch (error) { setNameAi({ busy: false, proposal: null, manual: null, error: error.message }); }
+  };
+  const suggestCharacterName = async () => {
+    if (!draft || readOnly || !aiConfigured || nameAi.busy) return;
+    if (aiSettings.provider === "openai" && !openAiConfirmedRef.current) {
+      const accepted = confirm("Esta acción enviará a OpenAI los atributos disponibles de esta ficha y puede generar costos en tu cuenta API. ¿Quieres continuar?");
+      if (!accepted) return;
+      openAiConfirmedRef.current = true;
+    }
+    const prose = codexContext("Nombre y apellido");
+    const metadata = { title: draft.name || "Personaje sin nombre", summary: draft.description || "", beats: draft.categories || [] };
+    if (aiSettings.provider === "chatgpt-manual") {
+      try {
+        const prompt = buildChatGptManualPrompt("codex-name", prose, metadata); const url = normalizeChatGptUrl(aiSettings.manualUrl);
+        window.open(url, "_blank", "noopener,noreferrer"); navigator.clipboard?.writeText(prompt)?.catch(() => {});
+        setNameAi({ busy: false, proposal: null, error: "", manual: { task: "codex-name", prompt, url } });
+      } catch (error) { setNameAi({ busy: false, proposal: null, manual: null, error: error.message }); }
+      return;
+    }
+    setNameAi({ busy: true, proposal: null, manual: null, error: "" });
+    try {
+      const value = await requestSceneSuggestion({ task: "codex-name", prose, metadata, settings: aiSettings });
+      setNameAi({ busy: false, manual: null, error: "", proposal: { task: "codex-name", value } });
+    } catch (error) { setNameAi({ busy: false, proposal: null, manual: null, error: error.message }); }
+  };
   const applyCodexField = (target, value) => {
     if (target === "Descripción") updateDraft({ description: value.trim() });
     else updateDraft({ details: { ...(draft.details || {}), [target]: markdownToHtml(value.trim()) } });
@@ -998,6 +1046,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       setFieldAi({ busy: "", manual: null, error: "", proposal: { task: "codex-field", target, value } });
     } catch (error) { setFieldAi({ busy: "", proposal: null, manual: null, error: error.message }); }
   };
+  const draftNames = characterNameParts(draft || {});
 
   return <section className="studio-page studio-characters-page">
     <PageTitle kicker="Biblia de la historia" title="Codex" text="Organiza personajes, lugares, objetos, conocimientos y subtramas, y comprueba dónde aparecen en el manuscrito.">
@@ -1020,10 +1069,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
         {!filtered.length && <p className="studio-list-empty">No hay entradas que coincidan.</p>}
       </aside>
       {draft ? <div className="studio-codex-editor">
-        <div className="studio-form-grid">
-          <label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
-          <label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        </div>
+        {draft.type === "character" ? <><div className="studio-category-heading studio-character-identity-heading"><span>Identidad del personaje</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || nameAi.busy} title={aiConfigured ? "Sugerir nombre y apellido usando toda la ficha" : "Configura la IA para sugerir nombres"} onClick={suggestCharacterName}><Sparkles size={14} />{nameAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><div className="studio-character-identity"><label>Nombre<input value={draftNames.firstName} disabled={readOnly} onChange={(event) => updateCharacterNames({ firstName: event.target.value })} /></label><label>Apellido o apellidos<input value={draftNames.lastName} disabled={readOnly} onChange={(event) => updateCharacterNames({ lastName: event.target.value })} /></label><label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>{nameAi.error && <p className="studio-ai-error" role="alert">{nameAi.error}</p>}</> : <div className="studio-form-grid"><label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => updateDraft({ name: event.target.value })} /></label><label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>}
         <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => updateDraft({ aliases })} /></label>
         <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías del personaje</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas. Ejemplos: protagonista, secundario, terciario o antagonista.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => updateDraft({ categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
         <div className="studio-codex-description"><div className="studio-category-heading"><span>Descripción</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || Boolean(fieldAi.busy)} title={aiConfigured ? "Escribir la descripción con IA usando toda la ficha" : "Configura la IA para escribir la descripción"} onClick={() => suggestCodexField("Descripción")}><Sparkles size={14} />{fieldAi.busy === "Descripción" ? "Escribiendo…" : draft.description?.trim() ? "Mejorar con IA" : "Escribir con IA"}</button></div><textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => updateDraft({ description: event.target.value })} /></div>
@@ -1047,6 +1093,8 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     </div>
     {categoryAi.proposal && <AiSuggestionDialog proposal={categoryAi.proposal} currentValue={(draft?.categories || []).join(", ")} onApply={() => applyCategories(categoryAi.proposal.value)} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
     {categoryAi.manual && <ManualChatGptDialog request={categoryAi.manual} onApply={applyCategories} onCancel={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
+    {nameAi.proposal && <AiSuggestionDialog proposal={nameAi.proposal} currentValue={draft?.name || ""} onApply={() => applySuggestedName(nameAi.proposal.value)} onCancel={() => setNameAi({ busy: false, proposal: null, manual: null, error: "" })} />}
+    {nameAi.manual && <ManualChatGptDialog request={nameAi.manual} onApply={applySuggestedName} onCancel={() => setNameAi({ busy: false, proposal: null, manual: null, error: "" })} />}
     {fieldAi.proposal && <AiSuggestionDialog proposal={fieldAi.proposal} currentValue={fieldAi.proposal.target === "Descripción" ? draft?.description || "" : dossierPlainText(draft?.details?.[fieldAi.proposal.target] || "")} onApply={() => applyCodexField(fieldAi.proposal.target, fieldAi.proposal.value)} onCancel={() => setFieldAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {fieldAi.manual && <ManualChatGptDialog request={fieldAi.manual} onApply={(value) => applyCodexField(fieldAi.manual.target, value)} onCancel={() => setFieldAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {dossierImport && <DossierImportDialog preview={dossierImport} aiConfigured={aiConfigured} classificationAi={classificationAi} onClassify={classifyDossierImport} onCancel={() => { setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onMerge={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: mergeDossierDetails(current, dossierImport.sections) }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onReplace={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: { ...current, ...dossierImport.sections } }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} />}
@@ -1054,13 +1102,15 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   </section>;
 }
 
-function CharacterNetworkPage({ novel, structure, entries, setEntries, readOnly, setSaveState }) {
+function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSettings, readOnly, setSaveState }) {
   const mentions = useCodexMentions(novel.id, structure, entries);
   const mentionTotals = useMemo(() => Object.fromEntries(entries.map((entry) => [entry.id, (mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)])), [entries, mentions]);
   const characters = entries.filter((entry) => entry.type === "character" && !entry.archived);
   const [connection, setConnection] = useState({ sourceId: "", targetId: "", type: "friendship", strength: 3 });
   const [connectionStatus, setConnectionStatus] = useState("");
   const [savingConnection, setSavingConnection] = useState(false);
+  const [relationshipAi, setRelationshipAi] = useState({ busy: false, manual: null, error: "" });
+  const aiConfigured = aiSettings?.provider === "chatgpt-manual" || (aiSettings?.provider === "ollama" ? Boolean(aiSettings.ollamaModel) : Boolean(aiSettings?.apiKey));
   useEffect(() => {
     if (characters.length < 2) return;
     setConnection((current) => {
@@ -1088,6 +1138,31 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, readOnly,
     } catch { setSaveState("error"); setConnectionStatus("No se pudo guardar la conexión."); }
     finally { setSavingConnection(false); }
   };
+  const applyRelationshipSuggestion = (value) => {
+    try {
+      const parsed = parseStructuredAiJson(value);
+      const type = RELATIONSHIP_TYPES.some((item) => item.value === parsed.type) ? parsed.type : "other";
+      const strength = Math.max(1, Math.min(5, Number(parsed.strength) || 3));
+      setConnection((current) => ({ ...current, type, strength }));
+      setRelationshipAi({ busy: false, manual: null, error: "" }); setConnectionStatus("Sugerencia aplicada al formulario. Revísala y guarda la conexión.");
+    } catch (error) { setRelationshipAi({ busy: false, manual: null, error: error.message }); }
+  };
+  const suggestRelationship = async () => {
+    const source = entries.find((entry) => entry.id === connection.sourceId); const target = entries.find((entry) => entry.id === connection.targetId);
+    if (!source || !target || !aiConfigured || relationshipAi.busy) return;
+    if (aiSettings.provider === "openai" && !confirm("Esta acción enviará a OpenAI las fichas de ambos personajes y puede generar costos en tu cuenta API. ¿Quieres continuar?")) return;
+    const describe = (entry) => [`PERSONAJE: ${entry.name}`, `Categorías: ${(entry.categories || []).join(", ")}`, `Descripción: ${entry.description || ""}`, ...Object.entries(entry.details || {}).map(([title, content]) => `${title}: ${dossierPlainText(content)}`)].filter(Boolean).join("\n");
+    const prose = `${describe(source)}\n\n---\n\n${describe(target)}`;
+    const metadata = { title: `${source.name} y ${target.name}`, summary: "Sugerir tipo e intensidad de relación", beats: [] };
+    if (aiSettings.provider === "chatgpt-manual") {
+      try { const prompt = buildChatGptManualPrompt("codex-relationship", prose, metadata); const url = normalizeChatGptUrl(aiSettings.manualUrl); window.open(url, "_blank", "noopener,noreferrer"); navigator.clipboard?.writeText(prompt)?.catch(() => {}); setRelationshipAi({ busy: false, error: "", manual: { task: "codex-relationship", prompt, url } }); }
+      catch (error) { setRelationshipAi({ busy: false, manual: null, error: error.message }); }
+      return;
+    }
+    setRelationshipAi({ busy: true, manual: null, error: "" });
+    try { applyRelationshipSuggestion(await requestSceneSuggestion({ task: "codex-relationship", prose, metadata, settings: aiSettings })); }
+    catch (error) { setRelationshipAi({ busy: false, manual: null, error: error.message }); }
+  };
   return <section className="studio-page studio-network-page">
     <PageTitle kicker="Red de personajes" title="Mapa de relaciones" text="Explora los vínculos entre personajes sin ocupar espacio en las fichas del Códex.">
       <a className="studio-button studio-button--secondary" href={studioHref(novel.id, "codex")} onClick={(event) => handleStudioLink(event, studioHref(novel.id, "codex"))}><Box size={16} /> Volver al Códex</a>
@@ -1099,14 +1174,16 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, readOnly,
         <label>Segundo personaje<select value={connection.targetId} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, targetId: event.target.value }))}>{characters.filter((entry) => entry.id !== connection.sourceId).map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
         <label>Tipo<select value={connection.type} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, type: event.target.value }))}>{RELATIONSHIP_TYPES.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}</select></label>
         <label>Intensidad: <strong>{connection.strength}/5</strong><input type="range" min="1" max="5" value={connection.strength} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, strength: Number(event.target.value) }))} /></label>
-        <button type="button" className="studio-button" disabled={readOnly || savingConnection || !connection.sourceId || !connection.targetId} onClick={saveConnection}><Share2 size={16} />{savingConnection ? "Guardando…" : "Agregar conexión"}</button>
+        <div className="studio-network-create-actions"><button type="button" className="studio-button studio-button--secondary" disabled={readOnly || savingConnection || relationshipAi.busy || !aiConfigured || !connection.sourceId || !connection.targetId} title={aiConfigured ? "Sugerir tipo e intensidad usando ambas fichas" : "Configura la IA para sugerir relaciones"} onClick={suggestRelationship}><Sparkles size={16} />{relationshipAi.busy ? "Analizando…" : "Sugerir con IA"}</button><button type="button" className="studio-button" disabled={readOnly || savingConnection || !connection.sourceId || !connection.targetId} onClick={saveConnection}><Share2 size={16} />{savingConnection ? "Guardando…" : "Agregar conexión"}</button></div>
       </div> : <p className="studio-notice">Necesitas al menos dos entradas de tipo Personaje en el Códex. Actualmente hay {characters.length}.</p>}
       {connectionStatus && <p className="studio-network-status" role="status">{connectionStatus}</p>}
+      {relationshipAi.error && <p className="studio-ai-error" role="alert">{relationshipAi.error}</p>}
     </section>
     <section className="studio-character-network-panel">
       <header className="studio-network-page-heading"><span><Share2 size={18} /><strong>Red completa</strong></span><small>El tamaño del nodo representa sus menciones; el tipo y la intensidad determinan el conector.</small></header>
       <CharacterNetworkMap entries={entries} mentionTotals={mentionTotals} selectedId={null} onSelect={(entryId) => goStudio(`${studioHref(novel.id, "codex")}?entry=${encodeURIComponent(entryId)}`)} />
     </section>
+    {relationshipAi.manual && <ManualChatGptDialog request={relationshipAi.manual} onApply={applyRelationshipSuggestion} onCancel={() => setRelationshipAi({ busy: false, manual: null, error: "" })} />}
   </section>;
 }
 

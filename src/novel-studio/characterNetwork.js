@@ -20,6 +20,15 @@ export function relationshipStyle(type) {
   return RELATIONSHIP_TYPES.find((item) => item.value === type) || RELATIONSHIP_TYPES.at(-1);
 }
 
+export function characterNameParts(entry = {}) {
+  const full = String(entry.name || "").trim();
+  const words = full.split(/\s+/).filter(Boolean);
+  return {
+    firstName: String(entry.firstName || "").trim() || words[0] || "",
+    lastName: String(entry.lastName || "").trim() || words.slice(1).join(" "),
+  };
+}
+
 export function buildCharacterNetwork(entries = [], mentionTotals = {}) {
   const characters = entries.filter((entry) => entry.type === "character" && !entry.archived);
   const byId = new Map(characters.map((entry) => [entry.id, entry]));
@@ -43,7 +52,8 @@ export function buildCharacterNetwork(entries = [], mentionTotals = {}) {
   }
   const nodes = ordered.map((entry) => {
     const mentions = Number(mentionTotals[entry.id]) || 0;
-    return { id: entry.id, name: entry.name, mentions, radius: 25 + (maxMentions ? 23 * Math.sqrt(mentions / maxMentions) : 0), ...(positions.get(entry.id) || { x: 450, y: 250 }) };
+    const names = characterNameParts(entry);
+    return { id: entry.id, name: names.firstName || entry.name, fullName: entry.name, mentions, radius: 25 + (maxMentions ? 23 * Math.sqrt(mentions / maxMentions) : 0), ...(positions.get(entry.id) || { x: 450, y: 250 }) };
   });
   const edgesByPair = new Map();
   for (const entry of characters) {

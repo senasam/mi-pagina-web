@@ -89,6 +89,19 @@ test("clasifica campos personalizados importados sin alterar el JSON", async () 
   assert.equal(result.task, "codex-import-classification");
 });
 
+test("propone nombre y apellido estructurados para un personaje", async () => {
+  const json = '{"firstName":"Elena","lastName":"Valdés"}';
+  const result = await generateSceneSuggestion({ task: "codex-name", prose: "Personaje chilena del siglo XIX.", apiKey: "test-key", fetchImpl: async () => openAiResponse(json) });
+  assert.equal(result.suggestion, json);
+  assert.equal(result.task, "codex-name");
+});
+
+test("propone tipo e intensidad de una relación", async () => {
+  const json = '{"type":"rivalry","strength":4}';
+  const result = await generateSceneSuggestion({ task: "codex-relationship", prose: "Dos oficiales compiten por el mismo ascenso.", apiKey: "test-key", fetchImpl: async () => openAiResponse(json) });
+  assert.equal(result.suggestion, json);
+});
+
 test("rechaza escenas vacías antes de llamar a OpenAI", async () => {
   let called = false;
   await assert.rejects(
