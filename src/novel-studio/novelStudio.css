@@ -296,6 +296,8 @@
 .studio-category-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .studio-category-heading .studio-ai-button { min-height: 30px; padding: 5px 9px; font-size: .72rem; }
 .studio-category-control .studio-ai-error { margin: 2px 0 0; }
+.studio-codex-description { display: grid; gap: 6px; color: #504b44; font-size: .84rem; font-weight: 650; }
+.studio-codex-description .studio-ai-button { min-height: 32px; padding: 5px 10px; font-size: .72rem; }
 .studio-dossier { display: grid; gap: 14px; padding: 17px; border: 1px solid #c8b896; border-radius: 6px; background: #f8f3e9; }
 .studio-dossier-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; }
 .studio-dossier-heading h3, .studio-dossier-heading p { margin: 0; }
@@ -306,6 +308,10 @@
 .studio-dossier-section { border: 1px solid var(--studio-line); border-radius: 5px; background: #fffdf8; }
 .studio-dossier-section summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 13px; font-size: .84rem; font-weight: 700; cursor: pointer; }
 .studio-dossier-section summary small { color: var(--studio-muted); font-size: .68rem; font-weight: 400; }
+.studio-dossier-section-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.studio-dossier-section-actions button { display: inline-flex; align-items: center; gap: 4px; padding: 4px 7px; border: 1px solid #c9aa70; border-radius: 4px; color: #73531d; background: #fff8e8; font-size: .68rem; cursor: pointer; }
+.studio-dossier-section-actions button:hover { background: #ffefc7; }
+.studio-dossier-section-actions button:disabled { opacity: .45; cursor: default; }
 .studio-dossier-editor { overflow: hidden; margin: 0 12px 12px; border: 1px solid var(--studio-line); border-radius: 5px; background: #fff; }
 .studio-dossier-toolbar { display: flex; overflow-x: auto; align-items: center; gap: 3px; padding: 6px; border-bottom: 1px solid var(--studio-line); background: #f5f0e7; }
 .studio-dossier-toolbar button { display: inline-flex; min-width: 29px; min-height: 28px; flex: 0 0 auto; align-items: center; justify-content: center; padding: 4px 7px; border: 0; border-radius: 4px; color: #4c463c; background: transparent; font-size: .7rem; cursor: pointer; }

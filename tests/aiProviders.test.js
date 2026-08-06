@@ -61,6 +61,21 @@ test("asks Ollama for Codex categories using the entry context", async () => {
   assert.match(prompt, /La doctora/);
 });
 
+test("asks Ollama to write a Codex field from all available attributes", async () => {
+  let request;
+  const suggestion = await requestOllamaSuggestion({
+    task: "codex-field",
+    prose: "ATRIBUTO OBJETIVO: Descripción\nNombre: Elena\nAlias: La doctora\nCategorías: protagonista\nRetrato físico: cicatriz en la mano",
+    metadata: { title: "Descripción" },
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b" },
+    fetchImpl: async (url, options) => { request = JSON.parse(options.body); return new Response(JSON.stringify({ response: "Elena es una doctora marcada por una cicatriz." }), { status: 200 }); },
+  });
+  assert.match(suggestion, /Elena es una doctora/);
+  assert.match(request.prompt, /todos los datos disponibles/);
+  assert.match(request.prompt, /cicatriz en la mano/);
+  assert.equal(request.options.num_predict, 900);
+});
+
 test("reports streamed Ollama model installation progress", async () => {
   const updates = [];
   const stream = new ReadableStream({

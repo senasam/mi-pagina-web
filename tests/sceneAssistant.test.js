@@ -62,6 +62,21 @@ test("sugiere categorías para una ficha del Codex", async () => {
   assert.match(body.input[1].content, /categorías breves y útiles/i);
 });
 
+test("redacta un atributo del Codex usando el contexto completo", async () => {
+  let body;
+  const result = await generateSceneSuggestion({
+    task: "codex-field",
+    prose: "ATRIBUTO OBJETIVO: Guía de voz y diálogo\nNombre: Elena\nDescripción: Médica reservada.\nVida cotidiana: lee poesía.",
+    title: "Guía de voz y diálogo",
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => { body = JSON.parse(options.body); return openAiResponse("Habla con precisión y evita revelar lo que siente."); },
+  });
+  assert.match(result.suggestion, /Habla con precisión/);
+  assert.equal(result.task, "codex-field");
+  assert.match(body.input[1].content, /todos los datos disponibles/i);
+  assert.match(body.input[1].content, /lee poesía/);
+});
+
 test("rechaza escenas vacías antes de llamar a OpenAI", async () => {
   let called = false;
   await assert.rejects(
