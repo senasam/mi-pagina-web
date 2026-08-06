@@ -65,8 +65,10 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /enabled: true/);
   assert.match(source, /Momentos clave de la escena/);
   assert.match(source, /no aparece en el manuscrito final/);
-  assert.match(source, /label: "Personajes"/);
-  assert.match(source, /Alias y otras formas de nombrarlo/);
+  assert.match(source, /label: "Codex"/);
+  assert.match(source, /title="Codex"/);
+  assert.match(source, /personajes, lugares, objetos, conocimientos y subtramas/);
+  assert.match(source, /Alias y otras formas de nombrar esta entrada/);
   assert.match(source, /Sus resultados se agrupan por acto y capítulo/);
   assert.match(source, /Encontrado como:/);
   assert.doesNotMatch(source, /placeholder="Beats/);

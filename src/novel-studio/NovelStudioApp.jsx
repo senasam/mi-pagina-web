@@ -234,7 +234,7 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
   };
   if (error) return <div className="studio-app"><WorkspaceHeader manifest={manifest} saveState="error" readOnly={readOnly} onClose={onClose} /><main className="studio-fatal"><h1>No se pudo abrir la novela</h1><p>{error}</p><a className="studio-button" href="/estudio-novela">Volver a la biblioteca</a></main></div>;
   if (!novel || !structure || !preferences) return <StudioLoading />;
-  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "codex", label: "Personajes", icon: UserRound }, { id: "configuracion", label: "Configuración", icon: Settings }];
+  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "codex", label: "Codex", icon: Box }, { id: "configuracion", label: "Configuración", icon: Settings }];
   return <div className={`studio-app studio-workspace ${sidebar ? "" : "sidebar-closed"}`}><WorkspaceHeader manifest={manifest} saveState={saveState} readOnly={readOnly} onClose={onClose}><button type="button" className="studio-header-save-button" title="Forzar el guardado de todos los cambios pendientes" disabled={readOnly || saveState === "saving"} onClick={forceSave}><Save size={16} /><span>Guardar todo</span></button><button className="studio-icon-button" title="Mostrar u ocultar panel" onClick={() => setSidebar((value) => !value)}>{sidebar ? <PanelLeftClose size={18} /> : <Menu size={18} />}</button></WorkspaceHeader><aside className="studio-sidebar"><a className="studio-sidebar__back" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")}><ArrowLeft size={16} /> Biblioteca</a><div className="studio-sidebar__novel"><BookOpen size={19} /><div><strong>{novel.title}</strong><small>{countNovelWords(structure).toLocaleString("es")} palabras registradas</small></div></div><nav>{modes.map(({ id, label, icon: Icon }) => <a className={mode === id ? "active" : ""} href={studioHref(novelId, id)} onClick={(event) => handleStudioLink(event, studioHref(novelId, id))} key={id}><Icon size={18} />{label}</a>)}</nav></aside><main className="studio-main">
     {readOnly && <div className="studio-notice"><strong>Solo lectura:</strong> cierra la otra pestaña del estudio para editar.</div>}
     {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
@@ -502,7 +502,7 @@ function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSa
   const [selectedId, setSelectedId] = useState(initial?.id || null);
   const [draft, setDraft] = useState(initial);
   const [query, setQuery] = useState("");
-  const [kind, setKind] = useState("character");
+  const [kind, setKind] = useState("all");
   const [mentions, setMentions] = useState({});
 
   useEffect(() => {
@@ -554,8 +554,8 @@ function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSa
 
   const create = () => {
     const entry = createCodexEntry("character");
-    entry.name = "Nuevo personaje";
-    setKind("character");
+    entry.name = "Nueva entrada";
+    setKind("all");
     setEntries((current) => [...current, entry]);
     setSelectedId(entry.id);
     setDraft(entry);
@@ -565,47 +565,47 @@ function CharactersPage({ novel, structure, entries, setEntries, readOnly, setSa
   const selectedMentions = draft ? mentions[draft.id] || [] : [];
 
   return <section className="studio-page studio-characters-page">
-    <PageTitle kicker="Personajes y mundo" title="Personajes" text="Guarda sus nombres y alias, y comprueba automáticamente dónde aparecen en el manuscrito.">
-      <button className="studio-button" disabled={readOnly} onClick={create}><Plus size={17} /> Nuevo personaje</button>
+    <PageTitle kicker="Biblia de la historia" title="Codex" text="Organiza personajes, lugares, objetos, conocimientos y subtramas, y comprueba dónde aparecen en el manuscrito.">
+      <button className="studio-button" disabled={readOnly} onClick={create}><Plus size={17} /> Nueva entrada</button>
     </PageTitle>
     <p className="studio-notice studio-character-help"><UserRound size={18} /> La detección revisa el título, el resumen y el texto de cada escena. Sus resultados se agrupan por acto y capítulo; no modifica tu manuscrito.</p>
     <div className="studio-codex-layout">
       <aside className="studio-codex-list">
         <div className="studio-segmented studio-character-filter">
-          <button className={kind === "character" ? "active" : ""} onClick={() => setKind("character")}>Personajes</button>
           <button className={kind === "all" ? "active" : ""} onClick={() => setKind("all")}>Todo</button>
+          <button className={kind === "character" ? "active" : ""} onClick={() => setKind("character")}>Personajes</button>
         </div>
         <label className="studio-search"><Search size={16} /><input aria-label="Buscar personajes" placeholder="Buscar por nombre o alias" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
         {filtered.map((entry) => <button className={entry.id === selectedId ? "active" : ""} key={entry.id} onClick={() => setSelectedId(entry.id)}>
           <span>{entry.type === "character" ? <UserRound size={17} /> : <Box size={17} />}{entry.name}</span>
           <small>{(mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)} menciones</small>
         </button>)}
-        {!filtered.length && <p className="studio-list-empty">No hay personajes que coincidan.</p>}
+        {!filtered.length && <p className="studio-list-empty">No hay entradas que coincidan.</p>}
       </aside>
       {draft ? <div className="studio-codex-editor">
         <div className="studio-form-grid">
-          <label>Nombre completo o principal<input value={draft.name} disabled={readOnly} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+          <label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
           <label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
-        <label>Alias y otras formas de nombrarlo <small>Sepáralos con comas: apellido, apodo, título o tratamiento.</small><input placeholder="Ejemplo: Rainiero, Cardona, teniente, ingeniero" value={(draft.aliases || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, aliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
+        <label>Alias y otras formas de nombrar esta entrada <small>Sepáralos con comas: apellido, apodo, abreviación, título o nombre alternativo.</small><input placeholder="Ejemplo: Rainiero, Cardona, teniente, ingeniero" value={(draft.aliases || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, aliases: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
         <label>Descripción<textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
         <div className="studio-form-grid">
           <label>Categorías <small>Ejemplo: protagonista, antagonista, secundario.</small><input value={(draft.categories || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, categories: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
           <label>Palabras que no deben contar <small>Útil para alias que también sean palabras comunes.</small><input value={(draft.exclusions || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, exclusions: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
         </div>
         <div className="studio-checks">
-          <label><input type="checkbox" checked={draft.trackMentions} disabled={readOnly} onChange={(event) => setDraft({ ...draft, trackMentions: event.target.checked })} /> Detectar menciones de este personaje</label>
+          <label><input type="checkbox" checked={draft.trackMentions} disabled={readOnly} onChange={(event) => setDraft({ ...draft, trackMentions: event.target.checked })} /> Detectar menciones de esta entrada</label>
           <label><input type="checkbox" checked={draft.caseSensitive} disabled={readOnly} onChange={(event) => setDraft({ ...draft, caseSensitive: event.target.checked })} /> Distinguir mayúsculas y minúsculas</label>
         </div>
         <div className="studio-row">
-          <button className="studio-button" disabled={readOnly || !draft.name.trim()} onClick={save}><Save size={17} /> Guardar personaje</button>
-          <button className="studio-button studio-button--danger" disabled={readOnly} onClick={async () => { if (confirm("¿Eliminar este personaje?")) { await repository.deleteCodexEntry(novel.id, draft.id); setEntries((current) => current.filter((item) => item.id !== draft.id)); setSelectedId(null); setDraft(null); } }}><Trash2 size={17} /> Eliminar</button>
+          <button className="studio-button" disabled={readOnly || !draft.name.trim()} onClick={save}><Save size={17} /> Guardar entrada</button>
+          <button className="studio-button studio-button--danger" disabled={readOnly} onClick={async () => { if (confirm("¿Eliminar esta entrada del Codex?")) { await repository.deleteCodexEntry(novel.id, draft.id); setEntries((current) => current.filter((item) => item.id !== draft.id)); setSelectedId(null); setDraft(null); } }}><Trash2 size={17} /> Eliminar</button>
         </div>
         <section className="studio-mentions">
           <div className="studio-mentions-heading"><div><p className="studio-kicker">Seguimiento automático</p><h3>Menciones en la novela</h3></div><small>Guarda los cambios para actualizar nombres y alias.</small></div>
-          {!draft.trackMentions ? <p className="studio-mentions-empty">Activa “Detectar menciones de este personaje” y guarda para comenzar el seguimiento.</p> : <MentionBreakdown novelId={novel.id} mentions={selectedMentions} />}
+          {!draft.trackMentions ? <p className="studio-mentions-empty">Activa “Detectar menciones de esta entrada” y guarda para comenzar el seguimiento.</p> : <MentionBreakdown novelId={novel.id} mentions={selectedMentions} />}
         </section>
-      </div> : <div className="studio-empty"><UserRound size={28} /><p>Selecciona un personaje o crea el primero.</p></div>}
+      </div> : <div className="studio-empty"><Box size={28} /><p>Selecciona o crea una entrada del Codex.</p></div>}
     </div>
   </section>;
 }
