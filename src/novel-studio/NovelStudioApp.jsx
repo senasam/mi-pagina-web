@@ -547,8 +547,10 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   const [query, setQuery] = useState("");
   const [kind, setKind] = useState("all");
   const [mentions, setMentions] = useState({});
+  const [codexDirty, setCodexDirty] = useState(false);
   const [categoryAi, setCategoryAi] = useState({ busy: false, proposal: null, manual: null, error: "" });
   const openAiConfirmedRef = useRef(false);
+  const draftVersionRef = useRef(0);
 
   useEffect(() => {
     const selected = entries.find((entry) => entry.id === selectedId);
@@ -582,13 +584,18 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   }, [entries, novel.id, structure]);
 
   const save = async () => {
-    if (!draft || readOnly) return true;
+    if (!draft || readOnly || !codexDirty) return true;
+    const snapshot = structuredClone(draft);
+    const version = draftVersionRef.current;
     setSaveState("saving");
     try {
-      const saved = await repository.saveCodexEntry(novel.id, draft);
-      setEntries((current) => [...current.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, "es")));
-      setDraft(saved);
-      setSaveState("saved");
+      const saved = await repository.saveCodexEntry(novel.id, snapshot);
+      if (version === draftVersionRef.current) {
+        setEntries((current) => [...current.filter((item) => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name, "es")));
+        setDraft(saved);
+        setCodexDirty(false);
+        setSaveState("saved");
+      } else setSaveState("modified");
       return true;
     } catch {
       setSaveState("error");
@@ -596,6 +603,31 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     }
   };
   useForceSave(save);
+  useEffect(() => {
+    if (!codexDirty || !draft || readOnly) return undefined;
+    const timer = setTimeout(save, 600);
+    return () => clearTimeout(timer);
+  }, [codexDirty, draft, readOnly]);
+  useEffect(() => {
+    if (!codexDirty) return undefined;
+    const warn = (event) => { event.preventDefault(); event.returnValue = ""; };
+    addEventListener("beforeunload", warn);
+    return () => removeEventListener("beforeunload", warn);
+  }, [codexDirty]);
+
+  const updateDraft = (patch) => {
+    draftVersionRef.current += 1;
+    setDraft((current) => ({ ...current, ...patch }));
+    setCodexDirty(true);
+    setSaveState("modified");
+  };
+  const selectEntry = async (entryId) => {
+    if (entryId === selectedId) return;
+    const saved = await save();
+    if (!saved) return;
+    setCodexDirty(false);
+    setSelectedId(entryId);
+  };
 
   const create = () => {
     const entry = createCodexEntry("character");
@@ -604,6 +636,9 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     setEntries((current) => [...current, entry]);
     setSelectedId(entry.id);
     setDraft(entry);
+    draftVersionRef.current += 1;
+    setCodexDirty(true);
+    setSaveState("modified");
   };
   const filtered = entries.filter((entry) => (kind === "all" || entry.type === "character")
     && `${entry.name} ${(entry.aliases || []).join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
@@ -619,7 +654,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     const proposed = parseCategorySuggestions(value);
     const current = draft.categories || [];
     const categories = [...current, ...proposed.filter((category) => !current.some((item) => item.toLocaleLowerCase() === category.toLocaleLowerCase()))];
-    setDraft({ ...draft, categories });
+    updateDraft({ categories });
     setCategoryAi({ busy: false, proposal: null, manual: null, error: "" });
   };
   const suggestCategories = async () => {
@@ -662,7 +697,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
           <button className={kind === "character" ? "active" : ""} onClick={() => setKind("character")}>Personajes</button>
         </div>
         <label className="studio-search"><Search size={16} /><input aria-label="Buscar personajes" placeholder="Buscar por nombre o alias" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-        {filtered.map((entry) => <button className={entry.id === selectedId ? "active" : ""} key={entry.id} onClick={() => setSelectedId(entry.id)}>
+        {filtered.map((entry) => <button className={entry.id === selectedId ? "active" : ""} key={entry.id} onClick={() => selectEntry(entry.id)}>
           <span>{entry.type === "character" ? <UserRound size={17} /> : <Box size={17} />}{entry.name}</span>
           <small>{(mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)} menciones</small>
         </button>)}
@@ -670,25 +705,25 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       </aside>
       {draft ? <div className="studio-codex-editor">
         <div className="studio-form-grid">
-          <label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
-          <label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => setDraft({ ...draft, type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+          <label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => updateDraft({ name: event.target.value })} /></label>
+          <label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         </div>
-        <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => setDraft({ ...draft, aliases })} /></label>
-        <label>Descripción<textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+        <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => updateDraft({ aliases })} /></label>
+        <label>Descripción<textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => updateDraft({ description: event.target.value })} /></label>
         <div className="studio-form-grid">
-          <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas en otras entradas de este tipo.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => setDraft({ ...draft, categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
-          <label>Palabras que no deben contar <small>Útil para alias que también sean palabras comunes.</small><input value={(draft.exclusions || []).join(", ")} disabled={readOnly} onChange={(event) => setDraft({ ...draft, exclusions: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
+          <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas en otras entradas de este tipo.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => updateDraft({ categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
+          <label>Palabras que no deben contar <small>Útil para alias que también sean palabras comunes.</small><input value={(draft.exclusions || []).join(", ")} disabled={readOnly} onChange={(event) => updateDraft({ exclusions: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
         </div>
         <div className="studio-checks">
-          <label><input type="checkbox" checked={draft.trackMentions} disabled={readOnly} onChange={(event) => setDraft({ ...draft, trackMentions: event.target.checked })} /> Detectar menciones de esta entrada</label>
-          <label><input type="checkbox" checked={draft.caseSensitive} disabled={readOnly} onChange={(event) => setDraft({ ...draft, caseSensitive: event.target.checked })} /> Distinguir mayúsculas y minúsculas</label>
+          <label><input type="checkbox" checked={draft.trackMentions} disabled={readOnly} onChange={(event) => updateDraft({ trackMentions: event.target.checked })} /> Detectar menciones de esta entrada</label>
+          <label><input type="checkbox" checked={draft.caseSensitive} disabled={readOnly} onChange={(event) => updateDraft({ caseSensitive: event.target.checked })} /> Distinguir mayúsculas y minúsculas</label>
         </div>
         <div className="studio-row">
           <button className="studio-button" disabled={readOnly || !draft.name.trim()} onClick={save}><Save size={17} /> Guardar entrada</button>
-          <button className="studio-button studio-button--danger" disabled={readOnly} onClick={async () => { if (confirm("¿Eliminar esta entrada del Codex?")) { await repository.deleteCodexEntry(novel.id, draft.id); setEntries((current) => current.filter((item) => item.id !== draft.id)); setSelectedId(null); setDraft(null); } }}><Trash2 size={17} /> Eliminar</button>
+          <button className="studio-button studio-button--danger" disabled={readOnly} onClick={async () => { if (confirm("¿Eliminar esta entrada del Codex?")) { await repository.deleteCodexEntry(novel.id, draft.id); setEntries((current) => current.filter((item) => item.id !== draft.id)); setCodexDirty(false); setSelectedId(null); setDraft(null); } }}><Trash2 size={17} /> Eliminar</button>
         </div>
         <section className="studio-mentions">
-          <div className="studio-mentions-heading"><div><p className="studio-kicker">Seguimiento automático</p><h3>Menciones en la novela</h3></div><small>Guarda los cambios para actualizar nombres y alias.</small></div>
+          <div className="studio-mentions-heading"><div><p className="studio-kicker">Seguimiento automático</p><h3>Menciones en la novela</h3></div><small>Los cambios se guardan automáticamente y luego se actualizan las menciones.</small></div>
           {!draft.trackMentions ? <p className="studio-mentions-empty">Activa “Detectar menciones de esta entrada” y guarda para comenzar el seguimiento.</p> : <MentionBreakdown novelId={novel.id} mentions={selectedMentions} />}
         </section>
       </div> : <div className="studio-empty"><Box size={28} /><p>Selecciona o crea una entrada del Codex.</p></div>}
