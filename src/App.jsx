@@ -116,6 +116,7 @@ const MortgageCalculatorPage = lazy(() => import("./MortgageCalculatorPage"));
 const MortgageLearningPage = lazy(() => import("./MortgageLearningPage"));
 const InvestmentEvaluatorPage = lazy(() => import("./InvestmentEvaluatorPage"));
 const InvestmentLearningPage = lazy(() => import("./InvestmentLearningPage"));
+const NovelStudioApp = lazy(() => import("./novel-studio/NovelStudioApp"));
 import { LearnPage, NetworkingHubPage, NetworkingLessonPage, NotFoundPage, ToolsPage } from "./LearningPages";
 
 const navigation = [
@@ -483,6 +484,7 @@ export default function App() {
 
   const closeMobileNav = () => setMobileOpen(false);
 
+  if (normalizedPath === "/estudio-novela" || normalizedPath.startsWith("/estudio-novela/")) return <Suspense fallback={<div className="loading">Cargando estudio de novela...</div>}><NovelStudioApp /></Suspense>;
   if (normalizedPath === "/aprende") return <LearnPage />;
   if (normalizedPath === "/aprende/finanzas-personales/como-evaluar-un-credito-hipotecario") return <Suspense fallback={<div className="loading">Cargando guía...</div>}><MortgageLearningPage /></Suspense>;
   if (normalizedPath === "/aprende/finanzas-personales/evaluar-inversion-inmobiliaria") return <Suspense fallback={<div className="loading">Cargando guía...</div>}><InvestmentLearningPage /></Suspense>;
