@@ -10,7 +10,7 @@ import {
   Clock3, Download, FileArchive, FilePlus2, FolderOpen, Grid2X2, Heading2,
   Highlighter, Italic, Library, List, ListOrdered, Maximize2, Menu, NotebookPen,
   PanelLeftClose, Pencil, Plus, Quote, Redo2, RotateCcw, Save, Search, Settings, Strikethrough,
-  Sparkles, Trash2, UnderlineIcon, Undo2, Upload, UserRound, X,
+  Share2, Sparkles, Trash2, UnderlineIcon, Undo2, Upload, UserRound, X,
 } from "lucide-react";
 import { workspaceRepository as repository, WorkspaceConflictError } from "./LocalWorkspaceRepository.js";
 import {
@@ -21,6 +21,7 @@ import { htmlToMarkdown, markdownToHtml, sanitizeRichHtml } from "./editorFormat
 import { SectionNode } from "./SectionNode.js";
 import { requestSceneSuggestion } from "./sceneAssistant.js";
 import { applyDossierClassification, CHARACTER_DOSSIER_GROUPS, CHARACTER_DOSSIER_SECTIONS, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml } from "./codexDossier.js";
+import { buildCharacterNetwork, normalizeRelationship, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
 import {
   OLLAMA_MODEL_PRESETS, buildChatGptManualPrompt, chooseOllamaModel, listOllamaModels, normalizeChatGptUrl,
   ollamaOriginCommand, pullOllamaModel,
@@ -504,6 +505,58 @@ function MentionBreakdown({ novelId, mentions }) {
   </>;
 }
 
+function CharacterNetworkMap({ entries, mentionTotals, selectedId, onSelect }) {
+  const network = useMemo(() => buildCharacterNetwork(entries, mentionTotals), [entries, mentionTotals]);
+  const nodesById = useMemo(() => new Map(network.nodes.map((node) => [node.id, node])), [network.nodes]);
+  const usedTypes = RELATIONSHIP_TYPES.filter((type) => network.edges.some((edge) => edge.type === type.value));
+  if (!network.nodes.length) return <p className="studio-mentions-empty">Crea personajes para comenzar el mapa de relaciones.</p>;
+  return <div className="studio-network-wrap">
+    <svg className="studio-character-network" viewBox="0 0 900 500" role="img" aria-label="Mapa de relaciones entre personajes">
+      {network.edges.map((edge) => {
+        const source = nodesById.get(edge.sourceId);
+        const target = nodesById.get(edge.targetId);
+        const style = relationshipStyle(edge.type);
+        if (!source || !target) return null;
+        return <g className="studio-network-edge" key={edge.id}>
+          <title>{`${source.name} — ${target.name}: ${style.label}, intensidad ${edge.strength} de 5`}</title>
+          <line x1={source.x} y1={source.y} x2={target.x} y2={target.y} stroke={style.color} strokeWidth={1.5 + edge.strength * 1.35} strokeDasharray={style.dash || undefined} />
+        </g>;
+      })}
+      {network.nodes.map((node) => <g className={`studio-network-node${node.id === selectedId ? " is-selected" : ""}`} key={node.id} role="button" tabIndex="0" aria-label={`${node.name}, ${node.mentions} menciones`} transform={`translate(${node.x} ${node.y})`} onClick={() => onSelect(node.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(node.id); } }}>
+        <title>{`${node.name}: ${node.mentions} ${node.mentions === 1 ? "mención" : "menciones"}`}</title>
+        <circle r={node.radius} />
+        <text className="studio-network-node-name" textAnchor="middle" y="-2">{node.name.length > 20 ? `${node.name.slice(0, 19)}…` : node.name}</text>
+        <text className="studio-network-node-count" textAnchor="middle" y="15">{node.mentions} menc.</text>
+      </g>)}
+    </svg>
+    <div className="studio-network-legend"><span><i className="studio-network-size-dot" /> El tamaño representa menciones</span>{usedTypes.map((type) => <span key={type.value}><i style={{ background: type.color }} />{type.label}</span>)}</div>
+    {!network.edges.length && <p className="studio-mentions-empty">Todavía no hay conectores. Añade relaciones desde la ficha de un personaje.</p>}
+  </div>;
+}
+
+function RelationshipEditor({ entry, entries, disabled, onChange }) {
+  const relationships = (entry.relations || []).map(normalizeRelationship);
+  const characters = entries.filter((candidate) => candidate.type === "character" && candidate.id !== entry.id);
+  const usedTargets = new Set(relationships.map((relation) => relation.targetId));
+  const available = characters.filter((candidate) => !usedTargets.has(candidate.id));
+  const update = (index, patch) => onChange(relationships.map((relation, relationIndex) => relationIndex === index ? { ...relation, ...patch } : relation));
+  return <section className="studio-relationship-editor">
+    <div className="studio-mentions-heading"><div><p className="studio-kicker">Red de personajes</p><h3>Relaciones</h3></div><small>El tipo cambia el conector; la intensidad determina su grosor.</small></div>
+    {relationships.map((relation, index) => {
+      const target = characters.find((candidate) => candidate.id === relation.targetId);
+      const style = relationshipStyle(relation.type);
+      return <div className="studio-relationship-row" key={`${relation.targetId}-${index}`}>
+        <label>Personaje<select value={relation.targetId} disabled={disabled} onChange={(event) => update(index, { targetId: event.target.value })}>{target && <option value={target.id}>{target.name}</option>}{available.map((candidate) => <option value={candidate.id} key={candidate.id}>{candidate.name}</option>)}</select></label>
+        <label>Tipo de relación<select value={relation.type} disabled={disabled} onChange={(event) => update(index, { type: event.target.value })}>{RELATIONSHIP_TYPES.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}</select></label>
+        <label className="studio-relationship-strength">Intensidad: <strong>{relation.strength}/5</strong><input type="range" min="1" max="5" step="1" value={relation.strength} disabled={disabled} style={{ accentColor: style.color }} onChange={(event) => update(index, { strength: Number(event.target.value) })} /></label>
+        <button type="button" className="studio-icon-button" disabled={disabled} title="Quitar relación" aria-label={`Quitar relación con ${target?.name || "personaje"}`} onClick={() => onChange(relationships.filter((_, relationIndex) => relationIndex !== index))}><Trash2 size={16} /></button>
+      </div>;
+    })}
+    {!relationships.length && <p className="studio-mentions-empty">Este personaje todavía no tiene relaciones definidas.</p>}
+    <button type="button" className="studio-button studio-button--secondary" disabled={disabled || !available.length} onClick={() => onChange([...relationships, { targetId: available[0].id, type: "friendship", strength: 3 }])}><Plus size={16} /> Añadir relación</button>
+  </section>;
+}
+
 function ChipInput({ values = [], suggestions = [], onChange, disabled, placeholder = "Escribe y presiona Enter" }) {
   const [pending, setPending] = useState("");
   const add = (raw = pending) => {
@@ -837,6 +890,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   const filtered = entries.filter((entry) => (kind === "all" || entry.type === "character")
     && `${entry.name} ${(entry.aliases || []).join(" ")}`.toLocaleLowerCase().includes(query.toLocaleLowerCase()));
   const selectedMentions = draft ? mentions[draft.id] || [] : [];
+  const mentionTotals = useMemo(() => Object.fromEntries(entries.map((entry) => [entry.id, (mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)])), [entries, mentions]);
   const categorySuggestions = useMemo(() => {
     if (!draft) return [];
     const values = entries.filter((entry) => entry.id !== draft.id && entry.type === draft.type).flatMap((entry) => entry.categories || []);
@@ -880,7 +934,11 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   };
   const codexContext = (target) => {
     const typeLabels = { character: "Personaje", location: "Ubicación", object: "Objeto", lore: "Conocimiento", subplot: "Subtrama", other: "Otro" };
-    const related = (draft.relations || []).map((id) => entries.find((entry) => entry.id === id)?.name).filter(Boolean);
+    const related = (draft.relations || []).map((relation) => {
+      const normalized = normalizeRelationship(relation);
+      const target = entries.find((entry) => entry.id === normalized.targetId);
+      return target ? `${target.name} (${relationshipStyle(normalized.type).label}, intensidad ${normalized.strength}/5)` : "";
+    }).filter(Boolean);
     const detailLines = Object.entries(draft.details || {}).filter(([, content]) => dossierPlainText(content)).map(([title, content]) => `${title}:\n${dossierPlainText(content)}`);
     const progressionLines = (draft.progressions || []).filter((item) => item.text?.trim()).map((item) => { const scene = structure.scenes[item.sceneId]; return `${scene?.title || "Escena"}: ${item.text.trim()}`; });
     return [
@@ -933,6 +991,10 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     </PageTitle>
     <p className="studio-notice studio-character-help"><UserRound size={18} /> La detección revisa el título, el resumen y el texto de cada escena. Sus resultados se agrupan por acto y capítulo; no modifica tu manuscrito.</p>
     {showArchivedEntries && <section className="studio-panel studio-codex-archive"><div><h2>Archivo del Codex</h2><p>Las entradas archivadas dejan de aparecer en el Codex activo. Puedes restaurarlas o eliminarlas definitivamente.</p></div>{archivedEntries.length ? <div className="studio-archive-list">{archivedEntries.map((entry) => <div key={entry.id}><span><strong>{entry.name}</strong><small>{entry.type === "character" ? "Personaje" : entry.type === "location" ? "Ubicación" : entry.type === "object" ? "Objeto" : entry.type === "lore" ? "Conocimiento" : entry.type === "subplot" ? "Subtrama" : "Otro"}</small></span><div className="studio-row"><button className="studio-button studio-button--secondary" disabled={readOnly} onClick={() => restoreEntry(entry)}><RotateCcw size={15} /> Restaurar</button><button className="studio-button studio-button--danger" disabled={readOnly} onClick={() => deleteArchivedEntry(entry)}><Trash2 size={15} /> Eliminar</button></div></div>)}</div> : <p>No hay entradas archivadas.</p>}</section>}
+    <details className="studio-character-network-panel" open>
+      <summary><span><Share2 size={18} /><strong>Mapa de relaciones</strong></span><small>Nodos más grandes = personajes con más menciones</small></summary>
+      <CharacterNetworkMap entries={entries} mentionTotals={mentionTotals} selectedId={selectedId} onSelect={selectEntry} />
+    </details>
     <div className="studio-codex-layout">
       <aside className="studio-codex-list">
         <div className="studio-segmented studio-character-filter">
@@ -954,6 +1016,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
         <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => updateDraft({ aliases })} /></label>
         <div className="studio-codex-description"><div className="studio-category-heading"><span>Descripción</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || Boolean(fieldAi.busy)} title={aiConfigured ? "Escribir la descripción con IA usando toda la ficha" : "Configura la IA para escribir la descripción"} onClick={() => suggestCodexField("Descripción")}><Sparkles size={14} />{fieldAi.busy === "Descripción" ? "Escribiendo…" : draft.description?.trim() ? "Mejorar con IA" : "Escribir con IA"}</button></div><textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => updateDraft({ description: event.target.value })} /></div>
         {draft.type === "character" && <><CharacterDossier details={draft.details || {}} disabled={readOnly} aiConfigured={aiConfigured} aiBusy={fieldAi.busy} onSuggest={suggestCodexField} onDiscardSection={discardDossierSection} onChange={(details) => updateDraft({ details })} onImport={importDossier} />{dossierError && <p className="studio-ai-error" role="alert">{dossierError}</p>}</>}
+        {draft.type === "character" && <RelationshipEditor entry={draft} entries={entries} disabled={readOnly} onChange={(relations) => updateDraft({ relations })} />}
         {fieldAi.error && <p className="studio-ai-error" role="alert">{fieldAi.error}</p>}
         <div className="studio-form-grid">
           <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas en otras entradas de este tipo.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => updateDraft({ categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
