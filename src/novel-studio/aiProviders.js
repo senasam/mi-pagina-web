@@ -35,9 +35,11 @@ export function normalizeChatGptUrl(value = "https://chatgpt.com/") {
 }
 
 export function buildScenePrompt(task, prose, metadata = {}) {
-  const instruction = task === "title"
-    ? "Propón un título evocador y específico para esta escena. Devuelve únicamente el título, sin comillas, explicación ni punto final."
-    : "Resume esta escena en español en un párrafo de 2 a 4 frases. Conserva personajes, giro, conflicto y resultado; no inventes hechos.";
+  const instruction = task === "chapter-title"
+    ? "Propón un título evocador y específico para este capítulo a partir del contexto y sus escenas. Devuelve únicamente el título, sin comillas, explicación ni punto final."
+    : task === "title"
+      ? "Propón un título evocador y específico para esta escena. Devuelve únicamente el título, sin comillas, explicación ni punto final."
+      : "Resume esta escena en español en un párrafo de 2 a 4 frases. Conserva personajes, giro, conflicto y resultado; no inventes hechos.";
   const context = [
     metadata.title ? `Título actual: ${metadata.title}` : "",
     metadata.summary ? `Resumen actual: ${metadata.summary}` : "",
@@ -125,7 +127,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
       system: "Eres un asistente editorial para ficción. Responde en el idioma de la escena y cumple exactamente el formato solicitado.",
       stream: false,
       think: false,
-      options: { temperature: task === "title" ? 0.7 : 0.3, num_predict: task === "title" ? 80 : 350 },
+      options: { temperature: task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : 80 },
     }),
   });
   const payload = await response.json().catch(() => ({}));
@@ -135,7 +137,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
   }
   const result = String(payload.response || "").trim();
   if (!result) throw new Error("Ollama no devolvió una sugerencia utilizable.");
-  return task === "title" ? result.replace(/^[“”"']+|[“”"'.]+$/g, "").trim() : result;
+  return task !== "summary" ? result.replace(/^[“”"']+|[“”"'.]+$/g, "").trim() : result;
 }
 
 export function buildChatGptManualPrompt(task, prose, metadata) {

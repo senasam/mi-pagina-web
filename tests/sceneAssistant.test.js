@@ -34,6 +34,20 @@ test("genera un resumen y conserva el texto devuelto", async () => {
   assert.equal(result.task, "summary");
 });
 
+test("genera un título de capítulo con una instrucción específica", async () => {
+  let body;
+  const result = await generateSceneSuggestion({
+    task: "chapter-title",
+    prose: "Novela: El umbral\nActo: La partida\nEscenas: Elena encuentra la carta y abandona la casa.",
+    title: "Capítulo 1",
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => { body = JSON.parse(options.body); return openAiResponse("“La carta del umbral”"); },
+  });
+  assert.equal(result.suggestion, "La carta del umbral");
+  assert.equal(result.task, "chapter-title");
+  assert.match(body.input[1].content, /título evocador y específico para este capítulo/i);
+});
+
 test("rechaza escenas vacías antes de llamar a OpenAI", async () => {
   let called = false;
   await assert.rejects(

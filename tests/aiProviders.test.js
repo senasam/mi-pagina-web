@@ -36,6 +36,17 @@ test("generates a local suggestion without contacting the hosted API", async () 
   assert.equal(request.body.model, "qwen3:4b");
 });
 
+test("asks Ollama for a chapter title and cleans quotation marks", async () => {
+  let prompt;
+  const suggestion = await requestOllamaSuggestion({
+    task: "chapter-title", prose: "Escenas: una llegada y una traición.", metadata: { title: "Capítulo 2" },
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b" },
+    fetchImpl: async (url, options) => { prompt = JSON.parse(options.body).prompt; return new Response(JSON.stringify({ response: "“La llegada del traidor”" }), { status: 200 }); },
+  });
+  assert.equal(suggestion, "La llegada del traidor");
+  assert.match(prompt, /este capítulo/);
+});
+
 test("reports streamed Ollama model installation progress", async () => {
   const updates = [];
   const stream = new ReadableStream({

@@ -36,6 +36,22 @@ export function createActWithContent(index = 1) {
   };
 }
 
+export function buildChapterTitleContext(novel, act, chapter, scenesById) {
+  const sceneLines = chapter.sceneIds
+    .map((id, index) => scenesById[id])
+    .filter((scene) => scene && !scene.archived)
+    .map((scene, index) => `${index + 1}. ${scene.title || "Escena sin título"}${scene.summary ? ` — ${scene.summary}` : ""}`);
+  return [
+    `Novela: ${novel.title || "Sin título"}`,
+    novel.genre ? `Género: ${novel.genre}` : "",
+    novel.synopsis ? `Sinopsis: ${novel.synopsis}` : "",
+    `Acto: ${act.title || "Sin título"}`,
+    `Capítulo actual: ${chapter.title || "Sin título"}`,
+    "Escenas del capítulo:",
+    sceneLines.length ? sceneLines.join("\n") : "Todavía no hay escenas descritas.",
+  ].filter(Boolean).join("\n");
+}
+
 export function createNovelRecord(title, author = "") {
   const timestamp = nowIso();
   return {

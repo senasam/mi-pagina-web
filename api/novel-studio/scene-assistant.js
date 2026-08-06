@@ -4,6 +4,11 @@ const MAX_PROSE_CHARS = 60000;
 const REQUEST_TIMEOUT_MS = 45000;
 
 const TASKS = Object.freeze({
+  "chapter-title": {
+    instruction: "Propón un título evocador y específico para este capítulo a partir del contexto de la novela y sus escenas. Devuelve únicamente el título, sin comillas, explicación ni punto final.",
+    maxOutputTokens: 200,
+    maxChars: 120,
+  },
   title: {
     instruction: "Propón un título evocador y específico para esta escena. Devuelve únicamente el título, sin comillas, explicación ni punto final.",
     maxOutputTokens: 200,
@@ -102,7 +107,7 @@ export async function generateSceneSuggestion({
   }
 
   const result = cleanString(extractOutputText(await response.json()), TASKS[task].maxChars)
-    .replace(task === "title" ? /^[“”"']+|[“”"'.]+$/g : /$^/, "")
+    .replace(task !== "summary" ? /^[“”"']+|[“”"'.]+$/g : /$^/, "")
     .trim();
   if (!result) throw new SceneAssistantError("La IA no devolvió una sugerencia utilizable.", 502, "EMPTY_AI_RESPONSE");
   return { suggestion: result, task, model: cleanModel };

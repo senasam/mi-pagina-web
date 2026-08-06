@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import {
-  applyOutline, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, findMentions,
+  applyOutline, buildChapterTitleContext, countWords, createActWithContent, createChapterWithScene, createCodexEntry, createScene, findMentions,
   flattenScenes, markdownBody, parseOutline, safeFileName, sceneToMarkdown,
 } from "../src/novel-studio/model.js";
 import { manuscriptImportPreview } from "../src/novel-studio/documentIO.js";
@@ -64,6 +64,16 @@ test("new acts and chapters include a blank scene ready to write", () => {
   assert.equal(scene.title, "Escena 1");
 });
 
+test("chapter title context includes novel act and scene summaries", () => {
+  const { act, scene } = createActWithContent(1);
+  scene.title = "La carta";
+  scene.summary = "Elena descubre un mensaje oculto.";
+  const context = buildChapterTitleContext({ title: "El umbral", genre: "Misterio", synopsis: "Una casa guarda un secreto." }, act, act.chapters[0], { [scene.id]: scene });
+  assert.match(context, /Novela: El umbral/);
+  assert.match(context, /Acto: Acto 1/);
+  assert.match(context, /La carta — Elena descubre/);
+});
+
 test("archived acts chapters and scenes disappear from the active manuscript", () => {
   const { act, scene } = createActWithContent(1);
   const structure = { schemaVersion: 1, acts: [act], scenes: { [scene.id]: scene } };
@@ -83,6 +93,7 @@ test("studio retries the edit lock and exposes archive lifecycle actions", async
   assert.match(app, /setTimeout\(acquire, 600\)/);
   assert.match(app, /className="studio-edit-link"/);
   assert.match(app, /<Pencil size=\{15\}/);
+  assert.match(app, /Sugerir nombre con IA/);
   assert.match(repository, /archiveStoryItem/);
   assert.match(repository, /deleteStoryItem/);
   assert.match(repository, /Primero debes archivar el capítulo/);
