@@ -237,6 +237,9 @@
 .studio-editor-column { min-width: 0; }
 .studio-scene-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
 .studio-scene-meta > input:nth-of-type(n+2), .studio-ai-field--summary, .studio-ai-error, .studio-ai-hint { grid-column: 1 / -1; }
+.studio-scene-beats { grid-column: 1 / -1; display: grid; gap: 5px; }
+.studio-scene-beats > span { font-size: .78rem; font-weight: 700; }
+.studio-scene-beats > span small, .studio-scene-beats > small { color: var(--studio-muted); font-size: .7rem; font-weight: 400; line-height: 1.45; }
 .studio-ai-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 6px; }
 .studio-ai-field--summary { grid-template-columns: minmax(0, 1fr) auto; }
 .studio-ai-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-width: 132px; padding: 0 11px; border: 1px solid #b38a42; border-radius: 4px; color: #694c18; font-size: .72rem; font-weight: 800; background: #fff8e7; cursor: pointer; }

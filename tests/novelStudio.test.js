@@ -51,6 +51,9 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.doesNotMatch(source, /!aiSettings\?\.enabled/);
   assert.match(source, /puede generar costos en tu cuenta API/);
   assert.match(source, /enabled: true/);
+  assert.match(source, /Momentos clave de la escena/);
+  assert.match(source, /no aparece en el manuscrito final/);
+  assert.doesNotMatch(source, /placeholder="Beats/);
 });
 
 test("new acts and chapters include a blank scene ready to write", () => {
