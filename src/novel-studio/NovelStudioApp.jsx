@@ -243,7 +243,7 @@ function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
     {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "codex" && <CharactersPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
-    {mode === "relaciones" && <CharacterNetworkPage novel={novel} structure={structure} entries={codex} />}
+    {mode === "relaciones" && <CharacterNetworkPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "configuracion" && <SettingsPage novel={novel} setNovel={setNovel} structure={structure} preferences={preferences} setPreferences={setPreferences} readOnly={readOnly} setSaveState={setSaveState} />}
   </main></div>;
 }
@@ -644,7 +644,7 @@ function DossierRichEditor({ value, disabled, onChange }) {
 }
 
 function DossierSection({ title, value, disabled, custom, aiConfigured, aiBusy, openRequest, onSuggest, onChange, onDiscard }) {
-  const [open, setOpen] = useState(Boolean(value));
+  const [open, setOpen] = useState(false);
   const count = dossierPlainText(value).length;
   useEffect(() => { if (openRequest?.id) setOpen(openRequest.open); }, [openRequest]);
   return <details className="studio-dossier-section" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
@@ -1039,13 +1039,55 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
   </section>;
 }
 
-function CharacterNetworkPage({ novel, structure, entries }) {
+function CharacterNetworkPage({ novel, structure, entries, setEntries, readOnly, setSaveState }) {
   const mentions = useCodexMentions(novel.id, structure, entries);
   const mentionTotals = useMemo(() => Object.fromEntries(entries.map((entry) => [entry.id, (mentions[entry.id] || []).reduce((sum, item) => sum + item.count, 0)])), [entries, mentions]);
+  const characters = entries.filter((entry) => entry.type === "character" && !entry.archived);
+  const [connection, setConnection] = useState({ sourceId: "", targetId: "", type: "friendship", strength: 3 });
+  const [connectionStatus, setConnectionStatus] = useState("");
+  const [savingConnection, setSavingConnection] = useState(false);
+  useEffect(() => {
+    if (characters.length < 2) return;
+    setConnection((current) => {
+      const sourceId = characters.some((entry) => entry.id === current.sourceId) ? current.sourceId : characters[0].id;
+      const targetId = characters.some((entry) => entry.id === current.targetId && entry.id !== sourceId) ? current.targetId : characters.find((entry) => entry.id !== sourceId)?.id || "";
+      return { ...current, sourceId, targetId };
+    });
+  }, [entries]);
+  const saveConnection = async () => {
+    if (readOnly || savingConnection || !connection.sourceId || !connection.targetId || connection.sourceId === connection.targetId) return;
+    const pairIds = new Set([connection.sourceId, connection.targetId]);
+    let owner = entries.find((entry) => pairIds.has(entry.id) && (entry.relations || []).some((raw) => pairIds.has(normalizeRelationship(raw).targetId) && normalizeRelationship(raw).targetId !== entry.id));
+    owner ||= entries.find((entry) => entry.id === connection.sourceId);
+    if (!owner) return;
+    const otherId = owner.id === connection.sourceId ? connection.targetId : connection.sourceId;
+    const relations = (owner.relations || []).map(normalizeRelationship);
+    const existingIndex = relations.findIndex((relation) => relation.targetId === otherId);
+    const nextRelation = { targetId: otherId, type: connection.type, strength: connection.strength };
+    const nextRelations = existingIndex >= 0 ? relations.map((relation, index) => index === existingIndex ? nextRelation : relation) : [...relations, nextRelation];
+    setSavingConnection(true); setSaveState("saving"); setConnectionStatus("");
+    try {
+      const saved = await repository.saveCodexEntry(novel.id, { ...owner, relations: nextRelations }, { reason: existingIndex >= 0 ? "actualizar-relacion" : "crear-relacion" });
+      setEntries((current) => current.map((entry) => entry.id === saved.id ? saved : entry));
+      setSaveState("saved"); setConnectionStatus(existingIndex >= 0 ? "La conexión existente fue actualizada." : "Conexión agregada al mapa.");
+    } catch { setSaveState("error"); setConnectionStatus("No se pudo guardar la conexión."); }
+    finally { setSavingConnection(false); }
+  };
   return <section className="studio-page studio-network-page">
     <PageTitle kicker="Red de personajes" title="Mapa de relaciones" text="Explora los vínculos entre personajes sin ocupar espacio en las fichas del Códex.">
       <a className="studio-button studio-button--secondary" href={studioHref(novel.id, "codex")} onClick={(event) => handleStudioLink(event, studioHref(novel.id, "codex"))}><Box size={16} /> Volver al Códex</a>
     </PageTitle>
+    <section className="studio-panel studio-network-create">
+      <div><p className="studio-kicker">Nueva conexión</p><h2>Conectar dos personajes</h2><p>Selecciona ambos personajes, el tipo de relación y su intensidad.</p></div>
+      {characters.length >= 2 ? <div className="studio-network-create-form">
+        <label>Primer personaje<select value={connection.sourceId} disabled={readOnly || savingConnection} onChange={(event) => { const sourceId = event.target.value; setConnection((current) => ({ ...current, sourceId, targetId: current.targetId === sourceId ? characters.find((entry) => entry.id !== sourceId)?.id || "" : current.targetId })); }}>{characters.map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
+        <label>Segundo personaje<select value={connection.targetId} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, targetId: event.target.value }))}>{characters.filter((entry) => entry.id !== connection.sourceId).map((entry) => <option value={entry.id} key={entry.id}>{entry.name}</option>)}</select></label>
+        <label>Tipo<select value={connection.type} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, type: event.target.value }))}>{RELATIONSHIP_TYPES.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}</select></label>
+        <label>Intensidad: <strong>{connection.strength}/5</strong><input type="range" min="1" max="5" value={connection.strength} disabled={readOnly || savingConnection} onChange={(event) => setConnection((current) => ({ ...current, strength: Number(event.target.value) }))} /></label>
+        <button type="button" className="studio-button" disabled={readOnly || savingConnection || !connection.sourceId || !connection.targetId} onClick={saveConnection}><Share2 size={16} />{savingConnection ? "Guardando…" : "Agregar conexión"}</button>
+      </div> : <p className="studio-notice">Necesitas al menos dos entradas de tipo Personaje en el Códex. Actualmente hay {characters.length}.</p>}
+      {connectionStatus && <p className="studio-network-status" role="status">{connectionStatus}</p>}
+    </section>
     <section className="studio-character-network-panel">
       <header className="studio-network-page-heading"><span><Share2 size={18} /><strong>Red completa</strong></span><small>El tamaño del nodo representa sus menciones; el tipo y la intensidad determinan el conector.</small></header>
       <CharacterNetworkMap entries={entries} mentionTotals={mentionTotals} selectedId={null} onSelect={(entryId) => goStudio(`${studioHref(novel.id, "codex")}?entry=${encodeURIComponent(entryId)}`)} />

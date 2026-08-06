@@ -96,11 +96,15 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /restaurar-codex/);
   assert.match(source, />Abrir todas<\/button>/);
   assert.match(source, />Cerrar todas<\/button>/);
+  assert.match(source, /const \[open, setOpen\] = useState\(false\)/);
   assert.match(source, /Mapa de relaciones/);
   assert.match(source, /id: "relaciones", label: "Relaciones"/);
   assert.match(source, /mode === "relaciones" && <CharacterNetworkPage/);
   assert.match(source, /studioHref\(novel\.id, "codex"\)\}\?entry=/);
   assert.match(source, /El tamaño del nodo representa sus menciones/);
+  assert.match(source, /Conectar dos personajes/);
+  assert.match(source, /Agregar conexión/);
+  assert.match(source, /Necesitas al menos dos entradas de tipo Personaje/);
   assert.match(source, /Intensidad:/);
   assert.match(source, /buildCharacterNetwork/);
   assert.match(source, /Sus resultados se agrupan por acto y capítulo/);
