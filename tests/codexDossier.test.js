@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { applyDossierClassification, createDossierClassificationBatches, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml } from "../src/novel-studio/codexDossier.js";
+import { applyDossierClassification, createDossierClassificationBatches, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml, parseDossierClassification } from "../src/novel-studio/codexDossier.js";
 
 test("organiza una ficha importada en secciones avanzadas del personaje", () => {
   const parsed = parseCharacterDossier("# Índice general\n* 1. Ficha maestra\n# 1. Ficha maestra y cronología general\nNace en 1852.\n# 5. Perfil militar\nOficial de caballería.\n# Guía de voz y diálogo\nHabla con frases breves.");
@@ -46,5 +46,11 @@ test("divide 104 secciones personalizadas en lotes seguros sin omitir ninguna", 
   const batches = createDossierClassificationBatches(sections);
   assert.ok(batches.length > 1);
   assert.ok(batches.every((batch) => batch.length <= 40000));
+  assert.ok(batches.every((batch) => (batch.match(/<TITULO>/g) || []).length <= 12));
   for (let index = 1; index <= 104; index += 1) assert.equal(batches.filter((batch) => batch.includes(`<TITULO>Sección importada ${index}</TITULO>`)).length, 1);
+});
+
+test("extrae la clasificación aunque el modelo agregue razonamiento, explicación o comas finales", () => {
+  const response = '<think>Debo clasificar con cuidado.</think>\nAquí está el resultado:\n```json\n{"assignments":[{"source":"Combate","target":"Habilidades, destrezas, armas y poderes",},],}\n```';
+  assert.deepEqual(parseDossierClassification(response), [{ source: "Combate", target: "Habilidades, destrezas, armas y poderes" }]);
 });

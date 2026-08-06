@@ -88,7 +88,9 @@ test("asks Ollama to classify imported custom Codex fields as JSON", async () =>
   });
   assert.equal(suggestion, response);
   assert.match(request.prompt, /exclusivamente JSON válido/);
-  assert.equal(request.options.temperature, 0.1);
+  assert.equal(request.options.temperature, 0);
+  assert.equal(request.options.num_predict, 1600);
+  assert.equal(request.format.properties.assignments.type, "array");
 });
 
 test("reports streamed Ollama model installation progress", async () => {

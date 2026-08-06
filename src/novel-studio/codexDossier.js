@@ -149,7 +149,7 @@ export function customDossierSections(details = {}) {
   return Object.keys(details).filter((title) => !KNOWN_SECTIONS.includes(title));
 }
 
-export function createDossierClassificationBatches(sections = {}, maxChars = 40000) {
+export function createDossierClassificationBatches(sections = {}, maxChars = 40000, maxSections = 12) {
   const header = ["ATRIBUTOS ESTÁNDAR PERMITIDOS:", ...KNOWN_SECTIONS.map((title) => `- ${title}`), "", "SECCIONES PERSONALIZADAS IMPORTADAS:"].join("\n");
   const batches = [];
   let blocks = [];
@@ -157,7 +157,7 @@ export function createDossierClassificationBatches(sections = {}, maxChars = 400
   for (const title of customDossierSections(sections)) {
     const content = plainHtml(sections[title]).slice(0, 3500);
     const block = `\n<TITULO>${title}</TITULO>\n<CONTENIDO>${content}</CONTENIDO>`;
-    if (blocks.length && length + block.length > maxChars) {
+    if (blocks.length && (length + block.length > maxChars || blocks.length >= maxSections)) {
       batches.push(`${header}${blocks.join("")}`);
       blocks = []; length = header.length;
     }
@@ -168,10 +168,19 @@ export function createDossierClassificationBatches(sections = {}, maxChars = 400
 }
 
 export function parseDossierClassification(value) {
-  const source = String(value || "").trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/, "");
+  const source = String(value || "").replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  const candidates = [source];
+  for (const match of source.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)) candidates.push(match[1].trim());
+  const objectStart = source.indexOf("{"); const objectEnd = source.lastIndexOf("}");
+  if (objectStart >= 0 && objectEnd > objectStart) candidates.push(source.slice(objectStart, objectEnd + 1));
+  const arrayStart = source.indexOf("["); const arrayEnd = source.lastIndexOf("]");
+  if (arrayStart >= 0 && arrayEnd > arrayStart) candidates.push(source.slice(arrayStart, arrayEnd + 1));
   let payload;
-  try { payload = JSON.parse(source); }
-  catch { throw new Error("La IA no devolvió una clasificación JSON válida."); }
+  for (const candidate of candidates) {
+    try { payload = JSON.parse(candidate.replace(/,\s*([}\]])/g, "$1")); break; }
+    catch { /* Probar el siguiente fragmento JSON encontrado. */ }
+  }
+  if (payload === undefined) throw new Error("La IA no devolvió una clasificación JSON válida. Intenta nuevamente; se usarán lotes más pequeños.");
   const assignments = Array.isArray(payload) ? payload : payload?.assignments;
   if (!Array.isArray(assignments)) throw new Error("La clasificación de la IA no contiene asignaciones válidas.");
   return assignments.map((item) => ({ source: String(item?.source || "").trim(), target: String(item?.target || "").trim() })).filter((item) => item.source && item.target);

@@ -133,7 +133,8 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
       system: "Eres un asistente editorial para ficción. Responde en el idioma de la escena y cumple exactamente el formato solicitado.",
       stream: false,
       think: false,
-      options: { temperature: task === "codex-import-classification" ? 0.1 : task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-field" ? 900 : task === "codex-import-classification" ? 700 : task === "codex-categories" ? 140 : 80 },
+      ...(task === "codex-import-classification" ? { format: { type: "object", properties: { assignments: { type: "array", items: { type: "object", properties: { source: { type: "string" }, target: { type: "string" } }, required: ["source", "target"] } } }, required: ["assignments"] } } : {}),
+      options: { temperature: task === "codex-import-classification" ? 0 : task === "summary" ? 0.3 : 0.7, num_predict: task === "summary" ? 350 : task === "codex-field" ? 900 : task === "codex-import-classification" ? 1600 : task === "codex-categories" ? 140 : 80 },
     }),
   });
   const payload = await response.json().catch(() => ({}));
