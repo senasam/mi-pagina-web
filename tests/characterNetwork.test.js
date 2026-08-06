@@ -32,4 +32,5 @@ test("muestra solo el nombre en el nodo y conserva el nombre completo", () => {
   assert.equal(network.nodes[0].name, "Rainiero");
   assert.equal(network.nodes[0].fullName, "Rainiero Cardona y De la Fuente");
   assert.deepEqual(characterNameParts({ name: "Rainiero Cardona y De la Fuente" }), { firstName: "Rainiero", lastName: "Cardona y De la Fuente" });
+  assert.deepEqual(characterNameParts({ name: "Don Alonso", firstName: "Don Alonso", lastName: "" }), { firstName: "Don Alonso", lastName: "" });
 });

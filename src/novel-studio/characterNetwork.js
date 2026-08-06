@@ -23,9 +23,11 @@ export function relationshipStyle(type) {
 export function characterNameParts(entry = {}) {
   const full = String(entry.name || "").trim();
   const words = full.split(/\s+/).filter(Boolean);
+  const hasFirstName = Object.prototype.hasOwnProperty.call(entry, "firstName");
+  const hasLastName = Object.prototype.hasOwnProperty.call(entry, "lastName");
   return {
-    firstName: String(entry.firstName || "").trim() || words[0] || "",
-    lastName: String(entry.lastName || "").trim() || words.slice(1).join(" "),
+    firstName: hasFirstName ? String(entry.firstName || "").trim() : words[0] || "",
+    lastName: hasLastName ? String(entry.lastName || "").trim() : words.slice(1).join(" "),
   };
 }
 
