@@ -1,9 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
-  buildChatGptManualPrompt, listOllamaModels, normalizeChatGptUrl, normalizeOllamaUrl,
+  buildChatGptManualPrompt, chooseOllamaModel, listOllamaModels, normalizeChatGptUrl, normalizeOllamaUrl,
   ollamaOriginCommand, pullOllamaModel, requestOllamaSuggestion,
 } from "../src/novel-studio/aiProviders.js";
+
+test("selects an installed Ollama model automatically", () => {
+  const models = [{ name: "qwen3:8b" }, { name: "llama3.2:3b" }];
+  assert.equal(chooseOllamaModel(models, "qwen3:4b"), "qwen3:8b");
+  assert.equal(chooseOllamaModel(models, "llama3.2:3b"), "llama3.2:3b");
+  assert.equal(chooseOllamaModel([], ""), "qwen3:4b");
+});
 
 test("Ollama connections are restricted to the local computer", () => {
   assert.equal(normalizeOllamaUrl("http://localhost:11434/"), "http://localhost:11434");

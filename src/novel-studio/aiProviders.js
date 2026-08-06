@@ -7,6 +7,12 @@ export const OLLAMA_MODEL_PRESETS = Object.freeze([
   { id: "qwen3:30b", label: "Avanzado", download: "19 GB", ram: "32 GB de RAM aprox.", detail: "Para equipos potentes; descarga y carga considerablemente mayores." },
 ]);
 
+export function chooseOllamaModel(models = [], currentModel = "") {
+  const available = models.map((model) => model?.name).filter(Boolean);
+  if (currentModel && available.includes(currentModel)) return currentModel;
+  return available[0] || currentModel || OLLAMA_MODEL_PRESETS[0].id;
+}
+
 export function normalizeOllamaUrl(value = "http://localhost:11434") {
   let url;
   try { url = new URL(value); }
