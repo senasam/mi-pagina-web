@@ -996,7 +996,7 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     const current = characterNameParts(draft);
     const firstName = patch.firstName ?? current.firstName;
     const lastName = patch.lastName ?? current.lastName;
-    updateDraft({ firstName, lastName, name: [firstName, lastName].filter(Boolean).join(" ") });
+    updateDraft({ firstName, lastName, name: [firstName, lastName].map((part) => String(part).trim()).filter(Boolean).join(" ") });
   };
   const applySuggestedName = (value) => {
     try {

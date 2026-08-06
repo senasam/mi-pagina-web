@@ -46,8 +46,8 @@ export function characterNameParts(entry = {}) {
   const hasFirstName = Object.prototype.hasOwnProperty.call(entry, "firstName");
   const hasLastName = Object.prototype.hasOwnProperty.call(entry, "lastName");
   return {
-    firstName: hasFirstName ? String(entry.firstName || "").trim() : words[0] || "",
-    lastName: hasLastName ? String(entry.lastName || "").trim() : words.slice(1).join(" "),
+    firstName: hasFirstName ? String(entry.firstName || "") : words[0] || "",
+    lastName: hasLastName ? String(entry.lastName || "") : words.slice(1).join(" "),
   };
 }
 
@@ -75,7 +75,7 @@ export function buildCharacterNetwork(entries = [], mentionTotals = {}) {
   const nodes = ordered.map((entry) => {
     const mentions = Number(mentionTotals[entry.id]) || 0;
     const names = characterNameParts(entry);
-    return { id: entry.id, name: names.firstName || entry.name, fullName: entry.name, mentions, radius: 25 + (maxMentions ? 23 * Math.sqrt(mentions / maxMentions) : 0), ...(positions.get(entry.id) || { x: 450, y: 250 }) };
+    return { id: entry.id, name: names.firstName.trim() || entry.name, fullName: entry.name, mentions, radius: 25 + (maxMentions ? 23 * Math.sqrt(mentions / maxMentions) : 0), ...(positions.get(entry.id) || { x: 450, y: 250 }) };
   });
   const edges = [];
   for (const entry of characters) {
