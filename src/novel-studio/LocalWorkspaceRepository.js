@@ -137,6 +137,11 @@ async function copyDirectoryContents(source, target) {
   }
 }
 
+function rebaseAsset(asset, sourceNovelId, targetNovelId) {
+  if (!asset?.path) return asset || null;
+  return { ...asset, path: String(asset.path).replace(`novels/${sourceNovelId}/`, `novels/${targetNovelId}/`) };
+}
+
 export class WorkspaceConflictError extends Error {
   constructor(conflict) {
     super("El archivo cambió fuera del estudio.");
@@ -298,7 +303,7 @@ export class LocalWorkspaceRepository {
   async createNovel({ title, author = "" }) {
     const novel = createNovelRecord(title, author);
     const base = `novels/${novel.id}`;
-    for (const folder of ["cover", "manuscript/scenes", "codex", "history", "archive", "imports"]) await getDirectory(this.root, `${base}/${folder}`.split("/"), true);
+    for (const folder of ["cover", "manuscript/scenes", "manuscript/images", "codex", "codex/images", "history", "archive", "imports"]) await getDirectory(this.root, `${base}/${folder}`.split("/"), true);
     const structure = emptyStructure();
     await writeJson(this.root, `${base}/novel.json`, novel);
     await writeJson(this.root, `${base}/manuscript/structure.json`, structure);
@@ -313,13 +318,27 @@ export class LocalWorkspaceRepository {
   async duplicateNovel(novelId) {
     const original = await this.readNovel(novelId);
     const duplicate = createNovelRecord(`Copia de ${original.title}`, original.author);
-    Object.assign(duplicate, { synopsis: original.synopsis, genre: original.genre, language: original.language, wordGoal: original.wordGoal });
+    Object.assign(duplicate, { synopsis: original.synopsis, genre: original.genre, language: original.language, wordGoal: original.wordGoal, coverImage: rebaseAsset(original.coverImage, original.id, duplicate.id), editorial: structuredClone(original.editorial || duplicate.editorial) });
     const novelsDirectory = await getDirectory(this.root, ["novels"]);
     const source = await novelsDirectory.getDirectoryHandle(novelId);
     const target = await novelsDirectory.getDirectoryHandle(duplicate.id, { create: true });
     for (const folder of ["cover", "manuscript", "codex"]) {
       try { await copyDirectoryContents(await source.getDirectoryHandle(folder), await target.getDirectoryHandle(folder, { create: true })); } catch { /* optional folder */ }
     }
+    try {
+      const structure = await readJson(target, "manuscript/structure.json");
+      for (const scene of Object.values(structure.scenes || {})) {
+        scene.images = (scene.images || []).map((asset) => rebaseAsset(asset, original.id, duplicate.id));
+        await writeJson(target, `manuscript/scenes/${scene.id}.json`, scene);
+      }
+      await writeJson(target, "manuscript/structure.json", structure);
+      const codexDirectory = await getDirectory(target, ["codex"]);
+      for await (const [name, handle] of codexDirectory.entries()) if (handle.kind === "file" && name.endsWith(".json")) {
+        const entry = JSON.parse(await (await handle.getFile()).text());
+        entry.image = rebaseAsset(entry.image, original.id, duplicate.id);
+        await writeJson(codexDirectory, name, entry);
+      }
+    } catch { /* workspaces antiguos pueden no contener imágenes */ }
     for (const folder of ["history", "archive", "imports"]) await target.getDirectoryHandle(folder, { create: true });
     await writeJson(target, "novel.json", duplicate);
     this.manifest.novels.push({ id: duplicate.id, title: duplicate.title, archived: false, updatedAt: duplicate.updatedAt });
@@ -334,6 +353,25 @@ export class LocalWorkspaceRepository {
     if (summary) Object.assign(summary, { title: novel.title, archived: novel.archived, updatedAt: novel.updatedAt });
     await this.saveManifest();
     return novel;
+  }
+
+  async saveImageAsset(novelId, area, file) {
+    if (!file || !String(file.type || "").startsWith("image/")) throw new Error("Selecciona un archivo de imagen válido.");
+    if (file.size > 20 * 1024 * 1024) throw new Error("La imagen no puede superar 20 MB.");
+    const folders = { cover: "cover", scene: "manuscript/images", codex: "codex/images" };
+    const folder = folders[area];
+    if (!folder) throw new Error("Destino de imagen no válido.");
+    const extension = String(file.name || "imagen").match(/\.[a-z0-9]{1,8}$/i)?.[0] || "";
+    const name = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}-${safeFileName(String(file.name || "imagen").replace(/\.[^.]+$/, ""))}${extension}`;
+    const path = `novels/${novelId}/${folder}/${name}`;
+    await writeFile(this.root, path, file);
+    return { path, name: file.name || name, mimeType: file.type, caption: "", createdAt: nowIso() };
+  }
+
+  async imageUrl(asset) {
+    if (!asset?.path || !String(asset.path).startsWith("novels/")) return "";
+    const handle = await getFileHandle(this.root, String(asset.path).split("/"));
+    return URL.createObjectURL(await handle.getFile());
   }
 
   async archiveNovel(novelId, archived = true) {

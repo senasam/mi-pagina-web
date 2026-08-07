@@ -16,7 +16,7 @@ export function createScene(id = makeId(), title = "Nueva escena") {
   return {
     id, title, subtitle: "", summary: "", beats: [], participantIds: [], povId: null,
     status: "Borrador", temporal: "Presente", labels: [], subplots: [],
-    wordCount: 0, contentHash: "", updatedAt: nowIso(), archived: false,
+    images: [], wordCount: 0, contentHash: "", updatedAt: nowIso(), archived: false,
   };
 }
 
@@ -56,7 +56,8 @@ export function createNovelRecord(title, author = "") {
   const timestamp = nowIso();
   return {
     id: makeId(), title: title.trim() || "Novela sin título", author: author.trim(),
-    synopsis: "", genre: "", language: "es", wordGoal: 80000,
+    synopsis: "", genre: "", language: "es", wordGoal: 80000, coverImage: null,
+    editorial: { subtitle: "", edition: "Primera edición", publisher: "", printer: "", publicationPlace: "", publicationYear: String(new Date().getFullYear()), isbn: "", legalDeposit: "", propertyRegistry: "", rights: "", credits: "", dedication: "", epigraph: "", preface: "", acknowledgments: "", authorNotes: "" },
     archived: false, createdAt: timestamp, updatedAt: timestamp,
   };
 }
@@ -65,7 +66,7 @@ export function createCodexEntry(type = "character") {
   return {
     id: makeId(), type, name: "Nueva entrada", aliases: [], categories: [], details: {},
     relations: [], progressions: [], trackMentions: true, caseSensitive: false,
-    exclusions: [], archived: false, updatedAt: nowIso(),
+    exclusions: [], image: null, archived: false, updatedAt: nowIso(),
   };
 }
 

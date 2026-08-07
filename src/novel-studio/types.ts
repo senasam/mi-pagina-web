@@ -1,5 +1,6 @@
 export type CodexType = "character" | "location" | "object" | "lore" | "subplot" | "other";
 export type SaveState = "idle" | "modified" | "saving" | "saved" | "error" | "conflict";
+export interface MediaAsset { path: string; name: string; mimeType: string; caption?: string; createdAt: string }
 
 export interface WorkspaceManifest {
   schemaVersion: 1;
@@ -34,6 +35,8 @@ export interface Novel {
   genre: string;
   language: string;
   wordGoal: number;
+  coverImage: MediaAsset | null;
+  editorial: Record<string, string>;
   archived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -51,6 +54,7 @@ export interface SceneMetadata {
   temporal: string;
   labels: string[];
   subplots: string[];
+  images: MediaAsset[];
   wordCount: number;
   contentHash: string;
   updatedAt: string;
@@ -74,6 +78,7 @@ export interface CodexEntry {
   trackMentions: boolean;
   caseSensitive: boolean;
   exclusions: string[];
+  image: MediaAsset | null;
   archived: boolean;
   updatedAt: string;
 }
