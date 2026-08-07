@@ -37,13 +37,15 @@ La configuración de una herramienta sólo conserva una referencia no secreta:
 
 ## Implementación actual
 
-OpenAI usa un almacén en memoria limitado a la pestaña. La clave:
+OpenAI permite elegir entre memoria limitada a la pestaña y persistencia cifrada en IndexedDB del mismo navegador. Para la persistencia, se genera una clave AES-GCM no extraíble que también permanece en el almacenamiento del sitio. La clave de OpenAI:
 
 - no se escribe en `preferences.json`;
 - no se incluye en los respaldos ZIP;
 - no se guarda en `localStorage`, `sessionStorage` ni `runtime/`;
 - se envía únicamente al endpoint común mediante el encabezado `Authorization`;
-- debe introducirse nuevamente después de cerrar o recargar la pestaña.
+- se recupera al volver cuando el usuario activa «Recordar en este dispositivo».
+
+El cifrado reduce la exposición directa del secreto en los archivos del navegador, pero no protege frente a código malicioso ejecutado en el mismo origen. Cuando exista autenticación, el almacén de servidor por usuario seguirá siendo la opción preferente.
 
 Ollama se ejecuta directamente contra el servicio del mismo dispositivo y su adaptador reutilizable restringe las direcciones a loopback.
 

@@ -63,7 +63,8 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.doesNotMatch(source, /!aiSettings\?\.enabled/);
   assert.match(source, /puede generar costos en tu cuenta API/);
   assert.match(source, /enabled: activate/);
-  assert.match(source, /La clave vive sólo en la memoria de esta pestaña/);
+  assert.match(source, /Recordar en este dispositivo/);
+  assert.match(source, /nunca se escribe en <code>preferences.json<\/code>/);
   assert.match(source, /Momentos clave de la escena/);
   assert.match(source, /suggestWithAi\("beats"\)/);
   assert.match(source, /Generar momentos/);

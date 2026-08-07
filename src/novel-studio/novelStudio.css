@@ -523,6 +523,10 @@
 .studio-check-label input { width: auto; }
 .studio-secret-field { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
 .studio-secret-field .studio-button { min-height: 40px; }
+.studio-checkbox-row { display: flex !important; flex-direction: row !important; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--studio-line); border-radius: 5px; background: #faf7f1; cursor: pointer; }
+.studio-checkbox-row input { width: auto; margin-top: 3px; }
+.studio-checkbox-row span { display: grid; gap: 3px; }
+.studio-checkbox-row small { color: var(--studio-muted); font-size: .75rem; font-weight: 500; line-height: 1.45; }
 .studio-local-secret-warning { padding: 12px 14px; border: 1px solid #cba968; border-radius: 5px; color: #684c1e; background: #fff8e7; }
 .studio-local-secret-warning p { margin: 5px 0 0; font-size: .78rem; line-height: 1.55; }
 .studio-local-secret-warning code { font-weight: 700; }

@@ -1,5 +1,5 @@
 import { AI_PROVIDERS, assertAiIdentifier } from "./contracts.js";
-import { resolveSessionCredential } from "./credentialClient.js";
+import { hydrateDeviceCredential, resolveSessionCredential } from "./credentialClient.js";
 
 export class AiClientError extends Error {
   constructor(message, code = "AI_REQUEST_FAILED", status = 0) {
@@ -25,6 +25,7 @@ export async function executeAiTask({
   const cleanProvider = assertAiIdentifier(provider, "El proveedor");
   if (cleanProvider !== AI_PROVIDERS.OPENAI) throw new AiClientError("El proveedor no está disponible mediante la API común.", "UNSUPPORTED_PROVIDER", 400);
 
+  await hydrateDeviceCredential({ toolId: cleanToolId, provider: cleanProvider, credentialRef });
   const secret = resolveSessionCredential({ toolId: cleanToolId, provider: cleanProvider, credentialRef });
   if (!secret) throw new AiClientError("Introduce una clave de OpenAI para esta sesión.", "AI_CREDENTIAL_REQUIRED", 503);
 

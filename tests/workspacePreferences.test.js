@@ -17,3 +17,10 @@ test("workspace preferences preserve Ollama and manual providers", () => {
   assert.equal(normalizePreferences({ ai: { provider: "chatgpt-manual" } }).ai.provider, "chatgpt-manual");
   assert.equal(normalizePreferences({ ai: { provider: "chatgpt-manual", manualUrl: "https://chatgpt.com/g/g-p-example/project" } }).ai.manualUrl, "https://chatgpt.com/g/g-p-example/project");
 });
+
+test("workspace preferences keep only a non-secret device credential reference", () => {
+  const credentialRef = { id: "novel-studio:openai", toolId: "novel-studio", provider: "openai", scope: "device" };
+  const preferences = normalizePreferences({ ai: { provider: "openai", enabled: true, credentialRef } });
+  assert.deepEqual(preferences.ai.credentialRef, credentialRef);
+  assert.equal(Object.hasOwn(preferences.ai, "apiKey"), false);
+});
