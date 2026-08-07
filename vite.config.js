@@ -3,21 +3,21 @@ import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 import { resolveUf } from "./api/indicadores/uf.js";
 import { resolveOpportunityIndicators } from "./api/indicadores/oportunidades.js";
-import { generateSceneSuggestion, SceneAssistantError } from "./api/novel-studio/scene-assistant.js";
+import { executeAiRequest, AiExecuteError } from "./api/ai/execute.js";
 
 async function readJsonBody(request, limit = 75000) {
   let body = "";
   for await (const chunk of request) {
     body += chunk;
-    if (body.length > limit) throw new SceneAssistantError("La solicitud de IA supera el tamaño permitido.", 413, "PAYLOAD_TOO_LARGE");
+    if (body.length > limit) throw new AiExecuteError("La solicitud de IA supera el tamaño permitido.", 413, "PAYLOAD_TOO_LARGE");
   }
   try { return body ? JSON.parse(body) : {}; }
-  catch { throw new SceneAssistantError("Solicitud JSON no válida.", 400, "INVALID_JSON"); }
+  catch { throw new AiExecuteError("Solicitud JSON no válida.", 400, "INVALID_JSON"); }
 }
 
-function novelAssistantLocalEndpoint() {
+function aiLocalEndpoint() {
   const install = (server) => {
-    server.middlewares.use("/api/novel-studio/scene-assistant", async (request, response) => {
+    server.middlewares.use("/api/ai/execute", async (request, response) => {
       response.setHeader("Content-Type", "application/json; charset=utf-8");
       response.setHeader("Cache-Control", "no-store");
       if (request.method !== "POST") {
@@ -26,15 +26,15 @@ function novelAssistantLocalEndpoint() {
       }
       try {
         const body = await readJsonBody(request);
-        const result = await generateSceneSuggestion(body);
+        const result = await executeAiRequest({ body, authorization: request.headers.authorization });
         response.statusCode = 200; response.end(JSON.stringify(result));
       } catch (error) {
-        response.statusCode = error instanceof SceneAssistantError ? error.status : 500;
-        response.end(JSON.stringify({ error: error instanceof SceneAssistantError ? error.message : "No se pudo generar la sugerencia.", code: error.code || "SCENE_ASSISTANT_ERROR" }));
+        response.statusCode = error?.status || 500;
+        response.end(JSON.stringify({ error: error?.status ? error.message : "No se pudo ejecutar la tarea de IA.", code: error.code || "AI_EXECUTION_ERROR" }));
       }
     });
   };
-  return { name: "novel-assistant-local-endpoint", configureServer: install, configurePreviewServer: install };
+  return { name: "ai-local-endpoint", configureServer: install, configurePreviewServer: install };
 }
 
 function ufLocalEndpoint(apiKey) {
@@ -91,7 +91,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   return {
     base: env.GITHUB_PAGES === "true" ? "/mi-pagina-web/" : "/",
-    plugins: [react(), ufLocalEndpoint(env.CMF_API_KEY), opportunityLocalEndpoint(env.BCCH_API_USER, env.BCCH_API_PASSWORD), novelAssistantLocalEndpoint()],
+    plugins: [react(), ufLocalEndpoint(env.CMF_API_KEY), opportunityLocalEndpoint(env.BCCH_API_USER, env.BCCH_API_PASSWORD), aiLocalEndpoint()],
     build: {
       rollupOptions: {
         input: {

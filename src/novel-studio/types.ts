@@ -12,14 +12,14 @@ export interface WorkspaceManifest {
 }
 
 export interface WorkspacePreferences {
-  schemaVersion: 1;
+  schemaVersion: 2;
   lastNovelId: string | null;
   lastBackupAt: string | null;
   editor: Record<string, unknown>;
   ai: {
     provider: "openai" | "ollama" | "chatgpt-manual";
     enabled: boolean;
-    apiKey: string;
+    credentialRef: { id: string; toolId: string; provider: string; scope: "session" | "user" | "device" } | null;
     model: string;
     ollamaUrl: string;
     ollamaModel: string;

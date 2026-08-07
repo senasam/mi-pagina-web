@@ -139,7 +139,7 @@ test("rechaza escenas vacías antes de llamar a OpenAI", async () => {
 test("explica cuando falta la configuración del servidor", async () => {
   await assert.rejects(
     generateSceneSuggestion({ task: "title", prose: "Una escena", apiKey: "" }),
-    (error) => error instanceof SceneAssistantError && error.code === "AI_NOT_CONFIGURED" && error.status === 503,
+    (error) => error instanceof SceneAssistantError && error.code === "AI_CREDENTIAL_REQUIRED" && error.status === 503,
   );
 });
 

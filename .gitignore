@@ -4,3 +4,9 @@ dist/
 .env.*
 !.env.example
 .DS_Store
+runtime/
+**/**pycache**/
+*.pyc
+.venv-instagram/
+local_tools/**/.venv/
+local_tools/**/.instagram_browser_session/

@@ -1,4 +1,6 @@
 import { requestOllamaSuggestion } from "./aiProviders.js";
+import { executeAiTask } from "../platform/ai/aiClient.js";
+import { AI_TOOL_IDS } from "../platform/ai/contracts.js";
 
 const SAFE_PROSE_CHARS = 40000;
 const MIN_CHUNK_CHARS = 12000;
@@ -56,17 +58,15 @@ function compactMetadata(metadata = {}) {
 
 async function requestSingle({ task, prose, metadata, settings, fetchImpl }) {
   if (settings?.provider === "ollama") return requestOllamaSuggestion({ task, prose, metadata, settings, fetchImpl });
-  const response = await fetchImpl("/api/novel-studio/scene-assistant", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ task, prose, title: metadata.title, summary: metadata.summary, beats: metadata.beats, apiKey: settings?.apiKey || "", model: settings?.model || "" }),
+  const payload = await executeAiTask({
+    toolId: AI_TOOL_IDS.NOVEL_STUDIO,
+    capability: "scene-assistant",
+    provider: settings?.provider || "openai",
+    model: settings?.model || "",
+    credentialRef: settings?.credentialRef,
+    input: { task, prose, title: metadata.title, summary: metadata.summary, beats: metadata.beats },
+    fetchImpl,
   });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = new Error(payload.error || "No se pudo generar la sugerencia.");
-    error.code = payload.code || "AI_REQUEST_FAILED"; error.status = response.status;
-    throw error;
-  }
   return payload.suggestion;
 }
 

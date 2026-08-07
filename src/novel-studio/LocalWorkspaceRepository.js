@@ -3,6 +3,7 @@ import {
   SCHEMA_VERSION, createNovelRecord, emptyStructure, markdownBody, nowIso,
   sceneToMarkdown, sha256, safeFileName,
 } from "./model.js";
+import { AI_TOOL_IDS, normalizeCredentialRef } from "../platform/ai/contracts.js";
 
 const DB_NAME = "fmd-novel-studio-handles";
 const STORE_NAME = "handles";
@@ -10,15 +11,16 @@ const HANDLE_KEY = "workspace-directory";
 
 export function normalizePreferences(value = {}) {
   const provider = ["openai", "ollama", "chatgpt-manual"].includes(value.ai?.provider) ? value.ai.provider : "openai";
+  const credentialRef = normalizeCredentialRef(value.ai?.credentialRef, { toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider });
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     lastNovelId: value.lastNovelId || null,
     lastBackupAt: value.lastBackupAt || null,
     editor: value.editor && typeof value.editor === "object" ? value.editor : {},
     ai: {
       provider,
       enabled: Boolean(value.ai?.enabled),
-      apiKey: typeof value.ai?.apiKey === "string" ? value.ai.apiKey : "",
+      credentialRef: credentialRef?.provider === provider ? credentialRef : null,
       model: typeof value.ai?.model === "string" && value.ai.model ? value.ai.model : "gpt-5.6-luna",
       ollamaUrl: typeof value.ai?.ollamaUrl === "string" && value.ai.ollamaUrl ? value.ai.ollamaUrl : "http://localhost:11434",
       ollamaModel: typeof value.ai?.ollamaModel === "string" && value.ai.ollamaModel ? value.ai.ollamaModel : "qwen3:4b",
@@ -280,8 +282,14 @@ export class LocalWorkspaceRepository {
   }
 
   async preferences() {
-    try { return normalizePreferences(await readJson(this.root, "preferences.json")); }
+    let raw;
+    try { raw = await readJson(this.root, "preferences.json"); }
     catch { return normalizePreferences(); }
+    const normalized = normalizePreferences(raw);
+    if (raw.schemaVersion !== normalized.schemaVersion || Object.prototype.hasOwnProperty.call(raw.ai || {}, "apiKey")) {
+      await this.enqueue("preferences.json", () => writeJson(this.root, "preferences.json", normalized));
+    }
+    return normalized;
   }
 
   async savePreferences(value) {
@@ -615,12 +623,13 @@ export class LocalWorkspaceRepository {
   }
 
   async createWorkspaceBackup({ reason = "manual", download = true } = {}) {
+    const preferences = await this.preferences();
+    await this.savePreferences(preferences);
     const zip = new JSZip();
     await this.addDirectoryToZip(zip, this.root, "", new Set(["backups"]));
     const blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
     const filename = `estudio-novela-${safeFileName(reason)}-${new Date().toISOString().slice(0, 10)}.zip`;
     await writeFile(this.root, `backups/${filename}`, blob);
-    const preferences = await this.preferences();
     preferences.lastBackupAt = nowIso();
     await this.savePreferences(preferences);
     if (download) this.downloadBlob(blob, filename);

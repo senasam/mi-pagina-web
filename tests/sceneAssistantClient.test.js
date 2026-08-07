@@ -1,6 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizeSceneAiResult, parseSceneBeats, requestSceneSuggestion, splitAiRequestText } from "../src/novel-studio/sceneAssistant.js";
+import { clearSessionCredentials, saveSessionCredential } from "../src/platform/ai/credentialClient.js";
+
+function openAiSettings(model = "test-model") {
+  clearSessionCredentials();
+  const credentialRef = saveSessionCredential({ toolId: "novel-studio", provider: "openai", secret: "test-key" });
+  return { provider: "openai", credentialRef, model };
+}
 
 test("normaliza momentos clave separados por punto y coma, viñetas o números", () => {
   assert.deepEqual(parseSceneBeats("1. Encuentra el compás\n- Comprende el error; • Decide regresar"), [
@@ -21,19 +28,24 @@ test("divide cualquier solicitud extensa y sintetiza sus resultados parciales", 
     task: "codex-field",
     prose: Array.from({ length: 80 }, (_, index) => `Apartado ${index + 1}\n${"contenido ".repeat(180)}`).join("\n\n"),
     metadata: { title: "Descripción", summary: "Ficha extensa" },
-    settings: { provider: "openai", apiKey: "test-key", model: "test-model" },
-    fetchImpl: async (url, options) => { bodies.push(options.body); return new Response(JSON.stringify({ suggestion: `Resultado parcial ${bodies.length}` }), { status: 200 }); },
+    settings: openAiSettings(),
+    fetchImpl: async (url, options) => {
+      assert.equal(url, "/api/ai/execute");
+      assert.equal(options.headers.Authorization, "Bearer test-key");
+      bodies.push(options.body);
+      return new Response(JSON.stringify({ suggestion: `Resultado parcial ${bodies.length}` }), { status: 200 });
+    },
   });
   assert.match(suggestion, /Resultado parcial/);
   assert.ok(bodies.length > 2);
-  assert.ok(bodies.every((body) => body.length < 75000));
+  assert.ok(bodies.every((body) => body.length < 75000 && !body.includes("test-key")));
 });
 
 test("reintenta en fragmentos menores si el servidor responde 413", async () => {
   let calls = 0;
   const prose = "x".repeat(30000);
   await requestSceneSuggestion({
-    task: "summary", prose, metadata: {}, settings: { provider: "openai", apiKey: "test-key" },
+    task: "summary", prose, metadata: {}, settings: openAiSettings(),
     fetchImpl: async () => {
       calls += 1;
       if (calls === 1) return new Response(JSON.stringify({ error: "Demasiado grande", code: "PAYLOAD_TOO_LARGE" }), { status: 413 });

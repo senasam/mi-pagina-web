@@ -2,9 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { normalizePreferences } from "../src/novel-studio/LocalWorkspaceRepository.js";
 
-test("workspace preferences keep local AI configuration with safe defaults", () => {
+test("workspace preferences migrate legacy AI keys without persisting the secret", () => {
   const preferences = normalizePreferences({ ai: { enabled: true, apiKey: "sk-local-test", model: "gpt-5.6-terra" } });
-  assert.deepEqual(preferences.ai, { provider: "openai", enabled: true, apiKey: "sk-local-test", model: "gpt-5.6-terra", ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b", manualUrl: "https://chatgpt.com/" });
+  assert.deepEqual(preferences.ai, { provider: "openai", enabled: true, credentialRef: null, model: "gpt-5.6-terra", ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b", manualUrl: "https://chatgpt.com/" });
+  assert.equal(preferences.schemaVersion, 2);
+  assert.equal(JSON.stringify(preferences).includes("sk-local-test"), false);
   assert.equal(normalizePreferences().ai.model, "gpt-5.6-luna");
 });
 
