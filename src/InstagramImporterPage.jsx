@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, ClipboardCopy, Download, FolderOpen, Instagram, LoaderCircle, Play, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, Download, FolderOpen, Instagram, LoaderCircle, Play, RefreshCw, ShieldCheck, XCircle } from "lucide-react";
 import { Breadcrumbs, PageShell } from "./LearningComponents";
 import { agentFetch, checkAgentHealth, INSTAGRAM_INSTALLER_URL, pairWithAgent, streamExportEvents } from "./instagramAgentClient";
 import { usePageMetadata } from "./seo";
@@ -7,7 +7,6 @@ import { usePageMetadata } from "./seo";
 const TERMINAL = new Set(["completed", "cancelled", "failed"]);
 const TOKEN_KEY = "instagram-agent-pairing-token";
 const JOB_KEY = "instagram-agent-active-job";
-const SOURCE_FOLDER = import.meta.env.VITE_INSTAGRAM_AGENT_SOURCE_PATH || "D:\\WebFelipe\\mi-pagina-web\\local_tools\\instagram_exporter";
 
 export default function InstagramImporterPage() {
   usePageMetadata({ title: "Importar desde Instagram", description: "Exporta contenido autorizado mediante un agente que se ejecuta solamente en tu PC.", path: "/herramientas/importar-instagram", noindex: true });
@@ -29,7 +28,6 @@ export default function InstagramImporterPage() {
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
   const [warnings, setWarnings] = useState([]);
-  const [copiedCommand, setCopiedCommand] = useState("");
   const streamAbort = useRef(null);
   const lastEventId = useRef(0);
 
@@ -140,15 +138,6 @@ export default function InstagramImporterPage() {
     setTimeout(poll, 2000);
   }
 
-  async function copyCommand(command, name) {
-    try {
-      await navigator.clipboard.writeText(command);
-      setCopiedCommand(name);
-    } catch {
-      setCopiedCommand("error");
-    }
-  }
-
   const desiredSelection = countMode === "limit" ? Math.max(0, Number(maximum) || 0) : 0;
   const active = job && !TERMINAL.has(job.state);
   return <PageShell><main id="main-content" className="content-page instagram-importer">
@@ -157,29 +146,20 @@ export default function InstagramImporterPage() {
 
     <section className="agent-status" aria-live="polite">
       <div>{checking ? <LoaderCircle className="spin" /> : connected ? <CheckCircle2 /> : <XCircle />}<div><strong>{checking ? "Buscando agente..." : connected ? `Agente conectado · v${health.version}` : "Agente no detectado"}</strong><small>{connected ? `Chrome: ${health.chrome ? "disponible" : "no detectado"} · Chromium: ${health.chromium ? "disponible" : "no instalado"} · Ollama: ${health.ollama ? "disponible" : "opcional"}` : "Sigue la guía de preparación que aparece justo debajo."}</small></div></div>
-      <div className="instagram-actions"><button type="button" className="button button--secondary" onClick={checkHealth} disabled={checking}><RefreshCw size={16} /> Comprobar</button>{!connected && INSTAGRAM_INSTALLER_URL && <button type="button" className="button button--secondary" onClick={launchAgent} disabled={launching}>{launching ? <LoaderCircle size={16} className="spin" /> : <Play size={16} />} {launching ? "Iniciando agente..." : "Iniciar agente"}</button>}{!connected && INSTAGRAM_INSTALLER_URL && <a className="button button--primary" href={INSTAGRAM_INSTALLER_URL}><Download size={16} /> Descargar instalador</a>}</div>
-      {!connected && !INSTAGRAM_INSTALLER_URL && <p className="agent-config-note">En este equipo el agente se abre desde un archivo de la carpeta del proyecto. Sigue los pasos exactos de abajo.</p>}
+      <div className="instagram-actions"><button type="button" className="button button--secondary" onClick={checkHealth} disabled={checking}><RefreshCw size={16} /> Comprobar</button>{!connected && <button type="button" className="button button--secondary" onClick={launchAgent} disabled={launching}>{launching ? <LoaderCircle size={16} className="spin" /> : <Play size={16} />} {launching ? "Iniciando agente..." : "Iniciar agente"}</button>}{!connected && <a className="button button--primary" href={INSTAGRAM_INSTALLER_URL}><Download size={16} /> Descargar instalador</a>}</div>
     </section>
 
     {!connected && <section className="instagram-setup" aria-labelledby="instagram-setup-title">
       <div className="setup-heading"><div><p className="eyebrow">Preparación inicial · solo la primera vez</p><h2 id="instagram-setup-title">Instala e inicia el agente</h2><p>La conexión es automática. No necesitas buscar, copiar ni pegar códigos.</p></div><span className="setup-time">3–5 min</span></div>
 
-      {INSTAGRAM_INSTALLER_URL ? <div className="setup-path setup-path--recommended">
+      <div className="setup-path setup-path--recommended">
         <div className="setup-path__heading"><span>Recomendado</span><div><h3>Con instalador de Windows</h3><p>No necesitas escribir rutas ni instalar Python.</p></div></div>
         <ol className="setup-steps">
           <li><span className="setup-step-number">1</span><div><strong>Descarga el instalador.</strong><p>Haz clic en el botón y espera a que termine la descarga.</p><a className="button button--primary" href={INSTAGRAM_INSTALLER_URL}><Download size={16} /> Descargar instalador</a></div></li>
           <li><span className="setup-step-number">2</span><div><strong>Abre el archivo descargado.</strong><p>En Chrome, haz clic en el icono de <strong>Descargas</strong> (arriba a la derecha) y luego en <strong>InstagramExporterAgent-Setup.exe</strong>. En el asistente pulsa <strong>Siguiente → Instalar → Finalizar</strong>. Si Windows pide permiso, elige <strong>Sí</strong>.</p></div></li>
           <li><span className="setup-step-number">3</span><div><strong>Inicia y comprueba.</strong><p>Al pulsar <strong>Finalizar</strong>, el agente debería abrirse solo. Si el estado de arriba continúa en rojo, pulsa este botón y acepta <strong>Abrir Instagram Exporter Agent</strong> si Chrome lo pregunta.</p><button type="button" className="button button--secondary" onClick={launchAgent} disabled={launching}>{launching ? <LoaderCircle size={16} className="spin" /> : <Play size={16} />} {launching ? "Conectando…" : "Iniciar y conectar"}</button><p>Cuando el estado cambie a <strong>Agente conectado</strong>, ya puedes escribir el perfil de Instagram.</p></div></li>
         </ol>
-      </div> : <div className="setup-path setup-path--recommended">
-        <div className="setup-path__heading"><span>En este equipo</span><div><h3>Abre el archivo «INICIAR-AGENTE»</h3><p>No necesitas abrir PowerShell ni escribir comandos.</p></div></div>
-        <ol className="setup-steps">
-          <li><span className="setup-step-number">1</span><div><strong>Abre el Explorador de archivos.</strong><p>Presiona juntas las teclas <strong>Windows + E</strong>. Haz clic en la barra de dirección que está arriba, copia y pega esta ruta completa y presiona <strong>Enter</strong>.</p><div className="setup-command"><code>{SOURCE_FOLDER}</code><button type="button" onClick={() => copyCommand(SOURCE_FOLDER, "source-folder")}><ClipboardCopy size={16} /> {copiedCommand === "source-folder" ? "Ruta copiada" : "Copiar ruta"}</button></div></div></li>
-          <li><span className="setup-step-number">2</span><div><strong>Haz doble clic en <code>INICIAR-AGENTE.cmd</code>.</strong><p>Se abrirá una ventana negra. La primera vez puede tardar varios minutos mientras prepara los componentes. <strong>No cierres esa ventana</strong> mientras uses la herramienta.</p></div></li>
-          <li><span className="setup-step-number">3</span><div><strong>Vuelve a esta página y pulsa «Comprobar».</strong><p>Cuando veas <strong>Agente conectado</strong> en verde, escribe el perfil de Instagram. No tienes que copiar ningún código.</p><button type="button" className="button button--primary" onClick={checkHealth} disabled={checking}>{checking ? <LoaderCircle size={16} className="spin" /> : <RefreshCw size={16} />} {checking ? "Comprobando…" : "Comprobar conexión"}</button></div></li>
-        </ol>
-      </div>}
-      {copiedCommand === "error" && <p className="instagram-error" role="alert">No fue posible copiar automáticamente. Selecciona la ruta con el mouse, presiona Ctrl+C y pégala en la barra de dirección del Explorador con Ctrl+V.</p>}
+      </div>
     </section>}
 
     <form className="instagram-form" onSubmit={startExport}>
