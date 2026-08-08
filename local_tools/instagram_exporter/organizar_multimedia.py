@@ -321,7 +321,14 @@ def ensure_dependencies(root: Path) -> None:
     if not missing:
         return
 
-    print("\nFaltan componentes. Se instalaran automaticamente:")
+    if "--install-dependencies" not in sys.argv:
+        raise RuntimeError(
+            "Faltan dependencias opcionales: " + ", ".join(missing) +
+            ". Instalalas desde requirements-organizer.txt o usa "
+            "--install-dependencies de forma explicita."
+        )
+
+    print("\nFaltan componentes. Se instalaran porque se solicito explicitamente:")
     for item in missing:
         print(f"  - {item}")
 
@@ -833,6 +840,9 @@ def sanitize_model_value(value: str, max_words: int = 6, max_chars: int = 80) ->
 
 
 def generate_visual_response(model_name: str, image_paths: Sequence[Path], prompt: str) -> str:
+    if parse_named_argument("--provider").strip().lower() == "openai":
+        return generate_openai_visual_response(model_name, image_paths, prompt)
+
     encoded_images = [
         base64.b64encode(path.read_bytes()).decode("ascii")
         for path in image_paths
@@ -880,6 +890,54 @@ def generate_visual_response(model_name: str, image_paths: Sequence[Path], promp
     response = str(response_payload.get("message", {}).get("content", "")).strip()
     if not response:
         raise RuntimeError("Ollama no devolvio contenido para este medio.")
+    return response
+
+
+def generate_openai_visual_response(model_name: str, image_paths: Sequence[Path], prompt: str) -> str:
+    key_file_value = parse_named_argument("--api-key-file").strip()
+    if not key_file_value:
+        raise RuntimeError("OpenAI requiere --api-key-file en el agente local.")
+    key_file = Path(key_file_value).expanduser().resolve()
+    if not key_file.is_file():
+        raise RuntimeError("Agrega primero tu API key de OpenAI en la interfaz del agente.")
+    api_key = key_file.read_text(encoding="utf-8").strip()
+    if len(api_key) < 20:
+        raise RuntimeError("La API key local de OpenAI no es valida.")
+
+    content: list[dict[str, object]] = [{"type": "text", "text": prompt}]
+    for path in image_paths:
+        suffix = path.suffix.lower().lstrip(".")
+        mime = "image/jpeg" if suffix in {"jpg", "jpeg"} else f"image/{suffix or 'png'}"
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        content.append({
+            "type": "image_url",
+            "image_url": {"url": f"data:{mime};base64,{encoded}", "detail": "low"},
+        })
+    payload = {
+        "model": model_name,
+        "messages": [{"role": "user", "content": content}],
+        "temperature": 0,
+        "max_tokens": 300,
+    }
+    endpoint = os.environ.get("OPENAI_API_BASE", "https://api.openai.com/v1").rstrip("/")
+    request = urllib.request.Request(
+        f"{endpoint}/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"},
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=180) as result:
+            response_payload = json.loads(result.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="replace")[:500]
+        raise RuntimeError(f"OpenAI rechazo el analisis ({exc.code}): {detail}") from exc
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise RuntimeError("No fue posible obtener una respuesta de OpenAI.") from exc
+    choices = response_payload.get("choices") or []
+    response = str(choices[0].get("message", {}).get("content", "")).strip() if choices else ""
+    if not response:
+        raise RuntimeError("OpenAI no devolvio contenido para este medio.")
     return response
 
 
@@ -1684,8 +1742,14 @@ def main() -> int:
     try:
         ensure_dependencies(root)
         selected_model = choose_ollama_model()
-        selected_model = ensure_ollama_model(selected_model)
-        print(f"Modelo visual seleccionado: {selected_model}")
+        if parse_named_argument("--provider").strip().lower() == "openai":
+            key_file = parse_named_argument("--api-key-file").strip()
+            if not key_file or not Path(key_file).expanduser().resolve().is_file():
+                raise RuntimeError("No se encontro la API key local de OpenAI.")
+            print(f"Modelo remoto de OpenAI seleccionado: {selected_model}")
+        else:
+            selected_model = ensure_ollama_model(selected_model)
+            print(f"Modelo visual seleccionado: {selected_model}")
     except Exception as exc:
         print(f"\nError al preparar el modelo: {exc}")
         return 1

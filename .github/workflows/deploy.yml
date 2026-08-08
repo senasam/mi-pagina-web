@@ -33,6 +33,7 @@ jobs:
         run: npx vite build
         env:
           GITHUB_PAGES: "true"
+          VITE_INSTAGRAM_AGENT_INSTALLER_URL: "https://github.com/senasam/mi-pagina-web/releases/latest/download/InstagramExporterAgent-Setup.exe"
 
       - name: Subir artefacto
         uses: actions/upload-pages-artifact@v3

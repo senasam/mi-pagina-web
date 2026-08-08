@@ -39,6 +39,15 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
+Para usar la interfaz web y la API local instala `requirements-agent.txt` y
+ejecuta `run-agent.ps1`. La documentacion completa de arquitectura, seguridad,
+emparejamiento, variables y empaquetado esta en
+[`docs/instagram-exporter-agent.md`](../../docs/instagram-exporter-agent.md).
+
+En Windows, un usuario puede hacer doble clic en `INICIAR-AGENTE.cmd`. Ese
+archivo comprueba que Python exista y ejecuta `run-agent.ps1` sin exigir que el
+usuario abra PowerShell o escriba comandos.
+
 ## Flujo manual recomendado
 
 Ya no es obligatorio indicar el perfil al iniciar el script. En PowerShell:
@@ -135,6 +144,10 @@ exportacion:
 python organizar_multimedia.py --root conoceramica_20260806
 ```
 
+Instala previamente `requirements-organizer.txt`. El codigo de produccion no
+instala paquetes silenciosamente; `--install-dependencies` permite solicitarlo
+de forma explicita en la CLI.
+
 El organizador usa modelos visuales locales mediante Ollama. Al comenzar muestra
 un menu para elegir el modelo; `qwen3-vl:4b` es la opcion predeterminada y basta
 con presionar `Enter` para seleccionarla. Si el
@@ -149,6 +162,10 @@ python organizar_multimedia.py --root conoceramica_20260806 --model qwen3-vl:4b
 
 Ollama debe estar instalado y su servicio debe estar iniciado. El procesamiento
 se realiza localmente y no requiere una clave ni consumo de la API de OpenAI.
+
+El agente tambien permite OpenAI de forma opcional. En ese modo la API key se
+guarda en el runtime local y las imagenes se envian a OpenAI; la web muestra esta
+diferencia de privacidad antes de iniciar.
 
 El resultado se guarda directamente en `categorized_multimedia/`, sin subcarpetas.
 Cada imagen o video incorpora categoria, descripcion, publicacion e identidad

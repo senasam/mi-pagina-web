@@ -23,7 +23,7 @@ import unicodedata
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable, Protocol
 from urllib.parse import unquote, urlparse
 
 from playwright.async_api import BrowserContext, Page, TimeoutError as PlaywrightTimeoutError
@@ -31,6 +31,32 @@ from playwright.async_api import async_playwright
 
 
 SCRIPT_VERSION = "4.1.0"
+
+
+class ExportCancelled(Exception):
+    """Cancelacion cooperativa solicitada por el usuario."""
+
+
+EventCallback = Callable[[str, dict[str, Any]], Awaitable[None]]
+
+
+class ExportInteraction(Protocol):
+    """Abstrae las decisiones humanas para CLI, API u otras interfaces."""
+
+    async def wait_for_login(self, context: BrowserContext, page: Page, target: str) -> tuple[Page, str]: ...
+    async def choose_count(self, total: int, requested_limit: int) -> int: ...
+
+
+@dataclass
+class ExportConfig:
+    profile: str
+    output_dir: Path
+    session_dir: Path
+    max_posts: int = 0
+    scroll_pause: float = 1.8
+    post_pause: float = 1.2
+    browser: str = "chrome"
+    headless: bool = False
 
 
 POST_PATH_RE = re.compile(
@@ -177,12 +203,18 @@ def profile_url(value: str) -> str:
     value = value.strip()
     if value.startswith("http://") or value.startswith("https://"):
         parsed = urlparse(value)
-        if "instagram.com" not in parsed.netloc.lower():
+        host = parsed.netloc.lower().split(":", 1)[0]
+        if host not in {"instagram.com", "www.instagram.com", "m.instagram.com"}:
             raise ValueError("La URL debe pertenecer a instagram.com")
-        return f"https://www.instagram.com{parsed.path.rstrip('/')}/"
+        canonical = profile_url_from_browser_url(f"https://www.instagram.com{parsed.path.rstrip('/')}/")
+        if not canonical:
+            raise ValueError("La URL debe corresponder exactamente a un perfil.")
+        return canonical
     username = value.lstrip("@").strip("/")
     if not re.fullmatch(r"[A-Za-z0-9._]+", username):
         raise ValueError("El nombre de usuario contiene caracteres no validos.")
+    if username.lower() in RESERVED_PROFILE_PATHS:
+        raise ValueError("Ese nombre corresponde a una seccion reservada de Instagram.")
     return f"https://www.instagram.com/{username}/"
 
 
@@ -525,6 +557,8 @@ async def collect_post_urls(
     max_posts: int,
     scroll_pause: float,
     output_dir: Path,
+    on_count: Callable[[int], Awaitable[None]] | None = None,
+    cancel_event: asyncio.Event | None = None,
 ) -> list[str]:
     # Conserva la pagina preparada manualmente. Navegar de nuevo puede cambiar
     # el estado visual o dejar la grilla aun sin hidratar.
@@ -545,6 +579,8 @@ async def collect_post_urls(
     all_links_seen: set[str] = set()
 
     while stagnant_rounds < 8:
+        if cancel_event and cancel_event.is_set():
+            raise ExportCancelled()
         hrefs = await get_dom_links(page)
         all_links_seen.update(hrefs)
 
@@ -562,6 +598,8 @@ async def collect_post_urls(
             stagnant_rounds = 0
             last_count = len(ordered)
             print(f"  Detectadas {last_count} publicaciones...", flush=True)
+            if on_count:
+                await on_count(last_count)
 
         scroll_state = await scroll_profile(page)
         try:
@@ -1195,82 +1233,166 @@ def write_manifests(output_dir: Path, records: list[PostRecord]) -> None:
             )
 
 
+class CliInteraction:
+    def __init__(self, headless: bool) -> None:
+        self.headless = headless
+
+    async def wait_for_login(
+        self, context: BrowserContext, page: Page, target: str
+    ) -> tuple[Page, str]:
+        return await wait_for_manual_start(context, page, target, self.headless)
+
+    async def choose_count(self, total: int, requested_limit: int) -> int:
+        return await choose_post_count(total, requested_limit)
+
+
+class InstagramExportEngine:
+    """Motor reutilizable; no lee stdin ni conoce FastAPI."""
+
+    def __init__(
+        self,
+        config: ExportConfig,
+        interaction: ExportInteraction,
+        *,
+        on_event: EventCallback | None = None,
+        cancel_event: asyncio.Event | None = None,
+        playwright_factory: Callable[[], Any] = async_playwright,
+    ) -> None:
+        self.config = config
+        self.interaction = interaction
+        self.on_event = on_event
+        self.cancel_event = cancel_event or asyncio.Event()
+        self.playwright_factory = playwright_factory
+
+    async def emit(self, event: str, **data: Any) -> None:
+        if self.on_event:
+            await self.on_event(event, data)
+
+    def check_cancelled(self) -> None:
+        if self.cancel_event.is_set():
+            raise ExportCancelled()
+
+    async def run(self) -> dict[str, Any]:
+        config = self.config
+        target_url = profile_url(config.profile)
+        config.session_dir.mkdir(parents=True, exist_ok=True)
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+        posts_dir = config.output_dir / "posts"
+        posts_dir.mkdir(parents=True, exist_ok=True)
+        records: list[PostRecord] = []
+        context: BrowserContext | None = None
+
+        try:
+            self.check_cancelled()
+            await self.emit("state_changed", state="opening_browser", message="Abriendo Chrome...")
+            async with self.playwright_factory() as playwright:
+                launch_options: dict[str, Any] = {
+                    "user_data_dir": str(config.session_dir),
+                    "headless": config.headless,
+                    "viewport": {"width": 1440, "height": 1000},
+                    "locale": "es-CL",
+                }
+                if config.browser == "chrome":
+                    launch_options["channel"] = "chrome"
+                try:
+                    context = await playwright.chromium.launch_persistent_context(**launch_options)
+                except Exception:
+                    if launch_options.pop("channel", None) != "chrome":
+                        raise
+                    await self.emit(
+                        "warning",
+                        message="Chrome no esta disponible; se usara Chromium de Playwright.",
+                    )
+                    context = await playwright.chromium.launch_persistent_context(**launch_options)
+                context.set_default_timeout(20_000)
+                page = context.pages[0] if context.pages else await context.new_page()
+                await self.emit("browser_opened")
+                await self.emit("state_changed", state="awaiting_login", message="Completa el login o 2FA en Chrome.")
+                await self.emit("awaiting_login")
+                page, target_url = await self.interaction.wait_for_login(context, page, target_url)
+                self.check_cancelled()
+
+                await self.emit("state_changed", state="collecting_posts", message="Contando publicaciones...")
+
+                async def report_count(count: int) -> None:
+                    await self.emit("posts_detected", total=count)
+
+                all_urls = await collect_post_urls(
+                    page, target_url, 0, config.scroll_pause, config.output_dir,
+                    on_count=report_count, cancel_event=self.cancel_event,
+                )
+                if not all_urls:
+                    raise RuntimeError(
+                        "No se detectaron publicaciones. Revisa los diagnosticos guardados."
+                    )
+                await self.emit("total_found", total=len(all_urls))
+                await self.emit("state_changed", state="awaiting_selection", message="Selecciona cuantas publicaciones descargar.")
+                await self.emit("selection_required", total=len(all_urls))
+                selected_count = await self.interaction.choose_count(len(all_urls), config.max_posts)
+                self.check_cancelled()
+                urls = all_urls[:selected_count]
+                (config.output_dir / "post_urls.txt").write_text(
+                    "\n".join(urls) + ("\n" if urls else ""), encoding="utf-8"
+                )
+                await self.emit("state_changed", state="exporting", message="Descargando publicaciones...")
+                await self.emit("selection_applied", selected=len(urls))
+
+                for index, url in enumerate(urls, start=1):
+                    self.check_cancelled()
+                    await self.emit("post_started", index=index, total=len(urls), url=url)
+                    record = await export_post(page, context, url, index, posts_dir)
+                    records.append(record)
+                    write_manifests(config.output_dir, records)
+                    await self.emit(
+                        "post_completed", index=index, total=len(urls), url=url,
+                        warning=record.error or "",
+                    )
+                    if record.error:
+                        await self.emit("warning", message=record.error, index=index)
+                    if config.post_pause:
+                        await page.wait_for_timeout(int(config.post_pause * 1_000))
+
+                result = {
+                    "profile": target_url,
+                    "outputDir": str(config.output_dir),
+                    "totalFound": len(all_urls),
+                    "selected": len(urls),
+                    "processed": len(records),
+                    "errors": sum(1 for item in records if item.error),
+                }
+                await self.emit("export_completed", result=result)
+                return result
+        except ExportCancelled:
+            write_manifests(config.output_dir, records)
+            await self.emit("cancelled", processed=len(records))
+            raise
+        finally:
+            if context is not None:
+                try:
+                    await context.close()
+                except Exception:  # noqa: BLE001
+                    pass
+
+
 async def main_async(args: argparse.Namespace) -> int:
     print(f"Instagram Exporter {SCRIPT_VERSION}")
     print("Usalo solo con contenido propio o autorizado por el cliente.\n")
 
     target_url = await prompt_profile_url(args.profile)
     session_dir = Path(args.session_dir).expanduser().resolve()
-    session_dir.mkdir(parents=True, exist_ok=True)
-
-    async with async_playwright() as playwright:
-        launch_options: dict[str, Any] = {
-            "user_data_dir": str(session_dir),
-            "headless": args.headless,
-            "viewport": {"width": 1440, "height": 1000},
-            "locale": "es-CL",
-        }
-        if args.browser == "chrome":
-            launch_options["channel"] = "chrome"
-
-        context = await playwright.chromium.launch_persistent_context(**launch_options)
-        context.set_default_timeout(20_000)
-        page = context.pages[0] if context.pages else await context.new_page()
-
-        try:
-            page, target_url = await wait_for_manual_start(
-                context,
-                page,
-                target_url,
-                args.headless,
-            )
-            output_dir = output_directory_for_profile(target_url, args.output)
-            posts_dir = output_dir / "posts"
-            posts_dir.mkdir(parents=True, exist_ok=True)
-            print(f"Carpeta de salida: {output_dir}")
-
-            print(f"\nContando publicaciones de: {target_url}")
-            all_urls = await collect_post_urls(
-                page,
-                target_url,
-                0,
-                args.scroll_pause,
-                output_dir,
-            )
-
-            if not all_urls:
-                print(
-                    "No se detectaron publicaciones. Se guardaron "
-                    "profile_debug.png, profile_debug.html y "
-                    "profile_links_debug.txt dentro de la carpeta de salida."
-                )
-                return 1
-
-            selected_count = await choose_post_count(len(all_urls), args.max_posts)
-            urls = all_urls[:selected_count]
-            (output_dir / "post_urls.txt").write_text(
-                "\n".join(urls) + ("\n" if urls else ""),
-                encoding="utf-8",
-            )
-
-            print(f"\nSe descargaran {len(urls)} publicaciones.")
-            records: list[PostRecord] = []
-            for index, url in enumerate(urls, start=1):
-                print(f"[{index}/{len(urls)}] {url}", flush=True)
-                record = await export_post(page, context, url, index, posts_dir)
-                records.append(record)
-                write_manifests(output_dir, records)
-                downloaded = sum(1 for item in record.media if item.filename)
-                if record.error:
-                    print(f"  ERROR: {record.error}")
-                else:
-                    print(f"  Guardados {downloaded}/{len(record.media)} archivos.")
-                await page.wait_for_timeout(int(args.post_pause * 1_000))
-
-            print(f"\nExportacion terminada: {output_dir}")
-            return 0
-        finally:
-            await context.close()
+    output_dir = output_directory_for_profile(target_url, args.output)
+    print(f"Carpeta de salida: {output_dir}")
+    engine = InstagramExportEngine(
+        ExportConfig(
+            profile=target_url, output_dir=output_dir, session_dir=session_dir,
+            max_posts=args.max_posts, scroll_pause=args.scroll_pause,
+            post_pause=args.post_pause, browser=args.browser, headless=args.headless,
+        ),
+        CliInteraction(args.headless),
+    )
+    result = await engine.run()
+    print(f"\nExportacion terminada: {result['outputDir']}")
+    return 0
 
 
 def main() -> int:

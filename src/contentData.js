@@ -141,6 +141,7 @@ export const networkingPath = {
 export const networkingResources = networkingResourceContent;
 
 export const tools = [
+  { title: "Importar desde Instagram", slug: "importar-instagram", description: "Exporta contenido autorizado con Chrome mediante un agente seguro que se ejecuta en tu PC.", contentType: "tool", topic: "Marketing digital", level: "Intermedio", readingTime: "Segun el perfil", updatedAt: "2026-08-07", featured: true, order: 1, status: "published", href: "/herramientas/importar-instagram" },
   { title: "Evaluador de inversión inmobiliaria para arriendo", slug: "evaluador-inversion-inmobiliaria", description: "Proyecta adquisición, crédito, vacancia, gastos, flujo, VPN y alternativas de venta o continuidad.", contentType: "tool", topic: "Finanzas personales", level: "Intermedio", readingTime: "20–35 minutos", updatedAt: "2026-07-18", featured: true, order: 2, status: "published", href: "/herramientas/evaluador-inversion-inmobiliaria" },
   { title: "Calculadora hipotecaria: dividendo, pie y costo total", slug: "calculadora-hipotecaria", description: "Explora financiamiento, pie, seguros, gastos, carga del hogar y amortización de una operación en UF.", contentType: "tool", topic: "Finanzas personales", level: "Introductorio", readingTime: "15–25 minutos", updatedAt: "2026-07-18", featured: true, order: 1, status: "published", href: "/herramientas/calculadora-hipotecaria" },
   ...[

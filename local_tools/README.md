@@ -1,5 +1,13 @@
 # Herramientas locales
 
+`instagram_exporter/` contiene el motor Playwright, la CLI heredada, el agente
+loopback FastAPI, el organizador multimedia y el build reproducible para
+Windows. Consulta [la arquitectura del agente](../docs/instagram-exporter-agent.md).
+
+Las herramientas futuras deben mantener separada la logica reutilizable de la
+interfaz, guardar estado en `runtime/`, evitar ejecutores de comandos genericos y
+ampliar el agente existente cuando necesiten acceso local autenticado.
+
 Este directorio reúne herramientas auxiliares que se ejecutan localmente y que no forman parte de la aplicación web principal.
 
 Cada herramienta futura debe vivir en su propia subcarpeta e incluir:

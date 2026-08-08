@@ -1,0 +1,47 @@
+name: Publicar instalador de Instagram Exporter
+
+on:
+  push:
+    tags:
+      - "instagram-agent-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Obtener el código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: local_tools/instagram_exporter/requirements-dev.txt
+
+      - name: Instalar Inno Setup
+        shell: powershell
+        run: choco install innosetup --yes --no-progress
+
+      - name: Construir y validar el instalador
+        shell: powershell
+        run: .\local_tools\instagram_exporter\build-installer.ps1
+
+      - name: Conservar instalador como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: InstagramExporterAgent-Setup
+          path: local_tools/instagram_exporter/installer-output/InstagramExporterAgent-Setup.exe
+          if-no-files-found: error
+
+      - name: Publicar descarga estable en GitHub Releases
+        if: startsWith(github.ref, 'refs/tags/instagram-agent-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Instagram Exporter Agent ${{ github.ref_name }}
+          files: local_tools/instagram_exporter/installer-output/InstagramExporterAgent-Setup.exe
+          generate_release_notes: true

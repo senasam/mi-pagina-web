@@ -12,6 +12,13 @@
 npm install
 npm run dev
 ```
+
+### Importador local de Instagram
+
+La pagina `/herramientas/importar-instagram` se conecta a un agente autenticado
+en `127.0.0.1`. Consulta [la guia del agente](docs/instagram-exporter-agent.md)
+para desarrollo, emparejamiento, seguridad, pruebas y construccion del
+instalador de Windows.
 Open the URL shown in your terminal (usually http://localhost:5173).
 
 ## Build

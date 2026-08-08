@@ -1,0 +1,6 @@
+-r requirements-agent.txt
+-r requirements-organizer.txt
+httpx>=0.28,<1.0
+pytest>=8.3,<9.0
+pytest-asyncio>=0.25,<2.0
+pyinstaller>=6.11,<7.0

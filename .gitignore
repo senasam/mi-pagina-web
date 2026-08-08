@@ -10,3 +10,10 @@ runtime/
 .venv-instagram/
 local_tools/**/.venv/
 local_tools/**/.instagram_browser_session/
+*.token
+*.key
+agent-config.json
+local_tools/**/build/
+local_tools/**/dist/
+local_tools/**/installer-output/
+*.spec.bak
