@@ -193,30 +193,97 @@ function UnsupportedScreen() {
 }
 
 function ConnectionScreen({ connection, onConnected, onReconnect }) {
-  const [busy, setBusy] = useState(false); const [error, setError] = useState(connection.error || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(connection.error || "");
+
   const connect = async (mode, createSubfolder = false) => {
-    setBusy(true); setError("");
-    try { onConnected(await repository.connect({ mode, createSubfolder })); }
-    catch (caught) {
-      if (caught.code === "NON_EMPTY_DIRECTORY" && confirm("La carpeta contiene otros archivos. ¿Crear dentro una subcarpeta llamada EstudioNovela?")) return connect("create", true);
+    setBusy(true);
+    setError("");
+    try {
+      onConnected(await repository.connect({ mode, createSubfolder }));
+    } catch (caught) {
+      if (
+        caught.code === "NON_EMPTY_DIRECTORY" &&
+        confirm("La carpeta contiene otros archivos. ¿Crear dentro una subcarpeta llamada EstudioNovela?")
+      ) return connect("create", true);
+
       if (caught.name !== "AbortError") setError(caught.message);
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
+
   const restore = async (file) => {
     if (!file) return;
-    setBusy(true); setError("");
-    try { onConnected(await repository.restoreWorkspaceBackup(file)); }
-    catch (caught) { if (caught.name !== "AbortError") setError(caught.message); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setError("");
+    try {
+      onConnected(await repository.restoreWorkspaceBackup(file));
+    } catch (caught) {
+      if (caught.name !== "AbortError") setError(caught.message);
+    } finally {
+      setBusy(false);
+    }
   };
-  return <main className="studio-gate"><div className="studio-gate__card studio-gate__card--wide">
-    <p className="studio-kicker">Espacio privado · archivos locales</p><h1>Tu estudio de novela</h1>
-    <p>Elige una carpeta de Windows. El manuscrito y el Codex se guardarán ahí como Markdown y JSON; el navegador solo recordará el permiso.</p>
-    {connection.permission === "prompt" && connection.name && <div className="studio-notice"><strong>Carpeta recordada:</strong> {connection.name}<button className="studio-button" onClick={onReconnect}>Volver a conectar</button></div>}
-    {error && <p className="studio-error" role="alert">{error}</p>}
-    <div className="studio-gate__actions"><button className="studio-button" disabled={busy} onClick={() => connect("create")}><FilePlus2 size={18} /> Crear espacio de escritura</button><button className="studio-button studio-button--secondary" disabled={busy} onClick={() => connect("open")}><FolderOpen size={18} /> Abrir espacio existente</button><label className="studio-button studio-button--secondary"><FileArchive size={18} /> Restaurar respaldo ZIP<input hidden type="file" accept=".zip,application/zip" disabled={busy} onChange={(event) => restore(event.target.files[0])} /></label></div>
-    <p className="studio-fineprint">El estudio no puede acceder a nada fuera de la carpeta que selecciones.</p><a href="/" className="studio-text-link">← Volver al sitio</a>
-  </div></main>;
+
+  return (
+    <main className="studio-gate">
+      <div className="studio-gate__card studio-gate__card--wide">
+        <p className="studio-kicker">Espacio privado · archivos locales</p>
+        <h1>Tu estudio de novela</h1>
+        <p>
+          Selecciona una carpeta en tu PC local para crear y guardar ahí todos los archivos de
+          esta novela: manuscrito, Codex y respaldo. El navegador solo recordará el permiso para
+          volver a abrir esa carpeta.
+        </p>
+
+        {connection.permission === "prompt" && connection.name && (
+          <div className="studio-notice">
+            <strong>Carpeta recordada:</strong> {connection.name}
+            <button className="studio-button" onClick={onReconnect}>
+              Volver a conectar
+            </button>
+          </div>
+        )}
+
+        {error && <p className="studio-error" role="alert">{error}</p>}
+
+        <div className="studio-gate__actions">
+          <button className="studio-button" disabled={busy} onClick={() => connect("create")}>
+            <FilePlus2 size={18} /> Crear carpeta y espacio de escritura
+          </button>
+
+          <button
+            className="studio-button studio-button--secondary"
+            disabled={busy}
+            onClick={() => connect("open")}
+          >
+            <FolderOpen size={18} /> Abrir carpeta existente
+          </button>
+
+          <label className="studio-button studio-button--secondary">
+            <FileArchive size={18} /> Restaurar respaldo ZIP
+            <input
+              hidden
+              type="file"
+              accept=".zip,application/zip"
+              disabled={busy}
+              onChange={(event) => restore(event.target.files[0])}
+            />
+          </label>
+        </div>
+
+        <p className="studio-fineprint">
+          Este estudio no puede acceder a nada fuera de la carpeta que selecciones en tu
+          computadora.
+        </p>
+
+        <a href="/" className="studio-text-link">
+          ← Volver al sitio
+        </a>
+      </div>
+    </main>
+  );
 }
 
 function WorkspaceHeader({ manifest, saveState = "saved", readOnly, onClose, navigation, children }) {
