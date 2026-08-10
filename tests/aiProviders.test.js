@@ -36,15 +36,16 @@ test("generates a local suggestion without contacting the hosted API", async () 
   assert.equal(request.body.model, "qwen3:4b");
 });
 
-test("applies configurable context and output limits to Ollama", async () => {
+test("applies configurable context, output limits, and timeout to Ollama", async () => {
   let request;
   await requestOllamaSuggestion({
     task: "codex-field", prose: "Ficha breve", metadata: {},
-    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b", inputTokenLimit: 4096, outputTokenLimit: 640 },
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b", inputTokenLimit: 4096, outputTokenLimit: 640, generationTimeoutMinutes: 12 },
     fetchImpl: async (url, options) => { request = JSON.parse(options.body); return new Response(JSON.stringify({ response: "Resultado" }), { status: 200 }); },
   });
   assert.equal(request.options.num_ctx, 4736);
   assert.equal(request.options.num_predict, 640);
+  assert.equal(request.options.model, "qwen3:4b");
 });
 
 test("allows long Ollama generations and explains how to recover from a timeout", async () => {

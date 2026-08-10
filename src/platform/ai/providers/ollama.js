@@ -96,11 +96,11 @@ export async function pullOllamaModel({ baseUrl, model, onProgress = () => {}, s
   return { ...last, percent: 100, status: "success" };
 }
 
-export async function requestOllamaGeneration({ baseUrl, model, request, fetchImpl = fetch }) {
+export async function requestOllamaGeneration({ baseUrl, model, request, timeoutMs = OLLAMA_GENERATION_TIMEOUT_MS, fetchImpl = fetch }) {
   const response = await ollamaFetch("/api/generate", {
     baseUrl,
     fetchImpl,
-    timeoutMs: OLLAMA_GENERATION_TIMEOUT_MS,
+    timeoutMs,
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...request, model, stream: false }),

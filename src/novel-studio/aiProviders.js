@@ -65,6 +65,7 @@ export async function requestOllamaSuggestion({ task, prose, metadata, settings,
   const result = await requestOllamaGeneration({
     baseUrl: settings.ollamaUrl,
     model: settings.ollamaModel,
+    timeoutMs: Math.max(1, Math.min(120, Number(settings.generationTimeoutMinutes) || 10)) * 60000,
     fetchImpl,
     request: {
       prompt: buildScenePrompt(task, prose, metadata),

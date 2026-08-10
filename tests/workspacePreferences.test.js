@@ -4,16 +4,29 @@ import { normalizePreferences } from "../src/novel-studio/LocalWorkspaceReposito
 
 test("workspace preferences preserve the explicitly stored OpenAI key", () => {
   const preferences = normalizePreferences({ ai: { enabled: true, apiKey: "sk-local-test", model: "gpt-5.6-terra" } });
-  assert.deepEqual(preferences.ai, { provider: "openai", enabled: true, credentialRef: null, model: "gpt-5.6-terra", ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b", manualUrl: "https://chatgpt.com/", inputTokenLimit: 12000, outputTokenLimit: 2200, apiKey: "sk-local-test" });
+  assert.deepEqual(preferences.ai, { provider: "openai", enabled: true, credentialRef: null, model: "gpt-5.6-terra", ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b", manualUrl: "https://chatgpt.com/", inputTokenLimit: 12000, outputTokenLimit: 2200, generationTimeoutMinutes: 10, apiKey: "sk-local-test" });
   assert.equal(preferences.schemaVersion, 2);
   assert.equal(JSON.stringify(preferences).includes("sk-local-test"), true);
   assert.equal(normalizePreferences().ai.model, "gpt-5.6-luna");
 });
 
 test("workspace preferences normalize configurable AI length limits", () => {
-  assert.deepEqual(normalizePreferences({ ai: { inputTokenLimit: 8192, outputTokenLimit: 4096 } }).ai.inputTokenLimit, 8192);
-  assert.equal(normalizePreferences({ ai: { inputTokenLimit: 1, outputTokenLimit: 999999 } }).ai.inputTokenLimit, 512);
-  assert.equal(normalizePreferences({ ai: { inputTokenLimit: 1, outputTokenLimit: 999999 } }).ai.outputTokenLimit, 16384);
+  assert.deepEqual(normalizePreferences({ ai: { inputTokenLimit: 8192, outputTokenLimit: 4096, generationTimeoutMinutes: 30 } }).ai, {
+    provider: "openai",
+    enabled: false,
+    credentialRef: null,
+    model: "gpt-5.6-luna",
+    ollamaUrl: "http://localhost:11434",
+    ollamaModel: "qwen3:4b",
+    manualUrl: "https://chatgpt.com/",
+    inputTokenLimit: 8192,
+    outputTokenLimit: 4096,
+    generationTimeoutMinutes: 30,
+    apiKey: "",
+  });
+  assert.equal(normalizePreferences({ ai: { inputTokenLimit: 1, outputTokenLimit: 999999, generationTimeoutMinutes: 999 } }).ai.inputTokenLimit, 512);
+  assert.equal(normalizePreferences({ ai: { inputTokenLimit: 1, outputTokenLimit: 999999, generationTimeoutMinutes: 999 } }).ai.outputTokenLimit, 16384);
+  assert.equal(normalizePreferences({ ai: { inputTokenLimit: 1, outputTokenLimit: 999999, generationTimeoutMinutes: 999 } }).ai.generationTimeoutMinutes, 120);
 });
 
 test("workspace preferences preserve Ollama and manual providers", () => {

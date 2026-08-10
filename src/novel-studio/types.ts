@@ -26,6 +26,7 @@ export interface WorkspacePreferences {
     manualUrl: string;
     inputTokenLimit: number;
     outputTokenLimit: number;
+    generationTimeoutMinutes: number;
     apiKey: string;
   };
 }

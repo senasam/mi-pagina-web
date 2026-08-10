@@ -15,6 +15,7 @@ export function normalizePreferences(value = {}) {
   const credentialRef = normalizeCredentialRef(value.ai?.credentialRef, { toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider });
   const inputTokenLimit = Math.max(512, Math.min(131072, Math.round(Number(value.ai?.inputTokenLimit) || 12000)));
   const outputTokenLimit = Math.max(64, Math.min(16384, Math.round(Number(value.ai?.outputTokenLimit) || 2200)));
+  const generationTimeoutMinutes = Math.max(1, Math.min(120, Math.round(Number(value.ai?.generationTimeoutMinutes) || 10)));
   const apiKey = provider === "openai" && typeof value.ai?.apiKey === "string" && !/[\r\n]/.test(value.ai.apiKey)
     ? value.ai.apiKey.trim().slice(0, 512)
     : "";
@@ -33,6 +34,7 @@ export function normalizePreferences(value = {}) {
       manualUrl: typeof value.ai?.manualUrl === "string" && value.ai.manualUrl ? value.ai.manualUrl : "https://chatgpt.com/",
       inputTokenLimit,
       outputTokenLimit,
+      generationTimeoutMinutes,
       apiKey,
     },
   };
