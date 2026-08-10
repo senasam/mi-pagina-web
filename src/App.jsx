@@ -486,7 +486,7 @@ export default function App() {
 
   const closeMobileNav = () => setMobileOpen(false);
 
-  if (normalizedPath === "/estudio-novela" || normalizedPath.startsWith("/estudio-novela/")) return <Suspense fallback={<div className="loading">Cargando estudio de novela...</div>}><NovelStudioApp /></Suspense>;
+  if (normalizedPath === "/estudio-novela" || normalizedPath.startsWith("/estudio-novela/") || normalizedPath === "/herramientas/estudio-novela" || normalizedPath.startsWith("/herramientas/estudio-novela/")) return <Suspense fallback={<div className="loading">Cargando estudio de novela...</div>}><NovelStudioApp /></Suspense>;
   if (normalizedPath === "/aprende") return <LearnPage />;
   if (normalizedPath === "/aprende/finanzas-personales/como-evaluar-un-credito-hipotecario") return <Suspense fallback={<div className="loading">Cargando guía...</div>}><MortgageLearningPage /></Suspense>;
   if (normalizedPath === "/aprende/finanzas-personales/evaluar-inversion-inmobiliaria") return <Suspense fallback={<div className="loading">Cargando guía...</div>}><InvestmentLearningPage /></Suspense>;

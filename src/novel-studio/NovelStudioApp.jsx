@@ -39,8 +39,22 @@ import { updateSceneDesign } from "./narrative/phase3Engine.js";
 import AiRequestErrorDialog from "./AiRequestErrorDialog.jsx";
 import "./novelStudio.css";
 
-const routeParts = () => window.location.pathname.replace(/\/$/, "").split("/").filter(Boolean);
-const studioHref = (novelId, mode = "plan") => `/estudio-novela/${novelId}/${mode}`;
+const LEGACY_STUDIO_PATH = "/estudio-novela";
+const TOOLS_STUDIO_PATH = "/herramientas/estudio-novela";
+
+const routeParts = () => {
+  const path = window.location.pathname.replace(/\/$/, "");
+  const normalizedPath = path.startsWith(TOOLS_STUDIO_PATH)
+    ? path.replace(TOOLS_STUDIO_PATH, LEGACY_STUDIO_PATH)
+    : path;
+  return normalizedPath.split("/").filter(Boolean);
+};
+const activeStudioPath = () => window.location.pathname.startsWith(TOOLS_STUDIO_PATH) ? TOOLS_STUDIO_PATH : LEGACY_STUDIO_PATH;
+const normalizeStudioHref = (href) => activeStudioPath() === TOOLS_STUDIO_PATH && href.startsWith(LEGACY_STUDIO_PATH)
+  ? `${TOOLS_STUDIO_PATH}${href.slice(LEGACY_STUDIO_PATH.length)}`
+  : href;
+const studioLibraryHref = () => activeStudioPath();
+const studioHref = (novelId, mode = "plan") => `${activeStudioPath()}/${novelId}/${mode}`;
 const FORCE_SAVE_EVENT = "novel-studio:force-save";
 const STUDIO_ROUTE_EVENT = "novel-studio:navigate";
 const TOGGLE_HISTORY_EVENT = "novel-studio:toggle-history";
@@ -51,7 +65,7 @@ const SCENE_STATUSES = ["Idea", "Esquema", "Borrador", "Revisión", "Final"];
 const EDITORIAL_DEFAULTS = { subtitle: "", edition: "Primera edición", publisher: "", printer: "", publicationPlace: "", publicationYear: String(new Date().getFullYear()), isbn: "", legalDeposit: "", propertyRegistry: "", rights: "", credits: "", dedication: "", epigraph: "", preface: "", acknowledgments: "", authorNotes: "" };
 
 function goStudio(href) {
-  history.pushState({}, "", href);
+  history.pushState({}, "", normalizeStudioHref(href));
   dispatchEvent(new Event(STUDIO_ROUTE_EVENT));
 }
 
@@ -147,7 +161,7 @@ export default function NovelStudioApp() {
       const anchor = event.target.closest?.("a[href]");
       if (!anchor) return;
       const url = new URL(anchor.href, location.href);
-      if (url.origin !== location.origin || !url.pathname.startsWith("/estudio-novela")) return;
+      if (url.origin !== location.origin || (!url.pathname.startsWith(LEGACY_STUDIO_PATH) && !url.pathname.startsWith(TOOLS_STUDIO_PATH))) return;
       event.preventDefault();
       goStudio(`${url.pathname}${url.search}${url.hash}`);
     };
