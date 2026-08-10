@@ -57,5 +57,9 @@ export async function generateOpenAiText({ apiKey, model, developerPrompt, userP
     if (response.status === 429) throw new OpenAiProviderError("Se alcanzó el límite temporal de la IA. Intenta de nuevo en un momento.", 429, "AI_RATE_LIMIT");
     throw new OpenAiProviderError("El servicio de IA no pudo generar la respuesta.", 502, "AI_RESPONSE_ERROR");
   }
-  return extractOutputText(await response.json()).trim();
+  const payload = await response.json();
+  if (payload?.status === "incomplete" && payload?.incomplete_details?.reason === "max_output_tokens") {
+    throw new OpenAiProviderError("La respuesta alcanzó el límite de salida. Auméntalo en Configuración → IA y vuelve a intentarlo.", 422, "AI_OUTPUT_LIMIT");
+  }
+  return extractOutputText(payload).trim();
 }

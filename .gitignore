@@ -9,6 +9,7 @@ runtime/
 *.pyc
 .venv-instagram/
 local_tools/**/.venv/
+local_tools/**/.venv-*/
 local_tools/**/.instagram_browser_session/
 *.token
 *.key
@@ -16,4 +17,8 @@ agent-config.json
 local_tools/**/build/
 local_tools/**/dist/
 local_tools/**/installer-output/
+local_tools/**/packaging/engine-output/
+local_tools/**/packaging/engine-bundle/
+local_tools/**/packaging/build-engine-pack/
+.audio-engine-build/
 *.spec.bak

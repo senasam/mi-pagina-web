@@ -9,7 +9,11 @@
     "preview": "vite preview",
     "test": "node --test",
     "test:instagram-agent": "python -m pytest local_tools/instagram_exporter/tests -q",
-    "build:instagram-agent": "powershell -ExecutionPolicy Bypass -File local_tools/instagram_exporter/build-installer.ps1"
+    "test:music-engine": "python -m pytest local_tools/music_analyzer/tests -q",
+    "build:instagram-agent": "powershell -ExecutionPolicy Bypass -File local_tools/instagram_exporter/build-installer.ps1",
+    "build:local-tools-agent": "powershell -ExecutionPolicy Bypass -File local_tools/instagram_exporter/build-installer.ps1",
+    "build:audio-engine": "powershell -ExecutionPolicy Bypass -File local_tools/music_analyzer/build-engine-pack.ps1",
+    "build:local-tools-unified": "powershell -ExecutionPolicy Bypass -File local_tools/instagram_exporter/build-unified-installer.ps1"
   },
   "dependencies": {
     "@tiptap/extension-highlight": "^3.29.2",

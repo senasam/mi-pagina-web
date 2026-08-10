@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { normalizeSceneAiResult, parseSceneBeats, requestSceneSuggestion, splitAiRequestText } from "../src/novel-studio/sceneAssistant.js";
+import { buildSceneDesignFieldContext, normalizeSceneAiResult, parseSceneBeats, requestSceneSuggestion, splitAiRequestText } from "../src/novel-studio/sceneAssistant.js";
 import { clearSessionCredentials, saveSessionCredential } from "../src/platform/ai/credentialClient.js";
 
 function openAiSettings(model = "test-model") {
@@ -8,6 +8,24 @@ function openAiSettings(model = "test-model") {
   const credentialRef = saveSessionCredential({ toolId: "novel-studio", provider: "openai", secret: "test-key" });
   return { provider: "openai", credentialRef, model };
 }
+
+test("construye el contexto OOTGR con la instrucción y la información circundante", () => {
+  const context = buildSceneDesignFieldContext({
+    targetLabel: "Objetivo",
+    instruction: "¿Qué se intenta conseguir aquí?",
+    currentValue: "",
+    design: { oposicion: "La puerta está cerrada" },
+    metadata: { summary: "Elena intenta entrar al archivo.", beats: ["Encuentra la puerta cerrada", "Busca otra entrada"] },
+    prose: "Elena fuerza la cerradura sin éxito.",
+    participants: [{ name: "Elena", description: "Archivera persistente que protege a su hermana." }],
+  });
+  assert.match(context, /INSTRUCCIÓN DEL CAMPO QUE DEBES RESPONDER: ¿Qué se intenta conseguir aquí\?/);
+  assert.match(context, /Elena intenta entrar al archivo/);
+  assert.match(context, /Encuentra la puerta cerrada/);
+  assert.match(context, /Elena: Archivera persistente/);
+  assert.match(context, /Elena fuerza la cerradura sin éxito/);
+  assert.match(context, /Oposición: La puerta está cerrada/);
+});
 
 test("normaliza momentos clave separados por punto y coma, viñetas o números", () => {
   assert.deepEqual(parseSceneBeats("1. Encuentra el compás\n- Comprende el error; • Decide regresar"), [
@@ -54,4 +72,23 @@ test("reintenta en fragmentos menores si el servidor responde 413", async () => 
   });
   assert.ok(calls >= 4);
   assert.equal(splitAiRequestText(prose, 20000).length, 2);
+});
+
+test("explica qué límite ampliar y recomienda un nuevo valor", async () => {
+  await assert.rejects(
+    requestSceneSuggestion({
+      task: "summary",
+      prose: "Una escena que necesita resumen.",
+      metadata: {},
+      settings: { ...openAiSettings(), outputTokenLimit: 2200 },
+      fetchImpl: async () => new Response(JSON.stringify({ error: "La respuesta alcanzó el límite de salida.", code: "AI_OUTPUT_LIMIT" }), { status: 422 }),
+    }),
+    (error) => {
+      assert.equal(error.code, "AI_OUTPUT_LIMIT");
+      assert.match(error.message, /límite de salida actual de 2200 tokens/i);
+      assert.match(error.message, /Máximo de salida.*4096 tokens/i);
+      assert.match(error.message, /No necesitas modificar.*Máximo de entrada/i);
+      return true;
+    },
+  );
 });

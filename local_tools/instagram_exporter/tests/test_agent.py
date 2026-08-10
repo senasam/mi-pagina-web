@@ -146,6 +146,41 @@ def test_cancel_is_cooperative_and_keeps_manifest_folder(tmp_path):
         assert output.is_dir()
 
 
+def test_common_task_api_reflects_and_cancels_an_instagram_export(tmp_path):
+    client, _ = make_client(tmp_path)
+    with client:
+        job_id = client.post("/exports", json={"profile": "usuario"}, headers=AUTH).json()["id"]
+        wait_state(client, job_id, "awaiting_login")
+
+        task = client.get(f"/v1/tasks/{job_id}", headers=AUTH)
+        assert task.status_code == 200
+        assert task.json()["capability"] == "instagram-exporter"
+        assert task.json()["operation"] == "export-account"
+        assert task.json()["status"] == "waiting_for_user"
+        assert task.json()["phase"] == "awaiting_login"
+
+        cancelled = client.post(f"/v1/tasks/{job_id}/cancel", headers=AUTH)
+        assert cancelled.status_code == 202
+        assert wait_state(client, job_id, "cancelled")["state"] == "cancelled"
+        common = client.get(f"/v1/tasks/{job_id}", headers=AUTH).json()
+        assert common["status"] == "cancelled"
+
+
+def test_common_task_events_support_terminal_replay(tmp_path):
+    client, _ = make_client(tmp_path, FailingEngine)
+    with client:
+        job_id = client.post("/exports", json={"profile": "usuario"}, headers=AUTH).json()["id"]
+        wait_state(client, job_id, "failed")
+
+        events = client.get(f"/v1/tasks/{job_id}/events", headers=AUTH)
+        assert events.status_code == 200
+        assert "event: task.queued" in events.text
+        assert "event: task.failed" in events.text
+        replay = client.get(f"/v1/tasks/{job_id}/events?last_event_id=1", headers=AUTH)
+        assert "event: task.queued" not in replay.text
+        assert "event: task.failed" in replay.text
+
+
 def test_errors_are_structured(tmp_path):
     client, _ = make_client(tmp_path, FailingEngine)
     with client:

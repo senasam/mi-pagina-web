@@ -37,15 +37,14 @@ La configuración de una herramienta sólo conserva una referencia no secreta:
 
 ## Implementación actual
 
-OpenAI permite elegir entre memoria limitada a la pestaña y persistencia cifrada en IndexedDB del mismo navegador. Para la persistencia, se genera una clave AES-GCM no extraíble que también permanece en el almacenamiento del sitio. La clave de OpenAI:
+Por decisión explícita del usuario, Novel Studio guarda la clave de OpenAI como texto legible en `preferences.json`, dentro de la carpeta local del workspace. La clave:
 
-- no se escribe en `preferences.json`;
-- no se incluye en los respaldos ZIP;
+- se incluye en los respaldos ZIP del workspace;
 - no se guarda en `localStorage`, `sessionStorage` ni `runtime/`;
-- se envía únicamente al endpoint común mediante el encabezado `Authorization`;
-- se recupera al volver cuando el usuario activa «Recordar en este dispositivo».
+- se carga en memoria al abrir el estudio;
+- se envía únicamente al endpoint común mediante el encabezado `Authorization`.
 
-El cifrado reduce la exposición directa del secreto en los archivos del navegador, pero no protege frente a código malicioso ejecutado en el mismo origen. Cuando exista autenticación, el almacén de servidor por usuario seguirá siendo la opción preferente.
+Cualquier persona o programa con acceso a la carpeta, a `preferences.json` o a un respaldo puede leer la credencial. La interfaz lo advierte antes de guardar y permite eliminarla. Cuando exista autenticación, un almacén de servidor cifrado por usuario seguirá siendo la opción preferente.
 
 Ollama se ejecuta directamente contra el servicio del mismo dispositivo y su adaptador reutilizable restringe las direcciones a loopback.
 

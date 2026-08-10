@@ -1,8 +1,9 @@
-name: Publicar instalador de Instagram Exporter
+name: Publicar Felipe Local Tools
 
 on:
   push:
     tags:
+      - "local-tools-v*"
       - "instagram-agent-v*"
   workflow_dispatch:
 
@@ -13,35 +14,43 @@ jobs:
   build-installer:
     runs-on: windows-latest
     steps:
-      - name: Obtener el código
+      - name: Obtener el codigo
         uses: actions/checkout@v4
 
-      - name: Configurar Python
+      - name: Configurar Python compatible con audio
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.10"
           cache: pip
-          cache-dependency-path: local_tools/instagram_exporter/requirements-dev.txt
+          cache-dependency-path: |
+            local_tools/instagram_exporter/requirements-dev.txt
+            local_tools/music_analyzer/requirements-engine.txt
 
-      - name: Instalar Inno Setup
+      - name: Instalar herramientas de Windows
         shell: powershell
-        run: choco install innosetup --yes --no-progress
+        run: choco install innosetup ffmpeg --yes --no-progress
 
-      - name: Construir y validar el instalador
+      - name: Construir instalador unificado y Audio Engine Pack
         shell: powershell
-        run: .\local_tools\instagram_exporter\build-installer.ps1
+        run: .\local_tools\instagram_exporter\build-unified-installer.ps1 -Version "${{ github.ref_name }}"
 
-      - name: Conservar instalador como artefacto
+      - name: Conservar artefactos verificables
         uses: actions/upload-artifact@v4
         with:
-          name: InstagramExporterAgent-Setup
-          path: local_tools/instagram_exporter/installer-output/InstagramExporterAgent-Setup.exe
+          name: FelipeLocalTools-windows-x64
+          path: |
+            local_tools/instagram_exporter/installer-output/FelipeLocalTools-Setup.exe
+            local_tools/instagram_exporter/packaging/engine-bundle/FelipeAudioEnginePack-windows-x64.zip
+            local_tools/instagram_exporter/packaging/engine-bundle/engine-pack-manifest.json
           if-no-files-found: error
 
       - name: Publicar descarga estable en GitHub Releases
-        if: startsWith(github.ref, 'refs/tags/instagram-agent-v')
+        if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: Instagram Exporter Agent ${{ github.ref_name }}
-          files: local_tools/instagram_exporter/installer-output/InstagramExporterAgent-Setup.exe
+          name: Felipe Local Tools ${{ github.ref_name }}
+          files: |
+            local_tools/instagram_exporter/installer-output/FelipeLocalTools-Setup.exe
+            local_tools/instagram_exporter/packaging/engine-bundle/FelipeAudioEnginePack-windows-x64.zip
+            local_tools/instagram_exporter/packaging/engine-bundle/engine-pack-manifest.json
           generate_release_notes: true

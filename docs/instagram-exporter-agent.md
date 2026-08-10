@@ -1,4 +1,8 @@
-# Agente local de Instagram Exporter
+# Felipe Local Tools Agent
+
+El ejecutable conserva todas las rutas heredadas de Instagram y, desde la
+version 1.1, tambien publica la API musical bajo `/v1/music` y el catalogo de
+modelos bajo `/v1/models`.
 
 ## Arquitectura
 
@@ -67,22 +71,29 @@ python -m venv .venv-agent
 .venv-agent\Scripts\python agent.py
 ```
 
+El comando manual usa `local_tools/instagram_exporter/agent.py` como launcher
+de compatibilidad; este delega al entrypoint neutral
+`local_tools/local_agent/main.py`.
+
 El agente escucha exclusivamente en `127.0.0.1`. El puerto predeterminado es
 `8765`; se cambia con `INSTAGRAM_AGENT_PORT`, `--port` o `port` en
 `agent-config.json`. La web usa `VITE_INSTAGRAM_AGENT_URL`.
 
 ## Emparejamiento y CORS
 
-La primera inicializacion genera 32 bytes aleatorios (256 bits) y guarda el
-token en `agent-config.json`. La interfaz solicita ese token automaticamente con
-`POST /pairing`; el usuario no tiene que verlo, copiarlo ni pegarlo. Este endpoint
-solo responde cuando la solicitud incluye uno de los origenes web permitidos.
-Solicitudes sin `Origin` o desde otro sitio no pueden emparejarse.
+La primera conexion crea una solicitud mediante `POST /v1/pairing/requests`.
+El agente muestra fuera del navegador un dialogo nativo con el origen y el nombre
+del dispositivo. Solo una aprobacion local crea una sesion de 12 horas. No se
+copian credenciales ni se considera confiable a una pagina solo por usar localhost.
 
-La web guarda el token en el almacenamiento local del navegador y lo envia solo
-como `Authorization: Bearer`. No se incluye en URLs ni eventos. El agente compara
-el valor con tiempo constante y no habilita access logs. `--show-token` se
-conserva exclusivamente para diagnostico.
+Cada navegador conserva un identificador de dispositivo y una sesion propia. Las
+solicitudes incluyen timestamp, nonce y una firma HMAC sobre metodo, ruta, query y
+hash del cuerpo. El agente liga la sesion al origen exacto, limita scopes y rechaza
+firmas expiradas, cuerpos alterados y nonces repetidos. `POST /v1/session/revoke`
+revoca la sesion actual.
+
+El token maestro anterior se conserva unicamente durante la actualizacion de una
+instalacion existente. Se desactiva al aprobar el primer pairing explicito.
 
 `INSTAGRAM_AGENT_ORIGINS` define los origenes exactos antes de la primera
 inicializacion. Despues pueden editarse en `allowedOrigins` de la configuracion
@@ -93,7 +104,9 @@ incluyen soporte de Private Network Access para una web HTTPS hacia loopback.
 
 - `GET /health`: deteccion publica minima y disponibilidad de Chrome, Chromium,
   Playwright y Ollama.
-- `POST /pairing`: entrega la credencial solo a un origen web permitido.
+- `POST /v1/pairing/requests`: solicita consentimiento local y crea una sesion.
+- `GET /v1/session`: describe la sesion y el dispositivo actuales.
+- `POST /v1/session/revoke`: revoca la sesion actual.
 - `POST /exports`: crea un trabajo y devuelve `202` inmediatamente.
 - `GET /exports/{id}`: estado completo.
 - `POST /exports/{id}/continue`: valida que Chrome este exactamente en el perfil.
@@ -104,7 +117,8 @@ incluyen soporte de Private Network Access para una web HTTPS hacia loopback.
 - `POST /credentials/openai`: guarda la clave en el runtime local.
 - `POST /exports/{id}/open-output`: abre unicamente la salida del trabajo.
 
-Salvo `/health` y el emparejamiento restringido por origen, todos exigen token.
+Salvo `/health` y el inicio de pairing restringido por origen, todos exigen una
+sesion valida y una firma por solicitud.
 El cuerpo esta limitado a 16 KiB, Pydantic rechaza campos desconocidos, solo se
 conserva un trabajo activo y 50 trabajos en memoria. No existe ningun endpoint
 para ejecutar comandos o aceptar rutas.

@@ -23,6 +23,49 @@ test("genera un título usando Responses API sin incluir la clave en el cuerpo",
   assert.equal(captured.options.body.includes("server-secret"), false);
 });
 
+test("devuelve borradores JSON de diseño narrativo sin convertirlos en contenido", async () => {
+  const json = '{"needsClarification":"","proposals":[{"target":"foundation.premisa","value":"Borrador"}]}';
+  let body;
+  const result = await generateSceneSuggestion({
+    task: "narrative-design",
+    prose: "Contexto seleccionado de Brújula",
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => { body = JSON.parse(options.body); return openAiResponse(json); },
+  });
+  assert.equal(result.suggestion, json);
+  assert.match(body.input[1].content, /JSON válido/i);
+  assert.match(body.input[1].content, /contexto-seleccionado/i);
+});
+
+test("redacta un campo OOTGR concreto sin devolver explicaciones", async () => {
+  let body;
+  const result = await generateSceneSuggestion({
+    task: "scene-design-field",
+    prose: "CAMPO OOTGR QUE DEBES REDACTAR: Giro\nObjetivo: recuperar la carta\nPROSA: Elena descubre que la carta es falsa.",
+    title: "La carta falsa",
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => { body = JSON.parse(options.body); return openAiResponse("Elena descubre que la carta que perseguía es una falsificación"); },
+  });
+  assert.equal(result.suggestion, "Elena descubre que la carta que perseguía es una falsificación");
+  assert.equal(result.task, "scene-design-field");
+  assert.match(body.input[1].content, /campo OOTGR indicado/i);
+  assert.match(body.input[1].content, /no inventes hechos/i);
+});
+
+test("redacta un campo de diseño narrativo usando su contexto cercano", async () => {
+  let body;
+  const result = await generateSceneSuggestion({
+    task: "narrative-field",
+    prose: "Campo: Objetivo dramático\nPersonaje: Elena\nEscena relacionada: recibe una amenaza.",
+    title: "Objetivo dramático · Diseño narrativo",
+    apiKey: "test-key",
+    fetchImpl: async (url, options) => { body = JSON.parse(options.body); return openAiResponse("Descubrir quién amenaza a su hermana antes de que desaparezca."); },
+  });
+  assert.equal(result.task, "narrative-field");
+  assert.match(result.suggestion, /Descubrir quién amenaza/);
+  assert.match(body.input[1].content, /entidad editada/i);
+});
+
 test("genera un resumen y conserva el texto devuelto", async () => {
   const result = await generateSceneSuggestion({
     task: "summary",

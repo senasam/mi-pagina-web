@@ -118,6 +118,7 @@ const InvestmentEvaluatorPage = lazy(() => import("./InvestmentEvaluatorPage"));
 const InvestmentLearningPage = lazy(() => import("./InvestmentLearningPage"));
 const NovelStudioApp = lazy(() => import("./novel-studio/NovelStudioApp"));
 const InstagramImporterPage = lazy(() => import("./InstagramImporterPage"));
+const MusicAnalyzerPage = lazy(() => import("./MusicAnalyzerPage"));
 import { LearnPage, NetworkingHubPage, NetworkingLessonPage, NotFoundPage, ToolsPage } from "./LearningPages";
 
 const navigation = [
@@ -543,6 +544,7 @@ export default function App() {
   if (marketingLessonSlug) return <Suspense fallback={<div className="loading">Cargando módulo...</div>}><MarketingLessonPage slug={marketingLessonSlug} /></Suspense>;
   if (normalizedPath === "/herramientas") return <ToolsPage />;
   if (normalizedPath === "/herramientas/importar-instagram") return <Suspense fallback={<div className="loading">Cargando importador...</div>}><InstagramImporterPage /></Suspense>;
+  if (normalizedPath === "/herramientas/analizador-musical") return <Suspense fallback={<div className="loading">Cargando analizador musical...</div>}><MusicAnalyzerPage /></Suspense>;
   if (normalizedPath === "/herramientas/calculadora-hipotecaria") return <Suspense fallback={<div className="loading">Cargando calculadora...</div>}><MortgageCalculatorPage /></Suspense>;
   if (normalizedPath === "/herramientas/evaluador-inversion-inmobiliaria") return <Suspense fallback={<div className="loading">Cargando evaluador...</div>}><InvestmentEvaluatorPage /></Suspense>;
   if (normalizedPath === "/herramientas/generador-mensajes-networking") return <MessageGeneratorPage />;

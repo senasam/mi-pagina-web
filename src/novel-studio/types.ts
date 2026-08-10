@@ -24,6 +24,9 @@ export interface WorkspacePreferences {
     ollamaUrl: string;
     ollamaModel: string;
     manualUrl: string;
+    inputTokenLimit: number;
+    outputTokenLimit: number;
+    apiKey: string;
   };
 }
 

@@ -1,4 +1,5 @@
-const OLLAMA_TIMEOUT_MS = 120000;
+const OLLAMA_CONNECTION_TIMEOUT_MS = 120000;
+const OLLAMA_GENERATION_TIMEOUT_MS = 600000;
 
 export const OLLAMA_MODEL_PRESETS = Object.freeze([
   { id: "qwen3:4b", label: "Ligero", download: "2,5 GB", ram: "8 GB de RAM aprox.", detail: "Buena opción para portátiles y resúmenes breves." },
@@ -23,13 +24,19 @@ export function normalizeOllamaUrl(value = "http://localhost:11434") {
   return url.origin;
 }
 
-async function ollamaFetch(path, { baseUrl, fetchImpl = fetch, ...options }) {
+async function ollamaFetch(path, { baseUrl, fetchImpl = fetch, timeoutMs = OLLAMA_CONNECTION_TIMEOUT_MS, ...options }) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), OLLAMA_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetchImpl(`${normalizeOllamaUrl(baseUrl)}${path}`, { ...options, signal: controller.signal });
   } catch (error) {
-    if (error?.name === "AbortError") throw new Error("Ollama tardó demasiado en responder.");
+    if (error?.name === "AbortError") {
+      const minutes = Math.max(1, Math.round(timeoutMs / 60000));
+      const timeoutError = new Error(`Ollama no terminó la respuesta después de ${minutes} minutos. Prueba nuevamente; si vuelve a ocurrir, reduce «Máximo de salida» y, después, «Máximo de entrada».`);
+      timeoutError.code = "AI_TIMEOUT";
+      timeoutError.timeoutMs = timeoutMs;
+      throw timeoutError;
+    }
     throw new Error("No se pudo acceder a Ollama. Comprueba que esté abierto y que permita el origen de este sitio.");
   } finally { clearTimeout(timeout); }
 }
@@ -93,6 +100,7 @@ export async function requestOllamaGeneration({ baseUrl, model, request, fetchIm
   const response = await ollamaFetch("/api/generate", {
     baseUrl,
     fetchImpl,
+    timeoutMs: OLLAMA_GENERATION_TIMEOUT_MS,
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ ...request, model, stream: false }),
@@ -101,6 +109,11 @@ export async function requestOllamaGeneration({ baseUrl, model, request, fetchIm
   if (!response.ok) {
     if (response.status === 404) throw new Error(`El modelo ${model} no está instalado en Ollama.`);
     throw new Error(payload.error || "Ollama no pudo generar una respuesta.");
+  }
+  if (payload.done_reason === "length") {
+    const error = new Error("La respuesta alcanzó el límite de salida.");
+    error.code = "AI_OUTPUT_LIMIT";
+    throw error;
   }
   const result = String(payload.response || "").trim();
   if (!result) throw new Error("Ollama no devolvió una respuesta utilizable.");

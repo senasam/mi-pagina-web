@@ -1,0 +1,9 @@
+export default function MusicProcessingForm({ options, disabled, onChange, onSubmit }) {
+  const toggle = (key) => (event) => onChange({ ...options, [key]: event.target.checked });
+  return <form className="music-panel music-options" onSubmit={onSubmit}>
+    <div className="music-section-heading"><div><p className="eyebrow">Paso 3</p><h2>Configura el analisis</h2></div></div>
+    <fieldset><legend>Tareas</legend><label><input type="checkbox" checked={options.separateStems} onChange={toggle("separateStems")} /> Separar instrumentos</label><label><input type="checkbox" checked={options.detectChords} onChange={toggle("detectChords")} /> Detectar acordes de la mezcla</label><label><input type="checkbox" checked={options.detectStemChords} onChange={toggle("detectStemChords")} disabled={!options.separateStems} /> Detectar acordes por pista</label><label><input type="checkbox" checked={options.createZip} onChange={toggle("createZip")} /> Crear ZIP</label><label><input type="checkbox" checked={options.convertToWav} onChange={toggle("convertToWav")} /> Convertir a WAV antes de analizar</label></fieldset>
+    <div className="music-selects"><label>Modelo Demucs<select value={options.model} onChange={(event) => onChange({ ...options, model: event.target.value })}><option value="htdemucs">4 pistas · voz, bateria, bajo y otros</option><option value="htdemucs_6s">6 pistas · agrega guitarra y piano</option></select></label><label>Dispositivo<select value={options.device} onChange={(event) => onChange({ ...options, device: event.target.value })}><option value="auto">Automatico</option><option value="cpu">CPU</option><option value="cuda">GPU NVIDIA (CUDA)</option></select></label></div>
+    <div className="music-submit"><div><strong>Procesamiento local</strong><p>Tu audio permanece en este equipo.</p></div><button className="button button--primary" type="submit" disabled={disabled}>Analizar cancion</button></div>
+  </form>;
+}

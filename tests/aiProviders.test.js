@@ -36,6 +36,33 @@ test("generates a local suggestion without contacting the hosted API", async () 
   assert.equal(request.body.model, "qwen3:4b");
 });
 
+test("applies configurable context and output limits to Ollama", async () => {
+  let request;
+  await requestOllamaSuggestion({
+    task: "codex-field", prose: "Ficha breve", metadata: {},
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b", inputTokenLimit: 4096, outputTokenLimit: 640 },
+    fetchImpl: async (url, options) => { request = JSON.parse(options.body); return new Response(JSON.stringify({ response: "Resultado" }), { status: 200 }); },
+  });
+  assert.equal(request.options.num_ctx, 4736);
+  assert.equal(request.options.num_predict, 640);
+});
+
+test("allows long Ollama generations and explains how to recover from a timeout", async () => {
+  await assert.rejects(
+    requestOllamaSuggestion({
+      task: "summary", prose: "Una escena", metadata: {},
+      settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b" },
+      fetchImpl: async () => { const error = new Error("aborted"); error.name = "AbortError"; throw error; },
+    }),
+    (error) => {
+      assert.equal(error.code, "AI_TIMEOUT");
+      assert.match(error.message, /10 minutos/);
+      assert.match(error.message, /Máximo de salida/);
+      return true;
+    },
+  );
+});
+
 test("asks Ollama for a chapter title and cleans quotation marks", async () => {
   let prompt;
   const suggestion = await requestOllamaSuggestion({
@@ -74,6 +101,36 @@ test("asks Ollama to write a Codex field from all available attributes", async (
   assert.match(request.prompt, /todos los datos disponibles/);
   assert.match(request.prompt, /cicatriz en la mano/);
   assert.equal(request.options.num_predict, 900);
+});
+
+test("asks Ollama to draft one scene design field concisely", async () => {
+  let request;
+  const suggestion = await requestOllamaSuggestion({
+    task: "scene-design-field",
+    prose: "CAMPO OOTGR QUE DEBES REDACTAR: Oposición\nObjetivo: abrir la caja\nProsa: La llave se rompe.",
+    metadata: { title: "La caja" },
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b" },
+    fetchImpl: async (url, options) => { request = JSON.parse(options.body); return new Response(JSON.stringify({ response: "La llave se rompe dentro de la cerradura." }), { status: 200 }); },
+  });
+  assert.equal(suggestion, "La llave se rompe dentro de la cerradura");
+  assert.match(request.prompt, /campo OOTGR indicado/i);
+  assert.equal(request.options.temperature, 0.3);
+  assert.equal(request.options.num_predict, 260);
+});
+
+test("asks Ollama to draft a contextual narrative field", async () => {
+  let request;
+  const suggestion = await requestOllamaSuggestion({
+    task: "narrative-field",
+    prose: "Campo: Conflicto\nTrama: Elena busca a su hermana mientras la policía la vigila.",
+    metadata: { title: "Conflicto · Diseño narrativo" },
+    settings: { ollamaUrl: "http://localhost:11434", ollamaModel: "qwen3:4b" },
+    fetchImpl: async (url, options) => { request = JSON.parse(options.body); return new Response(JSON.stringify({ response: "La vigilancia policial impide que Elena investigue sin exponerse" }), { status: 200 }); },
+  });
+  assert.match(suggestion, /vigilancia policial/);
+  assert.match(request.prompt, /personajes y las escenas relacionadas/i);
+  assert.equal(request.options.temperature, 0.3);
+  assert.equal(request.options.num_predict, 520);
 });
 
 test("asks Ollama to classify imported custom Codex fields as JSON", async () => {

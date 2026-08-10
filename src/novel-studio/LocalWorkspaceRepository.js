@@ -3,6 +3,7 @@ import {
   SCHEMA_VERSION, createNovelRecord, emptyStructure, markdownBody, nowIso,
   sceneToMarkdown, sha256, safeFileName,
 } from "./model.js";
+import { emptyNarrative, normalizeNarrative } from "./narrative/model.js";
 import { AI_TOOL_IDS, normalizeCredentialRef } from "../platform/ai/contracts.js";
 
 const DB_NAME = "fmd-novel-studio-handles";
@@ -12,6 +13,11 @@ const HANDLE_KEY = "workspace-directory";
 export function normalizePreferences(value = {}) {
   const provider = ["openai", "ollama", "chatgpt-manual"].includes(value.ai?.provider) ? value.ai.provider : "openai";
   const credentialRef = normalizeCredentialRef(value.ai?.credentialRef, { toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider });
+  const inputTokenLimit = Math.max(512, Math.min(131072, Math.round(Number(value.ai?.inputTokenLimit) || 12000)));
+  const outputTokenLimit = Math.max(64, Math.min(16384, Math.round(Number(value.ai?.outputTokenLimit) || 2200)));
+  const apiKey = provider === "openai" && typeof value.ai?.apiKey === "string" && !/[\r\n]/.test(value.ai.apiKey)
+    ? value.ai.apiKey.trim().slice(0, 512)
+    : "";
   return {
     schemaVersion: 2,
     lastNovelId: value.lastNovelId || null,
@@ -25,6 +31,9 @@ export function normalizePreferences(value = {}) {
       ollamaUrl: typeof value.ai?.ollamaUrl === "string" && value.ai.ollamaUrl ? value.ai.ollamaUrl : "http://localhost:11434",
       ollamaModel: typeof value.ai?.ollamaModel === "string" && value.ai.ollamaModel ? value.ai.ollamaModel : "qwen3:4b",
       manualUrl: typeof value.ai?.manualUrl === "string" && value.ai.manualUrl ? value.ai.manualUrl : "https://chatgpt.com/",
+      inputTokenLimit,
+      outputTokenLimit,
+      apiKey,
     },
   };
 }
@@ -286,7 +295,7 @@ export class LocalWorkspaceRepository {
     try { raw = await readJson(this.root, "preferences.json"); }
     catch { return normalizePreferences(); }
     const normalized = normalizePreferences(raw);
-    if (raw.schemaVersion !== normalized.schemaVersion || Object.prototype.hasOwnProperty.call(raw.ai || {}, "apiKey")) {
+    if (raw.schemaVersion !== normalized.schemaVersion || JSON.stringify(raw) !== JSON.stringify(normalized)) {
       await this.enqueue("preferences.json", () => writeJson(this.root, "preferences.json", normalized));
     }
     return normalized;
@@ -311,10 +320,11 @@ export class LocalWorkspaceRepository {
   async createNovel({ title, author = "" }) {
     const novel = createNovelRecord(title, author);
     const base = `novels/${novel.id}`;
-    for (const folder of ["cover", "manuscript/scenes", "manuscript/images", "codex", "codex/images", "history", "archive", "imports"]) await getDirectory(this.root, `${base}/${folder}`.split("/"), true);
+    for (const folder of ["cover", "manuscript/scenes", "manuscript/images", "codex", "codex/images", "design", "history", "archive", "imports"]) await getDirectory(this.root, `${base}/${folder}`.split("/"), true);
     const structure = emptyStructure();
     await writeJson(this.root, `${base}/novel.json`, novel);
     await writeJson(this.root, `${base}/manuscript/structure.json`, structure);
+    await writeJson(this.root, `${base}/design/narrative.json`, emptyNarrative());
     for (const scene of Object.values(structure.scenes)) await this.writeNewScene(novel.id, scene, "");
     this.manifest.novels.push({ id: novel.id, title: novel.title, archived: false, updatedAt: novel.updatedAt });
     await this.saveManifest();
@@ -330,7 +340,7 @@ export class LocalWorkspaceRepository {
     const novelsDirectory = await getDirectory(this.root, ["novels"]);
     const source = await novelsDirectory.getDirectoryHandle(novelId);
     const target = await novelsDirectory.getDirectoryHandle(duplicate.id, { create: true });
-    for (const folder of ["cover", "manuscript", "codex"]) {
+    for (const folder of ["cover", "manuscript", "codex", "design"]) {
       try { await copyDirectoryContents(await source.getDirectoryHandle(folder), await target.getDirectoryHandle(folder, { create: true })); } catch { /* optional folder */ }
     }
     try {
@@ -347,7 +357,8 @@ export class LocalWorkspaceRepository {
         await writeJson(codexDirectory, name, entry);
       }
     } catch { /* workspaces antiguos pueden no contener imágenes */ }
-    for (const folder of ["history", "archive", "imports"]) await target.getDirectoryHandle(folder, { create: true });
+    for (const folder of ["design", "history", "archive", "imports"]) await target.getDirectoryHandle(folder, { create: true });
+    if (!(await exists(target, "design/narrative.json"))) await writeJson(target, "design/narrative.json", emptyNarrative());
     await writeJson(target, "novel.json", duplicate);
     this.manifest.novels.push({ id: duplicate.id, title: duplicate.title, archived: false, updatedAt: duplicate.updatedAt });
     await this.saveManifest();
@@ -400,6 +411,21 @@ export class LocalWorkspaceRepository {
   async readStructure(novelId) { return readJson(this.root, `novels/${novelId}/manuscript/structure.json`); }
   async saveStructure(novelId, structure) {
     await this.enqueue(`structure:${novelId}`, () => writeJson(this.root, `novels/${novelId}/manuscript/structure.json`, structure));
+  }
+
+  async readNarrative(novelId) {
+    try {
+      return normalizeNarrative(await readJson(this.root, `novels/${novelId}/design/narrative.json`));
+    } catch (error) {
+      if (error?.name === "NotFoundError") return emptyNarrative();
+      throw error;
+    }
+  }
+
+  async saveNarrative(novelId, data) {
+    const narrative = normalizeNarrative({ ...data, updatedAt: nowIso() });
+    await this.enqueue(`narrative:${novelId}`, () => writeJson(this.root, `novels/${novelId}/design/narrative.json`, narrative));
+    return narrative;
   }
 
   async saveSceneMetadata(novelId, metadata) {
@@ -541,6 +567,7 @@ export class LocalWorkspaceRepository {
     for await (const [name, handle] of directory.entries()) {
       if (handle.kind !== "file" || !name.endsWith(".json")) continue;
       const metadata = JSON.parse(await (await handle.getFile()).text());
+      if (!metadata.id) metadata.id = name.slice(0, -".json".length);
       if (!includeArchived && metadata.archived) continue;
       let description = "";
       try { description = (await readFile(this.root, `novels/${novelId}/codex/${metadata.id}.md`)).text; } catch { /* optional */ }

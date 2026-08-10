@@ -1,8 +1,15 @@
 # Herramientas locales
 
-`instagram_exporter/` contiene el motor Playwright, la CLI heredada, el agente
-loopback FastAPI, el organizador multimedia y el build reproducible para
+`instagram_exporter/` contiene el motor Playwright, la CLI heredada, el adapter
+de API compatible, el organizador multimedia y el build reproducible para
 Windows. Consulta [la arquitectura del agente](../docs/instagram-exporter-agent.md).
+
+`local_agent/` contiene el entrypoint y composition root neutrales, el registro
+estatico de capabilities, autenticacion, SSE y autorizaciones compartidas.
+`instagram_exporter/agent.py` se conserva como facade para scripts e
+instalaciones anteriores, pero ya no es el propietario del servidor.
+`music_analyzer/` contiene el motor de audio, worker aislado, API de trabajos y
+gestor explicito de modelos usados por Felipe Local Tools Agent.
 
 Las herramientas futuras deben mantener separada la logica reutilizable de la
 interfaz, guardar estado en `runtime/`, evitar ejecutores de comandos genericos y

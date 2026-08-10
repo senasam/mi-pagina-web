@@ -2,10 +2,41 @@ import { requestOllamaSuggestion } from "./aiProviders.js";
 import { executeAiTask } from "../platform/ai/aiClient.js";
 import { AI_TOOL_IDS } from "../platform/ai/contracts.js";
 
-const SAFE_PROSE_CHARS = 40000;
 const MIN_CHUNK_CHARS = 12000;
+const CHARS_PER_TOKEN_ESTIMATE = 3;
 export const SCENE_SUMMARY_MAX_CHARS = 140;
 export const SCENE_BEAT_MAX_CHARS = 80;
+
+const OOTGR_CONTEXT_FIELDS = [
+  ["Objetivo", "objetivo"],
+  ["Oposición", "oposicion"],
+  ["Tácticas", "tacticas"],
+  ["Giro", "giro"],
+  ["Resultado", "resultado"],
+  ["Consecuencia", "consecuencia"],
+];
+
+export function buildSceneDesignFieldContext({ targetLabel, instruction, currentValue, design = {}, metadata = {}, prose = "", participants = [] }) {
+  const beats = Array.isArray(metadata.beats) ? metadata.beats.filter(Boolean) : [];
+  const characterContext = participants.length
+    ? participants.map((character) => `- ${character.name || "Personaje sin nombre"}: ${String(character.description || "").trim() || "Sin descripción disponible"}`)
+    : ["- No hay personajes participantes identificados en la escena."];
+  return [
+    `CAMPO OOTGR QUE DEBES REDACTAR: ${targetLabel}`,
+    `INSTRUCCIÓN DEL CAMPO QUE DEBES RESPONDER: ${instruction}`,
+    `VALOR ACTUAL: ${currentValue || "Vacío"}`,
+    "RESUMEN DE LA ESCENA:",
+    metadata.summary || "Sin resumen disponible",
+    "MOMENTOS CLAVE DE LA ESCENA:",
+    beats.length ? beats.map((beat) => `- ${beat}`).join("\n") : "- Sin momentos clave disponibles",
+    "PERSONAJES QUE INTERVIENEN EN LA ESCENA:",
+    ...characterContext,
+    "DISEÑO OOTGR ACTUAL:",
+    ...OOTGR_CONTEXT_FIELDS.map(([label, key]) => `${label}: ${design[key] || "Sin definir"}`),
+    "PROSA DE LA ESCENA:",
+    String(prose || "").trim() || "La escena todavía no tiene prosa; utiliza solamente el resto del contexto disponible.",
+  ].join("\n");
+}
 
 function shortenAtWord(value, maxChars) {
   const clean = String(value || "").replace(/\s+/g, " ").trim();
@@ -64,15 +95,19 @@ async function requestSingle({ task, prose, metadata, settings, fetchImpl }) {
     provider: settings?.provider || "openai",
     model: settings?.model || "",
     credentialRef: settings?.credentialRef,
+    inputTokenLimit: settings?.inputTokenLimit,
+    outputTokenLimit: settings?.outputTokenLimit,
     input: { task, prose, title: metadata.title, summary: metadata.summary, beats: metadata.beats },
     fetchImpl,
   });
   return payload.suggestion;
 }
 
-async function requestManaged(params, depth = 0, chunkChars = SAFE_PROSE_CHARS) {
+async function requestManaged(params, depth = 0, chunkChars = null) {
   const metadata = compactMetadata(params.metadata);
   const prose = String(params.prose || "");
+  const configuredChunkChars = Math.max(MIN_CHUNK_CHARS, Math.min(393216, (Number(params.settings?.inputTokenLimit) || 12000) * CHARS_PER_TOKEN_ESTIMATE));
+  chunkChars ||= configuredChunkChars;
   if (prose.length <= chunkChars) {
     try { return await requestSingle({ ...params, prose, metadata }); }
     catch (error) {
@@ -102,5 +137,19 @@ async function requestManaged(params, depth = 0, chunkChars = SAFE_PROSE_CHARS) 
 }
 
 export async function requestSceneSuggestion({ task, prose, metadata, settings, fetchImpl = fetch }) {
-  return normalizeSceneAiResult(task, await requestManaged({ task, prose, metadata, settings, fetchImpl }));
+  try {
+    return normalizeSceneAiResult(task, await requestManaged({ task, prose, metadata, settings, fetchImpl }));
+  } catch (error) {
+    if (error?.code !== "AI_OUTPUT_LIMIT" && !/límite de salida/i.test(error?.message || "")) throw error;
+    const current = Math.max(64, Math.min(16384, Number(settings?.outputTokenLimit) || 2200));
+    const recommended = Math.min(16384, 2 ** Math.ceil(Math.log2(Math.max(current + 1, current * 1.5))));
+    const message = current >= 16384
+      ? `La respuesta agotó el máximo de salida permitido (${current.toLocaleString("es")} tokens). La solicitud requiere una respuesta más breve o dividirse en partes.`
+      : `La respuesta alcanzó tu límite de salida actual de ${current.toLocaleString("es")} tokens. En Configuración → IA aumenta «Máximo de salida» a ${recommended.toLocaleString("es")} tokens y vuelve a intentarlo. No necesitas modificar «Máximo de entrada».`;
+    const guidedError = new Error(message);
+    guidedError.code = "AI_OUTPUT_LIMIT";
+    guidedError.currentLimit = current;
+    guidedError.recommendedLimit = recommended;
+    throw guidedError;
+  }
 }

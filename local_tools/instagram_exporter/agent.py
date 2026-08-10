@@ -1,116 +1,72 @@
-"""Agente loopback autenticado para Instagram Exporter."""
+"""API heredada de Instagram y facade hacia el Local Agent neutral."""
 
 from __future__ import annotations
 
-import argparse
 import asyncio
-import hmac
-import json
-import logging
 import os
-import secrets
 import shutil
-import socket
 import subprocess
 import sys
-import time
 import uuid
 from collections import deque
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any, Callable
 from urllib.parse import urlparse
 
-from fastapi import FastAPI, Header, HTTPException, Request, Response
-from fastapi.responses import JSONResponse, StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
+from pydantic import Field, field_validator
 
-from instagram_exporter import (
-    ExportCancelled,
-    ExportConfig,
-    InstagramExportEngine,
-    profile_url,
-    profile_url_from_browser_url,
-)
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
-AGENT_VERSION = "1.0.0"
-DEFAULT_PORT = 8765
+from local_tools.local_agent.config import DEFAULT_PORT, load_or_create_config
+from local_tools.local_agent.destinations import DestinationRegistry, ensure_within
+from local_tools.local_agent.events import publish_event, stream_events
+from local_tools.local_agent.models import StrictRequest, utc_now
+from local_tools.local_agent.runtime import AgentPaths, project_runtime
+from local_tools.local_agent.tasks import TaskCancelledError, TaskExecutionError, TaskManager
+
+try:
+    from .instagram_exporter import (
+        ExportCancelled,
+        ExportConfig,
+        InstagramExportEngine,
+        profile_url,
+        profile_url_from_browser_url,
+    )
+except ImportError:  # Compatibilidad al ejecutar/importar agent.py directamente.
+    from instagram_exporter import (
+        ExportCancelled,
+        ExportConfig,
+        InstagramExportEngine,
+        profile_url,
+        profile_url_from_browser_url,
+    )
+
+AGENT_VERSION = "1.3.0"
 TERMINAL_STATES = {"completed", "cancelled", "failed"}
 ALLOWED_STATES = {
     "created", "opening_browser", "awaiting_login", "collecting_posts",
     "awaiting_selection", "exporting", "organizing", "completed",
     "cancelling", "cancelled", "failed",
 }
-
-
-def utc_now() -> str:
-    return datetime.now(UTC).isoformat()
-
-
-def project_runtime() -> Path:
-    override = os.environ.get("INSTAGRAM_AGENT_RUNTIME", "").strip()
-    if override:
-        return Path(override).expanduser().resolve()
-    source = Path(__file__).resolve()
-    if not getattr(sys, "frozen", False):
-        return (source.parents[2] / "runtime" / "instagram_exporter").resolve()
-    local = Path(os.environ.get("LOCALAPPDATA", source.parent))
-    return (local / "FelipeMasanes" / "InstagramExporter" / "runtime" / "instagram_exporter").resolve()
-
-
-def ensure_within(path: Path, root: Path) -> Path:
-    resolved = path.expanduser().resolve()
-    base = root.expanduser().resolve()
-    try:
-        resolved.relative_to(base)
-    except ValueError as exc:
-        raise ValueError("La ruta escapa del runtime autorizado.") from exc
-    return resolved
-
-
-@dataclass
-class AgentPaths:
-    root: Path
-    session: Path
-    exports: Path
-    logs: Path
-    config: Path
-
-    @classmethod
-    def create(cls, root: Path | None = None) -> "AgentPaths":
-        base = (root or project_runtime()).resolve()
-        paths = cls(
-            root=base,
-            session=base / "session",
-            exports=base / "exports",
-            logs=base / "logs",
-            config=base / "agent-config.json",
-        )
-        for item in (paths.session, paths.exports, paths.logs):
-            ensure_within(item, base).mkdir(parents=True, exist_ok=True)
-        return paths
-
-
-def load_or_create_config(paths: AgentPaths) -> dict[str, Any]:
-    if paths.config.exists():
-        data = json.loads(paths.config.read_text(encoding="utf-8"))
-        if isinstance(data.get("token"), str) and len(data["token"]) >= 43:
-            return data
-    data = {
-        "token": secrets.token_urlsafe(32),
-        "port": int(os.environ.get("INSTAGRAM_AGENT_PORT", DEFAULT_PORT)),
-        "allowedOrigins": [
-            item.strip() for item in os.environ.get(
-                "INSTAGRAM_AGENT_ORIGINS",
-                "http://localhost:5173,http://127.0.0.1:5173,https://masanes.cl,https://www.masanes.cl",
-            ).split(",") if item.strip()
-        ],
-        "createdAt": utc_now(),
-    }
-    paths.config.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    return data
-
+TASK_STATUS_BY_NATIVE_STATE = {
+    "created": "queued",
+    "opening_browser": "starting",
+    "awaiting_login": "waiting_for_user",
+    "collecting_posts": "running",
+    "awaiting_selection": "waiting_for_user",
+    "exporting": "running",
+    "organizing": "running",
+    "cancelling": "running",
+    "completed": "completed",
+    "cancelled": "cancelled",
+    "failed": "failed",
+}
 
 def validate_profile(value: str) -> str:
     if not value or len(value) > 200:
@@ -118,8 +74,7 @@ def validate_profile(value: str) -> str:
     return profile_url(value)
 
 
-class ExportRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+class ExportRequest(StrictRequest):
     profile: str = Field(min_length=1, max_length=200)
     max_posts: int = Field(default=0, alias="maxPosts", ge=0, le=100_000)
     organize_after_export: bool = Field(default=False, alias="organizeAfterExport")
@@ -142,13 +97,11 @@ class ExportRequest(BaseModel):
         return value
 
 
-class SelectionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class SelectionRequest(StrictRequest):
     count: int = Field(ge=0, le=100_000)
 
 
-class CredentialRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+class CredentialRequest(StrictRequest):
     openai_api_key: str = Field(alias="openaiApiKey", min_length=20, max_length=300)
 
 
@@ -189,14 +142,7 @@ class Job:
         }
 
     async def publish(self, event_type: str, **data: Any) -> None:
-        self.event_sequence += 1
-        event = {"id": self.event_sequence, "type": event_type, "at": utc_now(), **data}
-        self.events.append(event)
-        for queue in tuple(self.subscribers):
-            try:
-                queue.put_nowait(event)
-            except asyncio.QueueFull:
-                pass
+        await publish_event(self, event_type, **data)
 
 
 class ApiInteraction:
@@ -250,14 +196,42 @@ class ApiInteraction:
 
 
 class JobManager:
-    def __init__(self, paths: AgentPaths, *, max_history: int = 50, engine_factory: Callable[..., Any] = InstagramExportEngine) -> None:
+    def __init__(
+        self,
+        paths: AgentPaths,
+        *,
+        max_history: int = 50,
+        engine_factory: Callable[..., Any] = InstagramExportEngine,
+        task_manager: TaskManager | None = None,
+    ) -> None:
         self.paths = paths
         self.max_history = max_history
         self.engine_factory = engine_factory
         self.jobs: dict[str, Job] = {}
         self.order: deque[str] = deque()
-        self.destinations: dict[str, Path] = {}
+        self.destinations = DestinationRegistry()
         self._lock = asyncio.Lock()
+        self.task_manager = task_manager
+
+    def attach_task_manager(self, task_manager: TaskManager) -> None:
+        self.task_manager = task_manager
+
+    async def _publish(self, target: Job, event_type: str, **data: Any) -> None:
+        await target.publish(event_type, **data)
+        if not self.task_manager:
+            return
+        status = TASK_STATUS_BY_NATIVE_STATE.get(target.state, "running")
+        if status in {"completed", "failed", "cancelled"}:
+            return
+        self.task_manager.update(
+            target.id,
+            status=status,
+            progress=target.percentage,
+            message=target.message,
+            phase=target.state,
+            metadata={"legacy": target.public()},
+            source_event=event_type,
+        )
 
     def get(self, job_id: str) -> Job:
         job = self.jobs.get(job_id)
@@ -278,7 +252,7 @@ class JobManager:
             stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             parent = self.paths.exports
             if request.destination_id:
-                parent = self.destinations.pop(request.destination_id, None)  # one-time authorization
+                parent = self.destinations.consume(request.destination_id)
                 if parent is None:
                     raise HTTPException(400, "La autorizacion de carpeta expiro; seleccionala otra vez.")
             output = (parent / f"{username}_{stamp}_{job_id[:6]}").resolve()
@@ -293,7 +267,25 @@ class JobManager:
             job.interaction = interaction
             self.jobs[job_id] = job
             self.order.append(job_id)
-            job.task = asyncio.create_task(self._run(job, request, output), name=f"instagram-{job_id}")
+            if self.task_manager:
+                self.task_manager.create(
+                    task_id=job.id,
+                    capability="instagram-exporter",
+                    operation="export-account",
+                    message=job.message,
+                    metadata={"legacy": job.public()},
+                )
+                self.task_manager.attach_cancel_handler(
+                    job.id,
+                    lambda job=job: self.cancel(job),
+                )
+            if self.task_manager:
+                job.task = self.task_manager.launch(
+                    job.id,
+                    lambda job=job, request=request, output=output: self._run(job, request, output),
+                )
+            else:
+                job.task = asyncio.create_task(self._run(job, request, output), name=f"instagram-{job_id}")
             await job.publish("state_changed", state="created", job=job.public())
             return job
 
@@ -312,7 +304,7 @@ class JobManager:
             job.current_post_url = str(data.get("url", job.current_post_url))
             denominator = job.selected_count or int(data.get("total", 0))
             job.percentage = (job.current_post / denominator * 100) if denominator else 0
-        await job.publish(event_type, **data, job=job.public())
+        await self._publish(job, event_type, **data, job=job.public())
 
     async def _run(self, job: Job, request: ExportRequest, output: Path) -> None:
         engine = self.engine_factory(
@@ -331,11 +323,28 @@ class JobManager:
             job.state = "completed"
             job.percentage = 100
             job.message = "Exportacion completada."
-            await job.publish("completed", result=result, job=job.public())
+            if self.task_manager:
+                self.task_manager.finalize(
+                    job.id,
+                    status="completed",
+                    result=result if isinstance(result, dict) else {"outputFolder": job.output_folder},
+                    phase="completed",
+                    message=job.message,
+                )
+            await self._publish(job, "completed", result=result, job=job.public())
+            return result if isinstance(result, dict) else {"outputFolder": job.output_folder}
         except ExportCancelled:
             job.state = "cancelled"
             job.message = "Exportacion cancelada; se conservaron los archivos procesados."
-            await job.publish("cancelled", job=job.public())
+            if self.task_manager:
+                self.task_manager.finalize(
+                    job.id,
+                    status="cancelled",
+                    phase="cancelled",
+                    message=job.message,
+                )
+            await self._publish(job, "cancelled", job=job.public())
+            raise TaskCancelledError() from None
         except Exception as exc:  # noqa: BLE001
             organization_failed = job.state == "organizing"
             job.state = "failed"
@@ -344,13 +353,29 @@ class JobManager:
                 "La exportacion se conservo, pero la organizacion con IA fallo."
                 if organization_failed else "La exportacion fallo."
             )
-            await job.publish("error", message=str(exc), job=job.public())
+            if self.task_manager:
+                self.task_manager.finalize(
+                    job.id,
+                    status="failed",
+                    error={
+                        "code": "INSTAGRAM_EXPORT_FAILED",
+                        "message": job.message,
+                        "retryable": True,
+                    },
+                    phase=job.state,
+                    message=job.message,
+                )
+            await self._publish(job, "error", message=str(exc), job=job.public())
+            raise TaskExecutionError(
+                "INSTAGRAM_EXPORT_FAILED",
+                job.message,
+            ) from exc
 
     async def _organize(self, job: Job, output: Path) -> None:
         job.state = "organizing"
         job.message = "Organizando archivos con IA..."
-        await job.publish("state_changed", state="organizing", job=job.public())
-        await job.publish("organization_started", provider=job.ai_provider, model=job.model)
+        await self._publish(job, "state_changed", state="organizing", job=job.public())
+        await self._publish(job, "organization_started", provider=job.ai_provider, model=job.model)
         model_was_missing = False
         if job.ai_provider == "ollama":
             try:
@@ -363,7 +388,7 @@ class JobManager:
             except Exception:  # noqa: BLE001
                 model_was_missing = True
             if model_was_missing:
-                await job.publish("model_download_started", provider="ollama", model=job.model)
+                await self._publish(job, "model_download_started", provider="ollama", model=job.model)
         script = Path(__file__).with_name("organizar_multimedia.py")
         command = [sys.executable]
         if getattr(sys, "frozen", False):
@@ -391,13 +416,13 @@ class JobManager:
                 break
             text = line.decode("utf-8", "replace").strip()
             if text:
-                await job.publish("organization_progress", message=text[:500])
+                await self._publish(job, "organization_progress", message=text[:500])
         code = await process.wait()
         if code:
             raise RuntimeError(f"La exportacion se completo, pero la organizacion con IA fallo (codigo {code}).")
         if model_was_missing:
-            await job.publish("model_download_completed", provider="ollama", model=job.model)
-        await job.publish("organization_completed", provider=job.ai_provider, model=job.model)
+            await self._publish(job, "model_download_completed", provider="ollama", model=job.model)
+        await self._publish(job, "organization_completed", provider=job.ai_provider, model=job.model)
 
     async def cancel(self, job: Job) -> None:
         if job.state in TERMINAL_STATES:
@@ -405,16 +430,11 @@ class JobManager:
         job.state = "cancelling"
         job.message = "Cancelando y cerrando Chrome..."
         job.cancel_event.set()
-        await job.publish("state_changed", state="cancelling", job=job.public())
-        await job.publish("cancellation_requested")
+        await self._publish(job, "state_changed", state="cancelling", job=job.public())
+        await self._publish(job, "cancellation_requested")
 
     def register_destination(self, path: Path) -> tuple[str, str]:
-        resolved = path.expanduser().resolve()
-        if not resolved.is_dir():
-            raise ValueError("Selecciona una carpeta existente.")
-        destination_id = secrets.token_urlsafe(24)
-        self.destinations[destination_id] = resolved
-        return destination_id, resolved.name
+        return self.destinations.register(path)
 
 
 def chrome_available() -> bool:
@@ -452,70 +472,13 @@ def choose_folder() -> Path | None:
         root.destroy()
 
 
-def create_app(*, paths: AgentPaths | None = None, config: dict[str, Any] | None = None, manager: JobManager | None = None) -> FastAPI:
-    paths = paths or AgentPaths.create()
-    config = config or load_or_create_config(paths)
-    manager = manager or JobManager(paths)
-    token = str(config["token"])
-    allowed_origins = set(config.get("allowedOrigins", []))
-    app = FastAPI(title="Instagram Exporter Local Agent", version=AGENT_VERSION, docs_url=None, redoc_url=None)
-    app.state.paths, app.state.config, app.state.manager = paths, config, manager
-
-    @app.middleware("http")
-    async def security_middleware(request: Request, call_next: Callable) -> Response:
-        origin = request.headers.get("origin")
-        if origin and origin not in allowed_origins:
-            return JSONResponse({"detail": "Origen no autorizado."}, status_code=403)
-        if request.method == "OPTIONS":
-            response = Response(status_code=204)
-        else:
-            length = request.headers.get("content-length")
-            try:
-                declared_length = int(length) if length else 0
-            except ValueError:
-                return JSONResponse({"detail": "Content-Length no valido."}, status_code=400)
-            if declared_length > 16_384:
-                return JSONResponse({"detail": "Solicitud demasiado grande."}, status_code=413)
-            if request.method in {"POST", "PUT", "PATCH"}:
-                body = await request.body()
-                if len(body) > 16_384:
-                    return JSONResponse({"detail": "Solicitud demasiado grande."}, status_code=413)
-            is_public_health = request.url.path == "/health" and request.method == "GET"
-            is_origin_pairing = (
-                request.url.path == "/pairing"
-                and request.method == "POST"
-                and origin in allowed_origins
-            )
-            if not (is_public_health or is_origin_pairing):
-                authorization = request.headers.get("authorization", "")
-                expected = f"Bearer {token}"
-                if not hmac.compare_digest(authorization.encode(), expected.encode()):
-                    return JSONResponse({"detail": "Token de emparejamiento no valido."}, status_code=401)
-            response = await call_next(request)
-        if origin in allowed_origins:
-            response.headers["Access-Control-Allow-Origin"] = origin
-            response.headers["Vary"] = "Origin"
-            response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Last-Event-ID"
-            response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-            if request.headers.get("access-control-request-private-network") == "true":
-                response.headers["Access-Control-Allow-Private-Network"] = "true"
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        return response
-
-    @app.get("/health")
-    async def health() -> dict[str, Any]:
-        chromium = await asyncio.to_thread(chromium_available)
-        return {
-            "status": "ok", "version": AGENT_VERSION,
-            "playwright": True, "chrome": chrome_available(),
-            "chromium": chromium, "ollama": ollama_available(),
-            "pairing": "automatic",
-        }
-
-    @app.post("/pairing")
-    async def pair_browser() -> dict[str, str]:
-        return {"token": token}
+def register_instagram_routes(
+    app: FastAPI,
+    *,
+    paths: AgentPaths,
+    manager: JobManager,
+) -> None:
+    """Monta la API heredada sin poseer el servidor FastAPI."""
 
     @app.post("/exports", status_code=202)
     async def create_export(body: ExportRequest) -> dict[str, Any]:
@@ -556,28 +519,14 @@ def create_app(*, paths: AgentPaths | None = None, config: dict[str, Any] | None
     @app.get("/exports/{job_id}/events")
     async def export_events(job_id: str, request: Request, last_event_id: int = 0) -> StreamingResponse:
         job = manager.get(job_id)
-
-        async def stream() -> AsyncIterator[str]:
-            queue: asyncio.Queue = asyncio.Queue(maxsize=100)
-            job.subscribers.add(queue)
-            try:
-                for event in job.events:
-                    if int(event["id"]) > last_event_id:
-                        yield f"id: {event['id']}\nevent: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-                if job.state in TERMINAL_STATES:
-                    return
-                while not await request.is_disconnected():
-                    try:
-                        event = await asyncio.wait_for(queue.get(), timeout=15)
-                        yield f"id: {event['id']}\nevent: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
-                        if event.get("type") in {"completed", "cancelled", "error"}:
-                            return
-                    except TimeoutError:
-                        yield ": heartbeat\n\n"
-            finally:
-                job.subscribers.discard(queue)
-
-        return StreamingResponse(stream(), media_type="text/event-stream", headers={"X-Accel-Buffering": "no"})
+        stream = stream_events(
+            job,
+            request,
+            last_event_id=last_event_id,
+            terminal_states=TERMINAL_STATES,
+            terminal_event_types={"completed", "cancelled", "error"},
+        )
+        return StreamingResponse(stream, media_type="text/event-stream", headers={"X-Accel-Buffering": "no"})
 
     @app.post("/destinations/select")
     async def select_destination() -> dict[str, str]:
@@ -603,48 +552,34 @@ def create_app(*, paths: AgentPaths | None = None, config: dict[str, Any] | None
             os.startfile(path)  # type: ignore[attr-defined]
         return Response(status_code=204)
 
-    return app
+
+def create_app(
+    *,
+    paths: AgentPaths | None = None,
+    config: dict[str, Any] | None = None,
+    manager: JobManager | None = None,
+    music_manager: Any | None = None,
+    model_manager: Any | None = None,
+    engine_pack_manager: Any | None = None,
+) -> FastAPI:
+    """Facade compatible; el composition root real vive en local_agent."""
+    from local_tools.local_agent.app import create_agent_app
+
+    return create_agent_app(
+        paths=paths,
+        config=config,
+        instagram_manager=manager,
+        music_manager=music_manager,
+        model_manager=model_manager,
+        engine_pack_manager=engine_pack_manager,
+    )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Agente local de Instagram Exporter")
-    parser.add_argument("--port", type=int, default=0)
-    parser.add_argument("--show-token", action="store_true")
-    parser.add_argument("--initialize", action="store_true")
-    parser.add_argument("--organize-worker", action="store_true")
-    args, worker_args = parser.parse_known_args()
-    if args.organize_worker:
-        sys.argv = ["organizar_multimedia.py", *worker_args]
-        import organizar_multimedia
-        return organizar_multimedia.main()
-    paths = AgentPaths.create()
-    config = load_or_create_config(paths)
-    if args.initialize:
-        return 0
-    if args.show_token:
-        print(config["token"])
-        return 0
-    if getattr(sys, "frozen", False) and os.name == "nt":
-        try:
-            import ctypes
-            console = ctypes.windll.kernel32.GetConsoleWindow()
-            if console:
-                ctypes.windll.user32.ShowWindow(console, 0)
-        except Exception:  # noqa: BLE001
-            pass
-    port = args.port or int(config.get("port", DEFAULT_PORT))
-    if not 1024 <= port <= 65535:
-        raise SystemExit("Puerto fuera de rango.")
-    import uvicorn
-    logging.basicConfig(
-        filename=paths.logs / "agent.log", level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s %(message)s",
-    )
-    uvicorn.run(
-        create_app(paths=paths, config=config), host="127.0.0.1", port=port,
-        log_level="info", access_log=False, log_config=None,
-    )
-    return 0
+    """Alias heredado para scripts e instalaciones anteriores."""
+    from local_tools.local_agent.main import main as local_agent_main
+
+    return local_agent_main()
 
 
 if __name__ == "__main__":

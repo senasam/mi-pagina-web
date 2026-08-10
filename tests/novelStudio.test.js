@@ -59,12 +59,18 @@ test("manuscript import previews acts, chapters, scenes and contents", () => {
 
 test("AI actions activate from valid settings without an extra checkbox", async () => {
   const source = await readFile(new URL("../src/novel-studio/NovelStudioApp.jsx", import.meta.url), "utf8");
+  const manualDialogStart = source.indexOf("function ManualChatGptDialog");
+  assert.ok(manualDialogStart > 0);
+  assert.doesNotMatch(source.slice(0, manualDialogStart), /window\.open\(/);
+  assert.match(source, /recién entonces se abrirá otra pestaña/);
   assert.doesNotMatch(source, /Habilitar botones de IA/);
   assert.doesNotMatch(source, /!aiSettings\?\.enabled/);
   assert.match(source, /puede generar costos en tu cuenta API/);
   assert.match(source, /enabled: activate/);
-  assert.match(source, /Recordar en este dispositivo/);
-  assert.match(source, /nunca se escribe en <code>preferences.json<\/code>/);
+  assert.match(source, /Credencial guardada sin cifrar/);
+  assert.match(source, /se escribirá como texto en <code>preferences.json<\/code>/);
+  assert.match(source, /se incluirá en los respaldos ZIP/);
+  assert.match(source, /AiRequestErrorDialog/);
   assert.match(source, /Momentos clave de la escena/);
   assert.match(source, /suggestWithAi\("beats"\)/);
   assert.match(source, /Generar momentos/);
@@ -176,6 +182,14 @@ test("AI actions activate from valid settings without an extra checkbox", async 
   assert.match(source, /Sus resultados se agrupan por acto y capítulo/);
   assert.match(source, /Encontrado como:/);
   assert.doesNotMatch(source, /placeholder="Beats/);
+});
+
+test("manual narrative AI waits for the explicit open ChatGPT button", async () => {
+  const source = await readFile(new URL("../src/novel-studio/narrative/DesignPage.jsx", import.meta.url), "utf8");
+  const manualDialogStart = source.indexOf("function DesignFieldManual");
+  assert.ok(manualDialogStart > 0);
+  assert.doesNotMatch(source.slice(0, manualDialogStart), /window\.open\(/);
+  assert.match(source.slice(manualDialogStart), />Abrir ChatGPT o proyecto<\/button>/);
 });
 
 test("new acts and chapters include a blank scene ready to write", () => {

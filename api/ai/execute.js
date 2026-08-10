@@ -22,7 +22,14 @@ export async function executeAiRequest({ body = {}, authorization = "", fetchImp
   if (!body.input || typeof body.input !== "object" || Array.isArray(body.input)) {
     throw new AiExecuteError("La entrada de IA no es válida.", 400, "INVALID_AI_INPUT");
   }
-  return generateSceneSuggestion({ ...body.input, model: body.model, apiKey: bearerCredential(authorization), fetchImpl });
+  return generateSceneSuggestion({
+    ...body.input,
+    model: body.model,
+    inputTokenLimit: body.inputTokenLimit,
+    outputTokenLimit: body.outputTokenLimit,
+    apiKey: bearerCredential(authorization),
+    fetchImpl,
+  });
 }
 
 export default async function handler(request, response) {

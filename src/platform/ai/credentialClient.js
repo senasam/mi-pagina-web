@@ -1,8 +1,8 @@
 import { createCredentialRef, defaultCredentialId } from "./contracts.js";
 
-// Los secretos viven exclusivamente en la memoria de esta pestaña. Esta interfaz
-// podrá reemplazarse por un almacén de usuario o del sistema operativo sin cambiar
-// las herramientas consumidoras.
+// Las herramientas consumen las credenciales desde memoria. Novel Studio puede
+// hidratar este almacén desde preferences.json cuando el usuario elige conservar
+// allí su clave, o desde el almacén cifrado heredado del navegador.
 const sessionSecrets = new Map();
 const DEVICE_DB_NAME = "fmd-ai-credentials";
 const DEVICE_DB_VERSION = 1;

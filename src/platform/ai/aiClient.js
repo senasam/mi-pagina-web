@@ -16,6 +16,8 @@ export async function executeAiTask({
   provider,
   model = "",
   credentialRef = null,
+  inputTokenLimit,
+  outputTokenLimit,
   input,
   fetchImpl = fetch,
   endpoint = "/api/ai/execute",
@@ -35,7 +37,7 @@ export async function executeAiTask({
       Authorization: `Bearer ${secret}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ toolId: cleanToolId, capability: cleanCapability, provider: cleanProvider, model, input }),
+    body: JSON.stringify({ toolId: cleanToolId, capability: cleanCapability, provider: cleanProvider, model, inputTokenLimit, outputTokenLimit, input }),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new AiClientError(payload.error || "No se pudo ejecutar la tarea de IA.", payload.code, response.status);

@@ -7,8 +7,8 @@ import TextAlign from "@tiptap/extension-text-align";
 import { TableKit } from "@tiptap/extension-table";
 import {
   Archive, ArrowDown, ArrowLeft, ArrowRight, ArrowUp, BookOpen, Bold, Box,
-  Clock3, Download, FileArchive, FilePlus2, FolderOpen, Grid2X2, Heading2,
-  Highlighter, ImagePlus, Italic, Library, List, ListOrdered, Maximize2, Menu, Minimize2, Minus, Moon, NotebookPen,
+  Clock3, Compass, Download, FileArchive, FilePlus2, FolderOpen, Grid2X2, Heading2,
+  Highlighter, ImagePlus, Italic, Library, List, ListOrdered, LoaderCircle, Maximize2, Menu, Minimize2, Minus, Moon, NotebookPen,
   PanelLeftClose, Pencil, Plus, Quote, Redo2, RotateCcw, Save, Search, Settings, Strikethrough,
   Share2, Sparkles, Sun, Trash2, UnderlineIcon, Undo2, Upload, UserRound, X,
 } from "lucide-react";
@@ -19,7 +19,7 @@ import {
 } from "./model.js";
 import { htmlToMarkdown, markdownToHtml, sanitizeRichHtml } from "./editorFormat.js";
 import { SectionNode } from "./SectionNode.js";
-import { normalizeSceneAiResult, parseSceneBeats, requestSceneSuggestion } from "./sceneAssistant.js";
+import { buildSceneDesignFieldContext, normalizeSceneAiResult, parseSceneBeats, requestSceneSuggestion } from "./sceneAssistant.js";
 import { applyDossierClassification, CHARACTER_DOSSIER_GROUPS, createDossierClassificationBatches, customDossierSections, mergeDossierDetails, parseCharacterDossier, parseCharacterDossierHtml, parseDossierClassification } from "./codexDossier.js";
 import { buildCharacterNetwork, characterNameParts, normalizeRelationship, planRelationshipUpdates, RELATIONSHIP_TYPES, relationshipStyle } from "./characterNetwork.js";
 import { buildBookPages, isBookScene } from "./bookView.js";
@@ -30,9 +30,13 @@ import {
 import { AI_PROVIDERS, AI_TOOL_IDS } from "../platform/ai/contracts.js";
 import {
   hasSessionCredential, hydrateDeviceCredential, removeDeviceCredential, removeSessionCredential,
-  resolveSessionCredential, saveDeviceCredential, saveSessionCredential, supportsDeviceCredentials,
+  resolveSessionCredential, saveSessionCredential,
 } from "../platform/ai/credentialClient.js";
 import { isProviderConfigured } from "../platform/ai/providerRegistry.js";
+import DesignPage from "./narrative/DesignPage.jsx";
+import SceneDesignEditor from "./narrative/components/SceneDesignEditor.jsx";
+import { updateSceneDesign } from "./narrative/phase3Engine.js";
+import AiRequestErrorDialog from "./AiRequestErrorDialog.jsx";
 import "./novelStudio.css";
 
 const routeParts = () => window.location.pathname.replace(/\/$/, "").split("/").filter(Boolean);
@@ -233,35 +237,63 @@ function useBackupDue() {
 
 function NovelWorkspace({ manifest, novelId, mode, readOnly, onClose }) {
   const [novel, setNovel] = useState(null); const [structure, setStructure] = useState(null); const [codex, setCodex] = useState([]);
+  const [designCodex, setDesignCodex] = useState([]);
+  const [narrative, setNarrative] = useState(null);
   const [preferences, setPreferences] = useState(null);
   const [saveState, setSaveState] = useState("idle"); const [error, setError] = useState(""); const [sidebar, setSidebar] = useState(true);
+  const narrativeRef = useRef(null);
+  const narrativeReady = useRef(false);
+  const narrativeSaveVersion = useRef(0);
   const [sceneNavigation, setSceneNavigation] = useState({ index: 0, total: 0, canGoBack: false, canGoForward: false, loading: true });
-  const reload = useCallback(async () => { try { const [n, s, c, p] = await Promise.all([repository.readNovel(novelId), repository.readStructure(novelId), repository.listCodex(novelId), repository.preferences()]); await hydrateDeviceCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: p.ai.provider, credentialRef: p.ai.credentialRef }).catch(() => ""); setNovel(n); setStructure(s); setCodex(c); setPreferences(p); setSaveState("saved"); } catch (e) { setError(e.message); } }, [novelId]);
+  const reload = useCallback(async () => { try { const [n, s, c, allCodex, p, d] = await Promise.all([repository.readNovel(novelId), repository.readStructure(novelId), repository.listCodex(novelId), repository.listCodex(novelId, { includeArchived: true }), repository.preferences(), repository.readNarrative(novelId)]); if (p.ai.provider === AI_PROVIDERS.OPENAI && p.ai.apiKey) saveSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, secret: p.ai.apiKey }); else await hydrateDeviceCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: p.ai.provider, credentialRef: p.ai.credentialRef }).catch(() => ""); setNovel(n); setStructure(s); setCodex(c); setDesignCodex(allCodex); setPreferences(p); narrativeReady.current = false; narrativeRef.current = d; setNarrative(d); setSaveState("saved"); } catch (e) { setError(e.message); } }, [novelId]);
   useEffect(() => { reload(); }, [reload]);
+  useEffect(() => { setDesignCodex((current) => [...current.filter((entry) => entry.archived && !codex.some((active) => active.id === entry.id)), ...codex].sort((a, b) => a.name.localeCompare(b.name, "es"))); }, [codex]);
+  useEffect(() => {
+    if (!narrative) return;
+    narrativeRef.current = narrative;
+    if (!narrativeReady.current) { narrativeReady.current = true; return; }
+    if (readOnly) return;
+    const version = ++narrativeSaveVersion.current;
+    setSaveState("saving");
+    repository.saveNarrative(novelId, narrative)
+      .then(() => { if (version === narrativeSaveVersion.current) setSaveState("saved"); })
+      .catch(() => { if (version === narrativeSaveVersion.current) setSaveState("error"); });
+  }, [narrative, novelId, readOnly]);
   useEffect(() => {
     const updateSceneNavigation = (event) => setSceneNavigation(event.detail);
     addEventListener(SCENE_NAVIGATION_STATE_EVENT, updateSceneNavigation);
     return () => removeEventListener(SCENE_NAVIGATION_STATE_EVENT, updateSceneNavigation);
   }, []);
   const forceSave = async () => {
-    if (readOnly || saveState === "saving") return;
+    if (readOnly) return;
     setSaveState("saving");
     try {
       const tasks = [];
       dispatchEvent(new CustomEvent(FORCE_SAVE_EVENT, { detail: { tasks } }));
+      if (narrativeRef.current) tasks.push(repository.saveNarrative(novelId, narrativeRef.current));
       const results = await Promise.all(tasks);
       await repository.flush();
       setSaveState(results.includes(false) ? "error" : "saved");
     } catch { setSaveState("error"); }
   };
+  const persistNarrative = useCallback((value) => {
+    if (readOnly) return;
+    setNarrative((current) => {
+      const next = typeof value === "function" ? value(current) : value;
+      if (!next) return current;
+      narrativeRef.current = next;
+      return next;
+    });
+  }, [readOnly]);
   if (error) return <div className="studio-app"><WorkspaceHeader manifest={manifest} saveState="error" readOnly={readOnly} onClose={onClose} /><main className="studio-fatal"><h1>No se pudo abrir la novela</h1><p>{error}</p><a className="studio-button" href="/estudio-novela">Volver a la biblioteca</a></main></div>;
-  if (!novel || !structure || !preferences) return <StudioLoading />;
-  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "libro", label: "Libro", icon: BookOpen }, { id: "codex", label: "Codex", icon: Box }, { id: "relaciones", label: "Relaciones", icon: Share2 }, { id: "configuracion", label: "Configuración", icon: Settings }];
+  if (!novel || !structure || !preferences || !narrative) return <StudioLoading />;
+  const modes = [{ id: "plan", label: "Plan", icon: Grid2X2 }, { id: "diseno", label: "Diseño", icon: Compass }, { id: "escribir", label: "Escribir", icon: NotebookPen }, { id: "libro", label: "Libro", icon: BookOpen }, { id: "codex", label: "Codex", icon: Box }, { id: "relaciones", label: "Relaciones", icon: Share2 }, { id: "configuracion", label: "Configuración", icon: Settings }];
   const sidebarToggle = <button className="studio-icon-button studio-sidebar-toggle" title="Mostrar u ocultar menú" aria-label="Mostrar u ocultar menú" onClick={() => setSidebar((value) => !value)}>{sidebar ? <PanelLeftClose size={18} /> : <Menu size={18} />}</button>;
-  return <div className={`studio-app studio-workspace ${sidebar ? "" : "sidebar-closed"}`}><WorkspaceHeader manifest={manifest} saveState={saveState} readOnly={readOnly} onClose={onClose} navigation={sidebarToggle}>{mode === "escribir" && <div className="studio-header-scene-navigation"><button type="button" className="studio-icon-button" disabled={sceneNavigation.loading || !sceneNavigation.canGoBack} title="Escena anterior" aria-label="Ir a la escena anterior" onClick={() => dispatchEvent(new CustomEvent(PREVIOUS_SCENE_EVENT))}><ArrowLeft size={17} /></button><span>{sceneNavigation.index} de {sceneNavigation.total}</span><button type="button" className="studio-icon-button" disabled={sceneNavigation.loading || !sceneNavigation.canGoForward} title="Escena siguiente" aria-label="Ir a la escena siguiente" onClick={() => dispatchEvent(new CustomEvent(NEXT_SCENE_EVENT))}><ArrowRight size={17} /></button></div>}{mode === "escribir" && <button type="button" className="studio-header-history-button" title="Ver historial de la escena" onClick={() => dispatchEvent(new CustomEvent(TOGGLE_HISTORY_EVENT))}><Clock3 size={16} /><span>Historial</span></button>}<button type="button" className="studio-header-save-button" title="Guardar los cambios pendientes" disabled={readOnly || saveState === "saving"} onClick={forceSave}><Save size={16} /><span>Guardar</span></button></WorkspaceHeader><aside className="studio-sidebar"><a className="studio-sidebar__back" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")}><ArrowLeft size={16} /> Biblioteca</a><div className="studio-sidebar__novel"><BookOpen size={19} /><div><strong>{novel.title}</strong><small>{countNovelWords(structure).toLocaleString("es")} palabras registradas</small></div></div><nav>{modes.map(({ id, label, icon: Icon }) => <a className={mode === id ? "active" : ""} href={studioHref(novelId, id)} onClick={(event) => handleStudioLink(event, studioHref(novelId, id))} key={id}><Icon size={18} />{label}</a>)}</nav></aside><main className="studio-main">
+  return <div className={`studio-app studio-workspace ${sidebar ? "" : "sidebar-closed"}`}><WorkspaceHeader manifest={manifest} saveState={saveState} readOnly={readOnly} onClose={onClose} navigation={sidebarToggle}>{mode === "escribir" && <div className="studio-header-scene-navigation"><button type="button" className="studio-icon-button" disabled={sceneNavigation.loading || !sceneNavigation.canGoBack} title="Escena anterior" aria-label="Ir a la escena anterior" onClick={() => dispatchEvent(new CustomEvent(PREVIOUS_SCENE_EVENT))}><ArrowLeft size={17} /></button><span>{sceneNavigation.index} de {sceneNavigation.total}</span><button type="button" className="studio-icon-button" disabled={sceneNavigation.loading || !sceneNavigation.canGoForward} title="Escena siguiente" aria-label="Ir a la escena siguiente" onClick={() => dispatchEvent(new CustomEvent(NEXT_SCENE_EVENT))}><ArrowRight size={17} /></button></div>}{mode === "escribir" && <button type="button" className="studio-header-history-button" title="Ver historial de la escena" onClick={() => dispatchEvent(new CustomEvent(TOGGLE_HISTORY_EVENT))}><Clock3 size={16} /><span>Historial</span></button>}<button type="button" className="studio-header-save-button" title="Guardar ahora todos los cambios, incluido el diseño narrativo" disabled={readOnly} onClick={forceSave}><Save size={16} /><span>Guardar</span></button></WorkspaceHeader><aside className="studio-sidebar"><a className="studio-sidebar__back" href="/estudio-novela" onClick={(event) => handleStudioLink(event, "/estudio-novela")}><ArrowLeft size={16} /> Biblioteca</a><div className="studio-sidebar__novel"><BookOpen size={19} /><div><strong>{novel.title}</strong><small>{countNovelWords(structure).toLocaleString("es")} palabras registradas</small></div></div><nav>{modes.map(({ id, label, icon: Icon }) => <a className={mode === id ? "active" : ""} href={studioHref(novelId, id)} onClick={(event) => handleStudioLink(event, studioHref(novelId, id))} key={id}><Icon size={18} />{label}</a>)}</nav></aside><main className="studio-main">
     {readOnly && <div className="studio-notice"><strong>Solo lectura:</strong> cierra la otra pestaña del estudio para editar.</div>}
-    {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
-    {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
+    {mode === "plan" && <PlanPage novel={novel} structure={structure} setStructure={setStructure} codex={codex} narrative={narrative} setNarrative={persistNarrative} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
+    {mode === "diseno" && <DesignPage novel={novel} structure={structure} codex={designCodex} narrative={narrative} setNarrative={persistNarrative} aiSettings={preferences.ai} readOnly={readOnly} />}
+    {mode === "escribir" && <WritePage novel={novel} structure={structure} setStructure={setStructure} codex={codex} narrative={narrative} setNarrative={persistNarrative} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "libro" && <BookPage novel={novel} structure={structure} />}
     {mode === "codex" && <CharactersPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
     {mode === "relaciones" && <CharacterNetworkPage novel={novel} structure={structure} entries={codex} setEntries={setCodex} aiSettings={preferences.ai} readOnly={readOnly} setSaveState={setSaveState} />}
@@ -282,14 +314,14 @@ function characterChipLabel(entry) {
   return String(firstName || entry?.name || "Personaje").trim().split(/\s+/)[0] || "Personaje";
 }
 
-function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly, setSaveState }) {
+function PlanPage({ novel, structure, setStructure, codex, narrative, setNarrative, aiSettings, readOnly, setSaveState }) {
   const [view, setView] = useState("grid"); const [query, setQuery] = useState(""); const [outline, setOutline] = useState(""); const [showArchived, setShowArchived] = useState(false);
   const [statusFilter, setStatusFilter] = useState(""); const [povFilter, setPovFilter] = useState(""); const [codexFilter, setCodexFilter] = useState("");
   const [showOutline, setShowOutline] = useState(false); const [importPreview, setImportPreview] = useState(null); const [notice, setNotice] = useState("");
   const [chapterAi, setChapterAi] = useState({ busy: "", proposal: null, manual: null, error: "" });
   const [sceneAi, setSceneAi] = useState({ busy: "", proposal: null, manual: null, error: "", sceneId: "" });
   const [sceneProse, setSceneProse] = useState({});
-  const [focusStoryId, setFocusStoryId] = useState("");
+  const [focusStoryId, setFocusStoryId] = useState(() => new URLSearchParams(location.search).get("story") || "");
   const [collapsedActs, setCollapsedActs] = useState(() => new Set());
   const [collapsedChapters, setCollapsedChapters] = useState(() => new Set());
   const openAiConfirmedRef = useRef(false);
@@ -377,7 +409,6 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
       try {
         const prompt = buildChatGptManualPrompt("summary", prose, scene);
         const url = normalizeChatGptUrl(aiSettings.manualUrl);
-        window.open(url, "_blank", "noopener,noreferrer"); navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setSceneAi({ busy: "", proposal: null, error: "", sceneId: scene.id, manual: { task: "summary", sceneId: scene.id, prompt, url } });
       } catch (error) { setSceneAi({ busy: "", proposal: null, manual: null, error: error.message, sceneId: scene.id }); }
       return;
@@ -409,8 +440,6 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
       try {
         const prompt = buildChatGptManualPrompt("chapter-title", prose, metadata);
         const url = normalizeChatGptUrl(aiSettings.manualUrl);
-        window.open(url, "_blank", "noopener,noreferrer");
-        navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setChapterAi({ busy: "", proposal: null, error: "", manual: { task: "chapter-title", chapterId: chapter.id, prompt, url } });
       } catch (error) { setChapterAi({ busy: "", proposal: null, manual: null, error: error.message }); }
       return;
@@ -443,20 +472,21 @@ function PlanPage({ novel, structure, setStructure, codex, aiSettings, readOnly,
         <header><div className="studio-story-heading"><button type="button" className="studio-collapse-button" title={actCollapsed ? "Expandir acto" : "Contraer acto"} aria-label={actCollapsed ? "Expandir acto" : "Contraer acto"} aria-expanded={!actCollapsed} onClick={() => toggleCollapsed(setCollapsedActs, act.id)}>{actCollapsed ? <ArrowRight size={15} /> : <ArrowDown size={15} />}</button><button type="button" className="studio-drag-handle" draggable={!readOnly} disabled={readOnly} title="Arrastrar acto para reordenar" aria-label={`Mover acto ${actIndex + 1}`} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/x-studio-act", act.id); }}><Menu size={15} /></button><span className="studio-story-order">Acto {actIndex + 1}</span><input aria-label="Título del acto" value={act.title} disabled={readOnly} onChange={(e) => { const next = structuredClone(structure); next.acts.find((item) => item.id === act.id).title = e.target.value; persist(next); }} /></div><div className="studio-heading-actions"><button disabled={readOnly} onClick={() => setArchived("act", act.id, true)} title="Archivar acto"><Archive size={15} /></button><button disabled={readOnly} onClick={() => addChapter(act.id)}><Plus size={15} /> Capítulo</button></div></header>
         {!actCollapsed && <div className="studio-chapters" onDragOver={(event) => { if (event.dataTransfer.types.includes("text/x-studio-chapter")) event.preventDefault(); }} onDrop={(event) => { const draggedChapter = event.dataTransfer.getData("text/x-studio-chapter"); if (draggedChapter) { event.preventDefault(); event.stopPropagation(); moveChapterTo(draggedChapter, act.id); } }}>{activeChapters.map((chapter, chapterIndex) => { const chapterCollapsed = collapsedChapters.has(chapter.id); return <section className={`studio-chapter ${chapterCollapsed ? "is-collapsed" : ""}`} id={`story-${chapter.id}`} key={chapter.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const draggedChapter = event.dataTransfer.getData("text/x-studio-chapter"); const draggedScene = event.dataTransfer.getData("text/x-studio-scene"); if (!draggedChapter && !draggedScene) return; event.preventDefault(); event.stopPropagation(); if (draggedChapter) moveChapterTo(draggedChapter, act.id, chapter.id); else moveSceneTo(draggedScene, chapter.id); }}>
           <header><div className="studio-story-heading"><button type="button" className="studio-collapse-button" title={chapterCollapsed ? "Expandir capítulo" : "Contraer capítulo"} aria-label={chapterCollapsed ? "Expandir capítulo" : "Contraer capítulo"} aria-expanded={!chapterCollapsed} onClick={() => toggleCollapsed(setCollapsedChapters, chapter.id)}>{chapterCollapsed ? <ArrowRight size={14} /> : <ArrowDown size={14} />}</button><button type="button" className="studio-drag-handle" draggable={!readOnly} disabled={readOnly} title="Arrastrar capítulo para reordenar" aria-label={`Mover capítulo ${chapterIndex + 1}`} onDragStart={(event) => { event.stopPropagation(); event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/x-studio-chapter", chapter.id); }}><Menu size={14} /></button><span className="studio-story-order">Cap. {chapterIndex + 1}</span><input aria-label="Título del capítulo" value={chapter.title} disabled={readOnly} onChange={(e) => { const next = structuredClone(structure); next.acts.flatMap((item) => item.chapters).find((item) => item.id === chapter.id).title = e.target.value; persist(next); }} /></div><div className="studio-heading-actions"><button disabled={readOnly || !aiConfigured || Boolean(chapterAi.busy)} onClick={() => suggestChapterTitle(act, chapter)} title={aiConfigured ? "Sugerir nombre con IA" : "Configura la IA para sugerir un nombre"}><Sparkles size={14} />{chapterAi.busy === chapter.id ? "Pensando…" : "Nombrar"}</button><button disabled={readOnly} onClick={() => setArchived("chapter", chapter.id, true)} title="Archivar capítulo"><Archive size={14} /></button><button disabled={readOnly} onClick={() => addSceneTo(chapter.id)}><Plus size={14} /> Escena</button></div></header>
-          {!chapterCollapsed && <div className="studio-scenes">{chapter.sceneIds.map((sceneId, index) => { const scene = structure.scenes[sceneId]; if (!scene || scene.archived || !scenes.some((item) => item.scene.id === sceneId)) return null; return <PlanSceneCard key={sceneId} novelId={novel.id} scene={scene} index={index} total={chapter.sceneIds.length} chapter={chapter} view={view} prose={sceneProse[sceneId] || ""} codex={codex} readOnly={readOnly} aiConfigured={aiConfigured} aiBusy={sceneAi.busy === sceneId} aiError={sceneAi.sceneId === sceneId ? sceneAi.error : ""} chapterOptions={chapterOptions} onChange={changeScene} onSuggestSummary={suggestSceneSummary} onMove={moveScene} onMoveTo={moveSceneTo} onArchive={(id) => setArchived("scene", id, true)} />; })}</div>}
+          {!chapterCollapsed && <div className="studio-scenes">{chapter.sceneIds.map((sceneId, index) => { const scene = structure.scenes[sceneId]; if (!scene || scene.archived || !scenes.some((item) => item.scene.id === sceneId)) return null; return <PlanSceneCard key={sceneId} novelId={novel.id} scene={scene} index={index} total={chapter.sceneIds.length} chapter={chapter} view={view} prose={sceneProse[sceneId] || ""} codex={codex} narrative={narrative} setNarrative={setNarrative} readOnly={readOnly} aiConfigured={aiConfigured} aiBusy={sceneAi.busy === sceneId} aiError="" chapterOptions={chapterOptions} onChange={changeScene} onSuggestSummary={suggestSceneSummary} onMove={moveScene} onMoveTo={moveSceneTo} onArchive={(id) => setArchived("scene", id, true)} />; })}</div>}
         </section>; })}</div>}
       </section>; })}
     </div>}
     {showArchived && <section className="studio-panel"><h2>Archivo</h2><p>Restaura un elemento o elimínalo definitivamente. Al eliminar un acto o capítulo también se eliminan todas las escenas que contiene.</p>{archivedItems.length ? <div className="studio-archive-list">{archivedItems.map((item) => <div key={`${item.kind}:${item.id}`}><span><strong>{item.title}</strong><small>{item.kind === "act" ? "Acto" : item.kind === "chapter" ? "Capítulo" : "Escena"} · {item.detail}</small></span><div className="studio-row"><button className="studio-button studio-button--secondary" disabled={readOnly} onClick={() => setArchived(item.kind, item.id, false)}><RotateCcw size={15} /> Restaurar</button><button className="studio-button studio-button--danger" disabled={readOnly} onClick={() => deleteArchived(item.kind, item.id, item.title)}><Trash2 size={15} /> Eliminar</button></div></div>)}</div> : <p>No hay actos, capítulos ni escenas archivados.</p>}</section>}
     {sceneAi.proposal && <AiSuggestionDialog proposal={sceneAi.proposal} currentValue={sceneAi.proposal.currentValue} onApply={() => applySceneSummary(sceneAi.proposal.sceneId, sceneAi.proposal.value)} onCancel={() => setSceneAi({ busy: "", proposal: null, manual: null, error: "", sceneId: "" })} />}
     {sceneAi.manual && <ManualChatGptDialog request={sceneAi.manual} onApply={(value) => applySceneSummary(sceneAi.manual.sceneId, value)} onCancel={() => setSceneAi({ busy: "", proposal: null, manual: null, error: "", sceneId: "" })} />}
-    {chapterAi.error && <p className="studio-ai-error" role="alert">{chapterAi.error}</p>}
+    {sceneAi.error && <AiRequestErrorDialog message={sceneAi.error} onClose={() => setSceneAi({ busy: "", proposal: null, manual: null, error: "", sceneId: "" })} />}
+    {chapterAi.error && <AiRequestErrorDialog message={chapterAi.error} onClose={() => setChapterAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {chapterAi.proposal && <AiSuggestionDialog proposal={chapterAi.proposal} currentValue={chapterAi.proposal.currentValue} onApply={() => applyChapterTitle(chapterAi.proposal.chapterId, chapterAi.proposal.value)} onCancel={() => setChapterAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {chapterAi.manual && <ManualChatGptDialog request={chapterAi.manual} onApply={(value) => applyChapterTitle(chapterAi.manual.chapterId, value)} onCancel={() => setChapterAi({ busy: "", proposal: null, manual: null, error: "" })} />}
   </section>;
 }
 
-function PlanSceneCard({ novelId, scene, index, total, chapter, view, prose, codex, readOnly, aiConfigured, aiBusy, aiError, chapterOptions, onChange, onSuggestSummary, onMove, onMoveTo, onArchive }) {
+function PlanSceneCard({ novelId, scene, index, total, chapter, view, prose, codex, narrative, setNarrative, readOnly, aiConfigured, aiBusy, aiError, chapterOptions, onChange, onSuggestSummary, onMove, onMoveTo, onArchive }) {
   const participants = codex.filter((entry) => entry.type === "character" && (scene.participantIds || []).includes(entry.id));
   const summaryPlaceholder = proseExcerpt(prose);
   return <article className="studio-scene-card" draggable={!readOnly} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; event.dataTransfer.setData("text/x-studio-scene", scene.id); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); const dragged = event.dataTransfer.getData("text/x-studio-scene"); if (dragged && dragged !== scene.id) onMoveTo(dragged, chapter.id, index); }}>
@@ -465,6 +495,7 @@ function PlanSceneCard({ novelId, scene, index, total, chapter, view, prose, cod
     {aiError && <p className="studio-scene-card__error" role="alert">{aiError}</p>}
     {participants.length > 0 && <div className="studio-plan-participants" aria-label="Personajes confirmados">{participants.map((character) => <span title={character.name} key={character.id}><UserRound size={13} />{characterChipLabel(character)}</span>)}</div>}
     <label className="studio-move-select">Mover a<select aria-label={`Mover escena ${index + 1} a otro capítulo`} value={chapter.id} disabled={readOnly} onChange={(event) => onMoveTo(scene.id, event.target.value)}>{chapterOptions.map((option) => <option value={option.id} key={option.id}>{option.label}</option>)}</select></label>
+    <SceneDesignEditor scene={scene} codex={codex} narrative={narrative} setNarrative={setNarrative} readOnly={readOnly} compact />
     <footer><span className="studio-tag">{scene.status}</span><span>{scene.wordCount || 0} palabras</span><button className="studio-inline-action" disabled={readOnly} onClick={() => onArchive(scene.id)} title="Archivar escena"><Archive size={14} /></button><a className="studio-edit-link" href={`${studioHref(novelId, "escribir")}?scene=${scene.id}`} aria-label={`Editar escena ${index + 1}`} title="Editar escena"><Pencil size={15} /></a></footer>
   </article>;
 }
@@ -478,7 +509,7 @@ function ImportPreview({ preview, readOnly, onCancel, onConfirm }) {
   return <div className="studio-panel studio-import-preview"><div><p className="studio-kicker">Previsualización</p><h2>{preview.fileName}</h2></div><div className="studio-stat-row"><span><strong>{preview.counts.acts}</strong> actos</span><span><strong>{preview.counts.chapters}</strong> capítulos</span><span><strong>{preview.counts.scenes}</strong> escenas</span><span><strong>{preview.counts.words}</strong> palabras</span></div>{preview.warnings?.length > 0 && <details><summary>Advertencias del documento</summary><ul>{preview.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></details>}<p>La importación reemplazará la estructura actual después de crear un respaldo ZIP.</p><div className="studio-row"><button className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button className="studio-button" disabled={readOnly} onClick={onConfirm}>Confirmar importación</button></div></div>;
 }
 
-function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly, setSaveState }) {
+function WritePage({ novel, structure, setStructure, codex, narrative, setNarrative, aiSettings, readOnly, setSaveState }) {
   const available = flattenScenes(structure); const requested = new URLSearchParams(location.search).get("scene");
   const [sceneId, setSceneId] = useState(requested && structure.scenes[requested] ? requested : available[0]?.scene.id);
   const [metadata, setMetadata] = useState(null); const [prose, setProse] = useState(""); const [dirty, setDirty] = useState(false);
@@ -629,8 +660,6 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
       try {
         const prompt = buildChatGptManualPrompt(task, prose, metadata);
         const url = normalizeChatGptUrl(aiSettings.manualUrl);
-        window.open(url, "_blank", "noopener,noreferrer");
-        navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setAiState({ busy: "", proposal: null, error: "", manual: { task, prompt, url } });
       } catch (error) { setAiState({ busy: "", proposal: null, error: error.message }); }
       return;
@@ -644,6 +673,43 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
     } catch (error) { if (requestId === aiRequestRef.current) setAiState({ busy: "", proposal: null, error: error.message }); }
   };
   const aiConfigured = isProviderConfigured({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, settings: aiSettings });
+  const suggestDesignField = async (target, targetLabel, fieldInstruction) => {
+    if (readOnly || !aiConfigured || aiState.busy) return;
+    const design = narrative?.sceneDesigns?.[metadata.id];
+    if (!design) return;
+    if (aiSettings?.provider === "openai" && !openAiConfirmedRef.current) {
+      const accepted = confirm("Esta acción enviará a OpenAI la prosa, el resumen, los momentos clave, el diseño narrativo y las descripciones de los personajes participantes, y puede generar costos en tu cuenta API. ¿Quieres continuar?");
+      if (!accepted) return;
+      openAiConfirmedRef.current = true;
+    }
+    const participantIds = new Set([...(metadata.participantIds || []), metadata.povId].filter(Boolean));
+    const participants = codex
+      .filter((entry) => entry.type === "character" && participantIds.has(entry.id))
+      .map((entry) => ({ name: entry.name, description: entry.description }));
+    const designContext = buildSceneDesignFieldContext({
+      targetLabel,
+      instruction: fieldInstruction,
+      currentValue: design[target],
+      design,
+      metadata,
+      prose,
+      participants,
+    });
+    const requestMetadata = { title: metadata.title || `Escena ${sceneNumber}`, summary: metadata.summary || "", beats: metadata.beats || [] };
+    if (aiSettings?.provider === "chatgpt-manual") {
+      try {
+        const prompt = buildChatGptManualPrompt("scene-design-field", designContext, requestMetadata);
+        const url = normalizeChatGptUrl(aiSettings.manualUrl);
+        setAiState({ busy: "", proposal: null, error: "", manual: { task: "scene-design-field", target, targetLabel, prompt, url } });
+      } catch (error) { setAiState({ busy: "", proposal: null, error: error.message }); }
+      return;
+    }
+    setAiState({ busy: target, proposal: null, error: "" });
+    try {
+      const value = await requestSceneSuggestion({ task: "scene-design-field", prose: designContext, metadata: requestMetadata, settings: aiSettings });
+      setAiState({ busy: "", manual: null, error: "", proposal: { task: "scene-design-field", target, targetLabel, value } });
+    } catch (error) { setAiState({ busy: "", proposal: null, error: error.message }); }
+  };
   const aiHint = !aiConfigured
     ? <><a href={studioHref(novel.id, "configuracion")}>Configura la IA</a> para habilitar estas sugerencias.</>
     : aiSettings.provider === "ollama"
@@ -654,7 +720,8 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
   const applyAiProposal = () => {
     const proposal = aiState.proposal;
     if (!proposal) return;
-    updateMeta(proposal.task === "title" ? { title: proposal.value } : proposal.task === "beats" ? { beats: parseSceneBeats(proposal.value) } : { summary: normalizeSceneAiResult("summary", proposal.value) });
+    if (proposal.task === "scene-design-field") setNarrative(updateSceneDesign(narrative, metadata.id, { [proposal.target]: proposal.value.trim() }));
+    else updateMeta(proposal.task === "title" ? { title: proposal.value } : proposal.task === "beats" ? { beats: parseSceneBeats(proposal.value) } : { summary: normalizeSceneAiResult("summary", proposal.value) });
     setAiState({ busy: "", proposal: null, error: "" });
   };
   if (!metadata) return <div className="studio-empty"><NotebookPen size={30} /><h2>No hay escenas activas</h2><p>Crea una escena desde Plan.</p></div>;
@@ -674,10 +741,11 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
       <div className={`studio-editor-column ${loadingScene || sceneLoadError ? "is-loading" : ""}`} aria-busy={loadingScene}>
         {(loadingScene || sceneLoadError) && <div className="studio-scene-loading" role={sceneLoadError ? "alert" : "status"}>{loadingScene && <span className="studio-loading-spinner" />}{sceneLoadError || "Cargando escena…"}</div>}
         <div className="studio-scene-meta">
-          <div className="studio-ai-field studio-ai-field--summary"><textarea aria-label="Resumen" rows="3" placeholder="Resumen" value={metadata.summary} disabled={readOnly} onChange={(e) => updateMeta({ summary: e.target.value })} /><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} onClick={() => suggestWithAi("summary")}><Sparkles size={15} /> {aiState.busy === "summary" ? "Resumiendo…" : "Generar resumen"}</button></div>
-          <div className="studio-scene-beats"><label htmlFor="scene-beats">Momentos clave de la escena <small>(opcional)</small></label><div className="studio-ai-field"><input id="scene-beats" aria-label="Momentos clave de la escena" aria-describedby="scene-beats-help" placeholder="Ejemplo: encuentra una carta; reconoce la firma; decide esconderla" value={(metadata.beats || []).join("; ")} disabled={readOnly} onChange={(e) => updateMeta({ beats: e.target.value.split(";").map((x) => x.trim()).filter(Boolean) })} /><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} onClick={() => suggestWithAi("beats")}><Sparkles size={15} /> {aiState.busy === "beats" ? "Extrayendo…" : "Generar momentos"}</button></div><small id="scene-beats-help">Anota brevemente qué ocurre, separado por punto y coma. Sirve como guía y no aparece en el manuscrito final.</small></div>
-          {aiState.error && <p className="studio-ai-error" role="alert">{aiState.error}</p>}<small className="studio-ai-hint">{aiHint}</small>
+          <div className="studio-ai-field studio-ai-field--summary"><textarea aria-label="Resumen" rows="3" placeholder="Resumen" value={metadata.summary} disabled={readOnly} onChange={(e) => updateMeta({ summary: e.target.value })} /><button type="button" className="studio-ai-button studio-ai-button--icon" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} title={!aiConfigured ? "Configura la IA para generar el resumen" : !prose.trim() ? "Escribe primero la escena" : aiState.busy === "summary" ? "Generando resumen…" : "Generar resumen con IA"} aria-label={aiState.busy === "summary" ? "Generando resumen con IA" : "Generar resumen con IA"} onClick={() => suggestWithAi("summary")}>{aiState.busy === "summary" ? <LoaderCircle className="studio-spin" size={15} /> : <Sparkles size={15} />}</button></div>
+          <div className="studio-scene-beats"><label htmlFor="scene-beats">Momentos clave de la escena <small>(opcional)</small></label><div className="studio-ai-field"><input id="scene-beats" aria-label="Momentos clave de la escena" aria-describedby="scene-beats-help" placeholder="Ejemplo: encuentra una carta; reconoce la firma; decide esconderla" value={(metadata.beats || []).join("; ")} disabled={readOnly} onChange={(e) => updateMeta({ beats: e.target.value.split(";").map((x) => x.trim()).filter(Boolean) })} /><button type="button" className="studio-ai-button studio-ai-button--icon" disabled={readOnly || !aiConfigured || !prose.trim() || Boolean(aiState.busy)} title={!aiConfigured ? "Configura la IA para generar momentos" : !prose.trim() ? "Escribe primero la escena" : aiState.busy === "beats" ? "Generando momentos…" : "Generar momentos con IA"} aria-label={aiState.busy === "beats" ? "Generando momentos con IA" : "Generar momentos con IA"} onClick={() => suggestWithAi("beats")}>{aiState.busy === "beats" ? <LoaderCircle className="studio-spin" size={15} /> : <Sparkles size={15} />}</button></div><small id="scene-beats-help">Anota brevemente qué ocurre, separado por punto y coma. Sirve como guía y no aparece en el manuscrito final.</small></div>
+          <small className="studio-ai-hint">{aiHint}</small>
         </div>
+        <SceneDesignEditor scene={metadata} codex={codex} narrative={narrative} setNarrative={setNarrative} readOnly={readOnly} compact aiConfigured={aiConfigured} aiBusy={aiState.busy} onSuggestField={suggestDesignField} />
         <RichEditor sceneId={sceneId} value={prose} readOnly={readOnly} onChange={updateProse} />
         <section className="studio-scene-images">
           <div className="studio-panel-heading"><div><h2>Imágenes de la escena</h2><p>Aparecerán en este orden dentro de la vista Libro.</p></div><label className="studio-button studio-button--secondary"><ImagePlus size={17} /> Añadir imagen<input hidden type="file" accept="image/*" disabled={readOnly} onChange={async (event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; setMediaError(""); try { const image = await repository.saveImageAsset(novel.id, "scene", file); updateMeta({ images: [...(metadata.images || []), image] }); } catch (error) { setMediaError(error.message); } }} /></label></div>
@@ -688,8 +756,9 @@ function WritePage({ novel, structure, setStructure, codex, aiSettings, readOnly
       {showHistory && <HistoryPanel revisions={revisions} onClose={() => setShowHistory(false)} onRestore={async (revision) => { if (!confirm("¿Restaurar esta revisión? La versión actual también quedará guardada.")) return; await repository.restoreRevision(novel.id, revision); await load(sceneId); setShowHistory(false); }} />}
     </div>
     {conflict && <ConflictDialog conflict={conflict} onResolve={async (resolution) => { const result = await repository.resolveConflict(novel.id, metadata, prose, resolution, conflict); setConflict(null); if (resolution === "disk") { setMetadata(result.metadata); setProse(result.prose); } else setMetadata(result.metadata); setDirty(false); setSaveState("saved"); }} onEmergency={() => downloadText(prose, `${metadata.title || "escena"}-emergencia.md`)} />}
-    {aiState.proposal && <AiSuggestionDialog proposal={aiState.proposal} currentValue={aiState.proposal.task === "title" ? metadata.title : aiState.proposal.task === "beats" ? (metadata.beats || []).join("; ") : metadata.summary} onApply={applyAiProposal} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} />}
-    {aiState.manual && <ManualChatGptDialog request={aiState.manual} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} onApply={(value) => { updateMeta(aiState.manual.task === "title" ? { title: value } : aiState.manual.task === "beats" ? { beats: parseSceneBeats(value) } : { summary: normalizeSceneAiResult("summary", value) }); setAiState({ busy: "", proposal: null, error: "" }); }} />}
+    {aiState.proposal && <AiSuggestionDialog proposal={aiState.proposal} currentValue={aiState.proposal.task === "scene-design-field" ? narrative?.sceneDesigns?.[metadata.id]?.[aiState.proposal.target] : aiState.proposal.task === "title" ? metadata.title : aiState.proposal.task === "beats" ? (metadata.beats || []).join("; ") : metadata.summary} onApply={applyAiProposal} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} />}
+    {aiState.manual && <ManualChatGptDialog request={aiState.manual} onCancel={() => setAiState({ busy: "", proposal: null, error: "" })} onApply={(value) => { if (aiState.manual.task === "scene-design-field") setNarrative(updateSceneDesign(narrative, metadata.id, { [aiState.manual.target]: value.trim() })); else updateMeta(aiState.manual.task === "title" ? { title: value } : aiState.manual.task === "beats" ? { beats: parseSceneBeats(value) } : { summary: normalizeSceneAiResult("summary", value) }); setAiState({ busy: "", proposal: null, error: "" }); }} />}
+    {aiState.error && <AiRequestErrorDialog message={aiState.error} onClose={() => setAiState({ busy: "", proposal: null, manual: null, error: "" })} />}
   </section>;
 }
 
@@ -727,7 +796,8 @@ function AiSuggestionDialog({ proposal, currentValue, onApply, onCancel }) {
   const isCodexField = proposal.task === "codex-field";
   const isName = proposal.task === "codex-name";
   const isBeats = proposal.task === "beats";
-  const title = isName ? "Nombre y apellido propuestos" : isCategories ? "Categorías propuestas" : isCodexField ? `${proposal.target || "Contenido"} propuesto` : isTitle ? "Título propuesto" : isBeats ? "Momentos clave propuestos" : "Resumen propuesto";
+  const isSceneDesignField = proposal.task === "scene-design-field";
+  const title = isSceneDesignField ? `${proposal.targetLabel || "Campo OOTGR"} propuesto` : isName ? "Nombre y apellido propuestos" : isCategories ? "Categorías propuestas" : isCodexField ? `${proposal.target || "Contenido"} propuesto` : isTitle ? "Título propuesto" : isBeats ? "Momentos clave propuestos" : "Resumen propuesto";
   return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="ai-suggestion-title"><div className="studio-modal__card studio-ai-dialog"><p className="studio-kicker"><Sparkles size={15} /> Sugerencia de IA</p><h2 id="ai-suggestion-title">{title}</h2><p className="studio-ai-privacy">Revisa el resultado antes de aplicarlo. Nada cambiará si cancelas.</p>{currentValue && <div className="studio-ai-comparison"><small>Actual</small><p>{currentValue}</p></div>}<div className="studio-ai-comparison is-proposal"><small>Propuesta</small><p>{proposal.value}</p></div><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" onClick={onApply}><Sparkles size={16} /> Aplicar sugerencia</button></div></div></div>;
 }
 
@@ -743,8 +813,9 @@ function ManualChatGptDialog({ request, onApply, onCancel }) {
   const isCodexField = request.task === "codex-field";
   const isImportClassification = request.task === "codex-import-classification";
   const isStructuredCodex = request.task === "codex-name" || request.task === "codex-relationship";
-  const resultLabel = isImportClassification ? "Clasificación JSON devuelta" : isStructuredCodex ? "Resultado JSON devuelto" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : isBeats ? "Momentos clave devueltos" : "Resumen devuelto";
-  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2>{request.batches?.length > 1 && <p className="studio-notice">Lote {request.batchNumber} de {request.batches.length}. Al aplicar este resultado se preparará automáticamente el siguiente.</p>}<ol><li>Inicia sesión en la pestaña de ChatGPT o del proyecto que se abrió.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{resultLabel}<textarea autoFocus rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
+  const isSceneDesignField = request.task === "scene-design-field";
+  const resultLabel = isSceneDesignField ? `${request.targetLabel || "Campo OOTGR"} devuelto` : isImportClassification ? "Clasificación JSON devuelta" : isStructuredCodex ? "Resultado JSON devuelto" : isCategories ? "Categorías devueltas" : isCodexField ? "Contenido devuelto" : isTitle ? "Título devuelto" : isBeats ? "Momentos clave devueltos" : "Resumen devuelto";
+  return <div className="studio-modal" role="dialog" aria-modal="true" aria-labelledby="manual-chatgpt-title"><div className="studio-modal__card studio-manual-dialog"><p className="studio-kicker"><Sparkles size={15} /> ChatGPT manual</p><h2 id="manual-chatgpt-title">Completa la solicitud en ChatGPT</h2>{request.batches?.length > 1 && <p className="studio-notice">Lote {request.batchNumber} de {request.batches.length}. Al aplicar este resultado se preparará automáticamente el siguiente.</p>}<ol><li>Pulsa <strong>Copiar solicitud</strong>.</li><li>Pulsa <strong>Abrir ChatGPT o proyecto</strong>; recién entonces se abrirá otra pestaña.</li><li>Pega la solicitud con <kbd>Ctrl</kbd> + <kbd>V</kbd> y envíala.</li><li>Copia solamente el resultado y pégalo abajo.</li></ol><details><summary>Ver la solicitud preparada</summary><textarea readOnly rows="8" value={request.prompt} /></details><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={copyPrompt}>Copiar solicitud</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.open(request.url || "https://chatgpt.com/", "_blank", "noopener,noreferrer")}>Abrir ChatGPT o proyecto</button></div><label>{resultLabel}<textarea rows={isTitle || isCategories ? 2 : isCodexField || isImportClassification ? 9 : 5} placeholder="Pega aquí el resultado de ChatGPT" value={value} onChange={(event) => setValue(event.target.value)} /></label><div className="studio-row"><button type="button" className="studio-button studio-button--secondary" onClick={onCancel}>Cancelar</button><button type="button" className="studio-button" disabled={!value.trim()} onClick={() => onApply(value.trim())}>Aplicar resultado</button></div></div></div>;
 }
 
 function MentionBreakdown({ novelId, mentions }) {
@@ -1103,7 +1174,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       if (manual && nextIndex < manual.batches.length) {
         const metadata = { title: `${dossierImport.fileName} · lote ${nextIndex + 1} de ${manual.batches.length}`, summary: "Clasificación de secciones importadas", beats: [] };
         const prompt = buildChatGptManualPrompt("codex-import-classification", manual.batches[nextIndex], metadata);
-        navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setClassificationAi({ busy: false, error: "", manual: { ...manual, batchIndex: nextIndex, assignments, prompt, batchNumber: nextIndex + 1 } });
         return;
       }
@@ -1125,8 +1195,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       try {
         const prompt = buildChatGptManualPrompt("codex-import-classification", batches[0], metadataFor(0));
         const url = normalizeChatGptUrl(aiSettings.manualUrl);
-        window.open(url, "_blank", "noopener,noreferrer");
-        navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setClassificationAi({ busy: false, error: "", manual: { task: "codex-import-classification", prompt, url, batches, batchIndex: 0, batchNumber: 1, assignments: [] } });
       } catch (error) { setClassificationAi({ busy: false, manual: null, error: error.message }); }
       return;
@@ -1221,8 +1289,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       try {
         const prompt = buildChatGptManualPrompt("codex-categories", prose, metadata);
         const url = normalizeChatGptUrl(aiSettings.manualUrl);
-        window.open(url, "_blank", "noopener,noreferrer");
-        navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setCategoryAi({ busy: false, proposal: null, error: "", manual: { task: "codex-categories", prompt, url } });
       } catch (error) { setCategoryAi({ busy: false, proposal: null, manual: null, error: error.message }); }
       return;
@@ -1280,7 +1346,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     if (aiSettings.provider === "chatgpt-manual") {
       try {
         const prompt = buildChatGptManualPrompt("codex-name", prose, metadata); const url = normalizeChatGptUrl(aiSettings.manualUrl);
-        window.open(url, "_blank", "noopener,noreferrer"); navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setNameAi({ busy: false, proposal: null, error: "", manual: { task: "codex-name", prompt, url } });
       } catch (error) { setNameAi({ busy: false, proposal: null, manual: null, error: error.message }); }
       return;
@@ -1309,8 +1374,6 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
       try {
         const prompt = buildChatGptManualPrompt("codex-field", prose, metadata);
         const url = normalizeChatGptUrl(aiSettings.manualUrl);
-        window.open(url, "_blank", "noopener,noreferrer");
-        navigator.clipboard?.writeText(prompt)?.catch(() => {});
         setFieldAi({ busy: "", proposal: null, error: "", manual: { task: "codex-field", target, prompt, url } });
       } catch (error) { setFieldAi({ busy: "", proposal: null, manual: null, error: error.message }); }
       return;
@@ -1344,14 +1407,13 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
         {!filtered.length && <p className="studio-list-empty">No hay entradas que coincidan.</p>}
       </aside>
       {draft ? <div className="studio-codex-editor">
-        {draft.type === "character" ? <><div className="studio-category-heading studio-character-identity-heading"><span>Identidad del personaje</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || nameAi.busy} title={aiConfigured ? "Sugerir nombre y apellido usando toda la ficha" : "Configura la IA para sugerir nombres"} onClick={suggestCharacterName}><Sparkles size={14} />{nameAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><div className="studio-character-identity"><label>Nombre<input value={draftNames.firstName} disabled={readOnly} onChange={(event) => updateCharacterNames({ firstName: event.target.value })} /></label><label>Apellido o apellidos<input value={draftNames.lastName} disabled={readOnly} onChange={(event) => updateCharacterNames({ lastName: event.target.value })} /></label><label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>{nameAi.error && <p className="studio-ai-error" role="alert">{nameAi.error}</p>}</> : <div className="studio-form-grid"><label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => updateDraft({ name: event.target.value })} /></label><label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>}
+        {draft.type === "character" ? <><div className="studio-category-heading studio-character-identity-heading"><span>Identidad del personaje</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || nameAi.busy} title={aiConfigured ? "Sugerir nombre y apellido usando toda la ficha" : "Configura la IA para sugerir nombres"} onClick={suggestCharacterName}><Sparkles size={14} />{nameAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><div className="studio-character-identity"><label>Nombre<input value={draftNames.firstName} disabled={readOnly} onChange={(event) => updateCharacterNames({ firstName: event.target.value })} /></label><label>Apellido o apellidos<input value={draftNames.lastName} disabled={readOnly} onChange={(event) => updateCharacterNames({ lastName: event.target.value })} /></label><label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div></> : <div className="studio-form-grid"><label>Nombre principal<input value={draft.name} disabled={readOnly} onChange={(event) => updateDraft({ name: event.target.value })} /></label><label>Tipo<select value={draft.type} disabled={readOnly} onChange={(event) => updateDraft({ type: event.target.value })}>{[["character", "Personaje"], ["location", "Ubicación"], ["object", "Objeto"], ["lore", "Conocimiento"], ["subplot", "Subtrama"], ["other", "Otro"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}</select></label></div>}
         <section className="studio-codex-image"><div><strong>{draft.type === "character" ? "Retrato o imagen del personaje" : "Imagen de referencia"}</strong><small>También sirve para mapas, lugares, trenes, edificios, objetos y paisajes.</small></div>{draft.image && <AssetImage asset={draft.image} alt={draft.name} />}<div className="studio-row"><label className="studio-button studio-button--secondary"><ImagePlus size={16} /> {draft.image ? "Cambiar imagen" : "Añadir imagen"}<input hidden type="file" accept="image/*" disabled={readOnly} onChange={async (event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!file) return; try { updateDraft({ image: await repository.saveImageAsset(novel.id, "codex", file) }); } catch (error) { setDossierError(error.message); } }} /></label>{draft.image && <button type="button" className="studio-button studio-button--danger" disabled={readOnly} onClick={() => updateDraft({ image: null })}><Trash2 size={15} /> Quitar imagen</button>}</div></section>
         <label>Alias y otras formas de nombrar esta entrada <small>Escribe un apellido, apodo, abreviación o título y presiona Enter. También puedes separarlos con comas.</small><ChipInput key={draft.id} values={draft.aliases || []} disabled={readOnly} placeholder="Ejemplo: Rainiero" onChange={(aliases) => updateDraft({ aliases })} /></label>
-        <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías del personaje</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas. Ejemplos: protagonista, secundario, terciario o antagonista.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => updateDraft({ categories })} />{categoryAi.error && <p className="studio-ai-error" role="alert">{categoryAi.error}</p>}</div>
+        <div className="studio-category-control"><div className="studio-category-heading"><span>Categorías del personaje</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || categoryAi.busy} title={aiConfigured ? "Sugerir categorías con IA" : "Configura la IA para recibir sugerencias"} onClick={suggestCategories}><Sparkles size={14} />{categoryAi.busy ? "Pensando…" : "Sugerir con IA"}</button></div><small>Personaliza libremente o elige las ya usadas. Ejemplos: protagonista, secundario, terciario o antagonista.</small><ChipInput key={`categories-${draft.id}`} values={draft.categories || []} suggestions={categorySuggestions} disabled={readOnly} placeholder="Ejemplo: protagonista" onChange={(categories) => updateDraft({ categories })} /></div>
         <div className="studio-codex-description"><div className="studio-category-heading"><span>Descripción</span><button type="button" className="studio-ai-button" disabled={readOnly || !aiConfigured || !draft.name.trim() || Boolean(fieldAi.busy)} title={aiConfigured ? "Escribir la descripción con IA usando toda la ficha" : "Configura la IA para escribir la descripción"} onClick={() => suggestCodexField("Descripción")}><Sparkles size={14} />{fieldAi.busy === "Descripción" ? "Escribiendo…" : draft.description?.trim() ? "Mejorar con IA" : "Escribir con IA"}</button></div><textarea rows="7" value={draft.description || ""} disabled={readOnly} onChange={(event) => updateDraft({ description: event.target.value })} /></div>
         {draft.type === "character" && <><CharacterDossier details={draft.details || {}} disabled={readOnly} aiConfigured={aiConfigured} aiBusy={fieldAi.busy} onSuggest={suggestCodexField} onDiscardSection={discardDossierSection} onChange={(details) => updateDraft({ details })} onImport={importDossier} />{dossierError && <p className="studio-ai-error" role="alert">{dossierError}</p>}</>}
         {draft.type === "character" && <RelationshipEditor entry={draft} entries={entries} disabled={readOnly} onChange={(relations) => updateDraft({ relations })} />}
-        {fieldAi.error && <p className="studio-ai-error" role="alert">{fieldAi.error}</p>}
         <label>Palabras que no deben contar <small>Útil para alias que también sean palabras comunes.</small><input value={(draft.exclusions || []).join(", ")} disabled={readOnly} onChange={(event) => updateDraft({ exclusions: event.target.value.split(",").map((value) => value.trim()).filter(Boolean) })} /></label>
         <div className="studio-checks">
           <label><input type="checkbox" checked={draft.trackMentions} disabled={readOnly} onChange={(event) => updateDraft({ trackMentions: event.target.checked })} /> Detectar menciones de esta entrada</label>
@@ -1375,6 +1437,9 @@ function CharactersPage({ novel, structure, entries, setEntries, aiSettings, rea
     {fieldAi.manual && <ManualChatGptDialog request={fieldAi.manual} onApply={(value) => applyCodexField(fieldAi.manual.target, value)} onCancel={() => setFieldAi({ busy: "", proposal: null, manual: null, error: "" })} />}
     {dossierImport && <DossierImportDialog preview={dossierImport} aiConfigured={aiConfigured} classificationAi={classificationAi} onClassify={classifyDossierImport} onCancel={() => { setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onMerge={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: mergeDossierDetails(current, dossierImport.sections) }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} onReplace={() => { const current = Object.fromEntries(Object.entries(draft.details || {}).map(([title, content]) => [title, dossierValueToHtml(content)])); updateDraft({ details: { ...current, ...dossierImport.sections } }); setDossierImport(null); setClassificationAi({ busy: false, manual: null, error: "" }); }} />}
     {classificationAi.manual && <ManualChatGptDialog key={classificationAi.manual.batchIndex || 0} request={classificationAi.manual} onApply={applyManualImportClassification} onCancel={() => setClassificationAi({ busy: false, manual: null, error: "" })} />}
+    {categoryAi.error && <AiRequestErrorDialog message={categoryAi.error} onClose={() => setCategoryAi({ busy: false, proposal: null, manual: null, error: "" })} />}
+    {nameAi.error && <AiRequestErrorDialog message={nameAi.error} onClose={() => setNameAi({ busy: false, proposal: null, manual: null, error: "" })} />}
+    {fieldAi.error && <AiRequestErrorDialog message={fieldAi.error} onClose={() => setFieldAi({ busy: "", proposal: null, manual: null, error: "" })} />}
   </section>;
 }
 
@@ -1435,7 +1500,7 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSetting
     const prose = `${describe(source)}\n\n---\n\n${describe(target)}`;
     const metadata = { title: `${source.name} y ${target.name}`, summary: "Sugerir tipo e intensidad de relación", beats: [] };
     if (aiSettings.provider === "chatgpt-manual") {
-      try { const prompt = buildChatGptManualPrompt("codex-relationship", prose, metadata); const url = normalizeChatGptUrl(aiSettings.manualUrl); window.open(url, "_blank", "noopener,noreferrer"); navigator.clipboard?.writeText(prompt)?.catch(() => {}); setRelationshipAi({ busy: false, error: "", manual: { task: "codex-relationship", prompt, url } }); }
+      try { const prompt = buildChatGptManualPrompt("codex-relationship", prose, metadata); const url = normalizeChatGptUrl(aiSettings.manualUrl); setRelationshipAi({ busy: false, error: "", manual: { task: "codex-relationship", prompt, url } }); }
       catch (error) { setRelationshipAi({ busy: false, manual: null, error: error.message }); }
       return;
     }
@@ -1458,13 +1523,13 @@ function CharacterNetworkPage({ novel, structure, entries, setEntries, aiSetting
         <div className="studio-network-create-actions"><button type="button" className="studio-button studio-button--secondary" disabled={readOnly || savingConnection || relationshipAi.busy || !aiConfigured || !connection.sourceId || !connection.targetId} title={aiConfigured ? "Sugerir tipo e intensidad usando ambas fichas" : "Configura la IA para sugerir relaciones"} onClick={suggestRelationship}><Sparkles size={16} />{relationshipAi.busy ? "Analizando…" : "Sugerir con IA"}</button><button type="button" className="studio-button" disabled={readOnly || savingConnection || !connection.sourceId || !connection.targetId} onClick={saveConnection}><Share2 size={16} />{savingConnection ? "Guardando…" : selectedRelation ? "Actualizar esta relación" : "Agregar conexión"}</button></div>
       </div> : <p className="studio-notice">Necesitas al menos dos entradas de tipo Personaje en el Códex. Actualmente hay {characters.length}.</p>}
       {connectionStatus && <p className="studio-network-status" role="status">{connectionStatus}</p>}
-      {relationshipAi.error && <p className="studio-ai-error" role="alert">{relationshipAi.error}</p>}
     </section>
     <section className="studio-character-network-panel">
       <header className="studio-network-page-heading"><span><Share2 size={18} /><strong>Red completa</strong></span><small>El tamaño del nodo representa sus menciones; el tipo y la intensidad determinan el conector.</small></header>
       <CharacterNetworkMap entries={entries} mentionTotals={mentionTotals} selectedId={null} onSelect={(entryId) => goStudio(`${studioHref(novel.id, "codex")}?entry=${encodeURIComponent(entryId)}`)} />
     </section>
     {relationshipAi.manual && <ManualChatGptDialog request={relationshipAi.manual} onApply={applyRelationshipSuggestion} onCancel={() => setRelationshipAi({ busy: false, manual: null, error: "" })} />}
+    {relationshipAi.error && <AiRequestErrorDialog message={relationshipAi.error} onClose={() => setRelationshipAi({ busy: false, manual: null, error: "" })} />}
   </section>;
 }
 
@@ -1511,35 +1576,47 @@ function BookSheet({ page, bookTitle = "", side = "", print = false }) {
 
 function BookPage({ novel, structure }) {
   const eligible = useMemo(() => flattenScenes(structure).filter(({ scene }) => isBookScene(scene)), [structure]);
-  const [sceneRecords, setSceneRecords] = useState([]); const [spreadIndex, setSpreadIndex] = useState(0); const [turnDirection, setTurnDirection] = useState("forward"); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const [sceneRecords, setSceneRecords] = useState([]); const [viewIndex, setViewIndex] = useState(0); const [isFading, setIsFading] = useState(false); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const [fontSize, setFontSize] = useState(() => { try { return Math.max(12, Math.min(22, Number(localStorage.getItem("novel-studio:book-font-size")) || 15)); } catch { return 15; } });
   const [nightMode, setNightMode] = useState(() => { try { return localStorage.getItem("novel-studio:book-night") === "true"; } catch { return false; } });
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isSinglePage, setIsSinglePage] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 720px)").matches);
   const bookViewRef = useRef(null);
+  const fadeTimerRef = useRef(null);
   const eligibleKey = eligible.map(({ scene }) => `${scene.id}:${scene.updatedAt}`).join("|");
-  useEffect(() => { let active = true; setLoading(true); setError(""); Promise.all(eligible.map(async (record) => ({ ...record, prose: (await repository.readScene(novel.id, record.scene.id)).prose }))).then((records) => { if (!active) return; setSceneRecords(records); setSpreadIndex(0); }).catch((caught) => { if (active) setError(caught.message); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [eligibleKey, novel.id]);
+  useEffect(() => { let active = true; setLoading(true); setError(""); Promise.all(eligible.map(async (record) => ({ ...record, prose: (await repository.readScene(novel.id, record.scene.id)).prose }))).then((records) => { if (!active) return; setSceneRecords(records); setViewIndex(0); }).catch((caught) => { if (active) setError(caught.message); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [eligibleKey, novel.id]);
   useEffect(() => { try { localStorage.setItem("novel-studio:book-font-size", String(fontSize)); localStorage.setItem("novel-studio:book-night", String(nightMode)); } catch { /* preferencias visuales opcionales */ } }, [fontSize, nightMode]);
   useEffect(() => { const updateFullscreen = () => setIsFullscreen(document.fullscreenElement === bookViewRef.current); document.addEventListener("fullscreenchange", updateFullscreen); return () => document.removeEventListener("fullscreenchange", updateFullscreen); }, []);
+  useEffect(() => { const media = window.matchMedia("(max-width: 720px)"); const updateLayout = (event) => { setViewIndex((current) => event.matches ? (current === 0 ? 0 : current * 2 - 1) : (current === 0 ? 0 : Math.ceil(current / 2))); setIsSinglePage(event.matches); }; media.addEventListener("change", updateLayout); return () => media.removeEventListener("change", updateLayout); }, []);
+  useEffect(() => () => clearTimeout(fadeTimerRef.current), []);
   const pageScale = 15 / fontSize;
   const pages = useMemo(() => buildBookPages(novel, sceneRecords, { prosePageLength: Math.round(1250 * pageScale * pageScale), editorialPageLength: Math.round(1050 * pageScale * pageScale), tocEntriesPerPage: Math.max(8, Math.round(16 * pageScale)) }), [fontSize, novel, sceneRecords]);
   const spreads = useMemo(() => { if (!pages.length) return []; const result = [{ left: null, right: pages[0], firstPageIndex: 0 }]; for (let index = 1; index < pages.length; index += 2) result.push({ left: pages[index], right: pages[index + 1] || null, firstPageIndex: index }); return result; }, [pages]);
-  useEffect(() => { setSpreadIndex((value) => Math.max(0, Math.min(spreads.length - 1, value))); }, [spreads.length]);
-  const turnSpread = useCallback((delta) => { setTurnDirection(delta > 0 ? "forward" : "backward"); setSpreadIndex((value) => Math.max(0, Math.min(spreads.length - 1, value + delta))); }, [spreads.length]);
-  useEffect(() => { const navigate = (event) => { if (event.key === "ArrowLeft") turnSpread(-1); if (event.key === "ArrowRight") turnSpread(1); }; addEventListener("keydown", navigate); return () => removeEventListener("keydown", navigate); }, [turnSpread]);
+  const views = useMemo(() => isSinglePage ? pages.map((page, index) => ({ left: null, right: page, firstPageIndex: index })) : spreads, [isSinglePage, pages, spreads]);
+  useEffect(() => { setViewIndex((value) => Math.max(0, Math.min(views.length - 1, value))); }, [views.length]);
+  const goToView = useCallback((next) => {
+    const target = Math.max(0, Math.min(views.length - 1, next));
+    if (target === viewIndex || isFading) return;
+    setIsFading(true);
+    clearTimeout(fadeTimerRef.current);
+    fadeTimerRef.current = setTimeout(() => { setViewIndex(target); requestAnimationFrame(() => setIsFading(false)); }, 150);
+  }, [isFading, viewIndex, views.length]);
+  const turnPage = useCallback((delta) => goToView(viewIndex + delta), [goToView, viewIndex]);
+  useEffect(() => { const navigate = (event) => { if (event.key === "ArrowLeft") turnPage(-1); if (event.key === "ArrowRight") turnPage(1); }; addEventListener("keydown", navigate); return () => removeEventListener("keydown", navigate); }, [turnPage]);
   const toggleFullscreen = async () => { try { if (document.fullscreenElement) await document.exitFullscreen(); else await bookViewRef.current?.requestFullscreen(); } catch { /* el navegador puede bloquear pantalla completa */ } };
-  const spread = spreads[spreadIndex];
+  const spread = views[viewIndex];
   const visiblePageNumbers = spread ? [spread.left && spread.firstPageIndex + 1, spread.right && spread.firstPageIndex + (spread.left ? 2 : 1)].filter(Boolean) : [];
   const visibleLabel = visiblePageNumbers.length > 1 ? `Páginas ${visiblePageNumbers[0]}–${visiblePageNumbers[1]}` : `Página ${visiblePageNumbers[0] || 1}`;
   return <section ref={bookViewRef} className="studio-page studio-book-page" style={{ "--book-font-size": `${fontSize}px` }}><div className={`studio-book-screen ${nightMode ? "is-night" : ""}`}><PageTitle kicker="Lectura editorial" title="Vista Libro" text="Incluye únicamente escenas con estado Revisión o Final." />
-    <div className="studio-book-controls" aria-label="Preferencias de lectura"><div className="studio-book-font-control"><span>Tamaño de letra</span><button type="button" disabled={fontSize <= 12} aria-label="Reducir tamaño de letra" onClick={() => setFontSize((value) => Math.max(12, value - 1))}><Minus size={16} /></button><input type="range" min="12" max="22" step="1" value={fontSize} aria-label="Tamaño de letra" onChange={(event) => setFontSize(Number(event.target.value))} /><button type="button" disabled={fontSize >= 22} aria-label="Aumentar tamaño de letra" onClick={() => setFontSize((value) => Math.min(22, value + 1))}><Plus size={16} /></button><output>{fontSize} px</output></div><div className="studio-book-view-actions"><button type="button" className="studio-button studio-button--secondary" aria-pressed={nightMode} onClick={() => setNightMode((value) => !value)}>{nightMode ? <Sun size={17} /> : <Moon size={17} />}{nightMode ? "Modo claro" : "Modo nocturno"}</button><button type="button" className="studio-button studio-button--secondary" onClick={toggleFullscreen}>{isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}{isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.print()}><Download size={17} /> Imprimir libro</button></div></div>
+    <div className="studio-book-controls"><details className="studio-book-menu"><summary aria-label="Abrir opciones de lectura"><Menu size={19} /><span>Opciones</span></summary><div className="studio-book-menu-panel" aria-label="Preferencias de lectura"><div className="studio-book-font-control"><span>Tamaño de letra</span><button type="button" disabled={fontSize <= 12} aria-label="Reducir tamaño de letra" onClick={() => setFontSize((value) => Math.max(12, value - 1))}><Minus size={16} /></button><input type="range" min="12" max="22" step="1" value={fontSize} aria-label="Tamaño de letra" onChange={(event) => setFontSize(Number(event.target.value))} /><button type="button" disabled={fontSize >= 22} aria-label="Aumentar tamaño de letra" onClick={() => setFontSize((value) => Math.min(22, value + 1))}><Plus size={16} /></button><output>{fontSize} px</output></div><button type="button" className="studio-button studio-button--secondary" aria-pressed={nightMode} onClick={() => setNightMode((value) => !value)}>{nightMode ? <Sun size={17} /> : <Moon size={17} />}{nightMode ? "Modo claro" : "Modo nocturno"}</button><button type="button" className="studio-button studio-button--secondary" onClick={toggleFullscreen}>{isFullscreen ? <Minimize2 size={17} /> : <Maximize2 size={17} />}{isFullscreen ? "Salir de pantalla completa" : "Pantalla completa"}</button><button type="button" className="studio-button studio-button--secondary" onClick={() => window.print()}><Download size={17} /> Imprimir libro</button></div></details></div>
     {!eligible.length && <p className="studio-notice">Aún no hay escenas en Revisión o Final. La portada y las páginas preliminares sí están disponibles.</p>}
     {error && <p className="studio-error" role="alert">{error}</p>}
-    {loading || !spread ? <div className="studio-book-loading">Preparando el libro…</div> : <div className="studio-book-reader">
-      <button type="button" className="studio-book-turn" disabled={spreadIndex === 0} aria-label="Pliego anterior" onClick={() => turnSpread(-1)}><ArrowLeft size={24} /></button>
-      <div key={spreadIndex} className={`studio-book-spread is-turning-${turnDirection} ${spreadIndex === 0 ? "is-cover-spread" : ""}`}><BookSheet page={spread.left} bookTitle={novel.title} side="left" /><BookSheet page={spread.right} bookTitle={novel.title} side="right" /></div>
-      <button type="button" className="studio-book-turn" disabled={spreadIndex >= spreads.length - 1} aria-label="Pliego siguiente" onClick={() => turnSpread(1)}><ArrowRight size={24} /></button>
+    {loading || !spread ? <div className="studio-book-loading">Preparando el libro…</div> : <div className={`studio-book-reader ${isSinglePage ? "is-single-page" : ""}`}>
+      <button type="button" className="studio-book-turn" disabled={viewIndex === 0} aria-label={isSinglePage ? "Página anterior" : "Pliego anterior"} onClick={() => turnPage(-1)}><ArrowLeft size={24} /></button>
+      <div className={`studio-book-spread ${isFading ? "is-fading" : ""} ${viewIndex === 0 ? "is-cover-spread" : ""}`}><BookSheet page={spread.left} bookTitle={novel.title} side="left" /><BookSheet page={spread.right} bookTitle={novel.title} side="right" /></div>
+      <button type="button" className="studio-book-turn" disabled={viewIndex >= views.length - 1} aria-label={isSinglePage ? "Página siguiente" : "Pliego siguiente"} onClick={() => turnPage(1)}><ArrowRight size={24} /></button>
     </div>}
-    <div className="studio-book-progress"><span>{visibleLabel} de {pages.length}</span><input aria-label="Ir a un pliego" type="range" min="1" max={Math.max(1, spreads.length)} value={spreadIndex + 1} onChange={(event) => { const next = Number(event.target.value) - 1; setTurnDirection(next >= spreadIndex ? "forward" : "backward"); setSpreadIndex(next); }} /></div></div>
+    <div className="studio-book-progress"><span>{visibleLabel} de {pages.length}</span><input aria-label={isSinglePage ? "Ir a una página" : "Ir a un pliego"} type="range" min="1" max={Math.max(1, views.length)} value={viewIndex + 1} onChange={(event) => goToView(Number(event.target.value) - 1)} /></div></div>
     {!loading && pages.length > 0 && <div className="studio-book-print-all" aria-hidden="true">{pages.map((page, index) => <BookSheet page={page} bookTitle={novel.title} print key={`${page.kind}-${page.sceneId || "front"}-${index}`} />)}</div>}
   </section>;
 }
@@ -1556,38 +1633,29 @@ function SettingsPage({ novel, setNovel, structure, preferences, setPreferences,
     try { const saved = await repository.saveNovel(draft); setNovel(saved); setDraft(saved); setSaveState("saved"); setMessage("Configuración de la novela guardada."); return true; }
     catch (e) { setSaveState("error"); setMessage(e.message); return false; }
   };
-  const saveAi = async (nextAi = aiDraft, sessionSecret = "", activate = true, persistOnDevice = nextAi.credentialRef?.scope === "device") => {
+  const saveAi = async (nextAi = aiDraft, sessionSecret = "", activate = true, persistInWorkspace = true, clearSecret = false) => {
     setSaveState("saving"); setMessage("");
     try {
       const current = await repository.preferences();
-      let credentialRef = nextAi.credentialRef || null;
-      if (nextAi.provider === AI_PROVIDERS.OPENAI && sessionSecret.trim()) {
-        credentialRef = persistOnDevice
-          ? await saveDeviceCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, secret: sessionSecret })
-          : saveSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, secret: sessionSecret });
-      }
-      if (nextAi.provider === AI_PROVIDERS.OPENAI && !sessionSecret.trim() && credentialRef?.scope !== (persistOnDevice ? "device" : "session")) {
-        const existingSecret = resolveSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, credentialRef });
-        if (credentialRef?.scope === "device") await removeDeviceCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, credentialRef });
-        credentialRef = existingSecret
-          ? persistOnDevice
-            ? await saveDeviceCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, secret: existingSecret })
-            : saveSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, secret: existingSecret })
-          : null;
-      }
-      if (nextAi.provider === AI_PROVIDERS.OPENAI && activate && !hasSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, credentialRef })) {
+      const existingSecret = resolveSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, credentialRef: nextAi.credentialRef });
+      const secret = clearSecret ? "" : String(sessionSecret || nextAi.apiKey || existingSecret).trim();
+      if (nextAi.credentialRef?.scope === "device" && (persistInWorkspace || clearSecret)) await removeDeviceCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, credentialRef: nextAi.credentialRef });
+      const credentialRef = nextAi.provider === AI_PROVIDERS.OPENAI && secret
+        ? saveSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, secret })
+        : null;
+      if (nextAi.provider === AI_PROVIDERS.OPENAI && activate && !secret) {
         throw new Error("Introduce una clave de OpenAI para esta sesión.");
       }
-      const { apiKey: _legacyApiKey, ...safeAi } = nextAi;
       const cleanAi = {
-        ...safeAi,
+        ...nextAi,
         enabled: activate,
         credentialRef: nextAi.provider === AI_PROVIDERS.OPENAI ? credentialRef : null,
+        apiKey: nextAi.provider === AI_PROVIDERS.OPENAI && persistInWorkspace ? secret : "",
         manualUrl: nextAi.provider === "chatgpt-manual" ? normalizeChatGptUrl(nextAi.manualUrl) : nextAi.manualUrl,
       };
       const saved = await repository.savePreferences({ ...current, ai: cleanAi });
       setPreferences(saved); setAiDraft(saved.ai); setSaveState("saved");
-      setMessage(nextAi.provider === AI_PROVIDERS.OPENAI ? "Configuración guardada. La clave permanece sólo en la memoria de esta pestaña." : "Configuración de IA guardada en preferences.json."); return true;
+      setMessage(nextAi.provider === AI_PROVIDERS.OPENAI ? "Configuración guardada. La clave quedó escrita en preferences.json." : "Configuración de IA guardada en preferences.json."); return true;
     } catch (error) { setSaveState("error"); setMessage(error.message); return false; }
   };
   useForceSave(async () => {
@@ -1612,8 +1680,7 @@ function SettingsPage({ novel, setNovel, structure, preferences, setPreferences,
 
 function AiSettingsPanel({ aiDraft, setAiDraft, readOnly, onSave, onMessage }) {
   const [showKey, setShowKey] = useState(false);
-  const [apiKey, setApiKey] = useState("");
-  const [persistOnDevice, setPersistOnDevice] = useState(aiDraft.credentialRef?.scope === "device");
+  const [apiKey, setApiKey] = useState(aiDraft.apiKey || "");
   const [testing, setTesting] = useState(false);
   const [detecting, setDetecting] = useState(false);
   const [ollamaModels, setOllamaModels] = useState([]);
@@ -1714,15 +1781,15 @@ function AiSettingsPanel({ aiDraft, setAiDraft, readOnly, onSave, onMessage }) {
     removeSessionCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, credentialRef: aiDraft.credentialRef });
     if (aiDraft.credentialRef?.scope === "device") await removeDeviceCredential({ toolId: AI_TOOL_IDS.NOVEL_STUDIO, provider: AI_PROVIDERS.OPENAI, credentialRef: aiDraft.credentialRef });
     setApiKey("");
-    setPersistOnDevice(false);
-    await onSave({ ...aiDraft, enabled: false, credentialRef: null }, "", false);
+    await onSave({ ...aiDraft, apiKey: "", enabled: false, credentialRef: null }, "", false, true, true);
   };
   return <section className="studio-panel studio-ai-settings"><div className="studio-panel-heading"><div><p className="studio-kicker">Workspace completo</p><h2>Inteligencia artificial</h2></div><Sparkles size={24} /></div><p>Elige cómo generar títulos y resúmenes. La selección se comparte entre todas las novelas de esta carpeta.</p>
     <label>Proveedor<select value={aiDraft.provider} disabled={readOnly} onChange={(event) => update({ provider: event.target.value, ollamaModel: event.target.value === "ollama" ? aiDraft.ollamaModel || OLLAMA_MODEL_PRESETS[0].id : aiDraft.ollamaModel, enabled: false })}><option value="chatgpt-manual">ChatGPT manual</option><option value="ollama">Ollama · modelos locales</option><option value="openai">OpenAI API</option></select></label>
-    {aiDraft.provider === "openai" && <><label>Clave API de OpenAI<div className="studio-secret-field"><input type={showKey ? "text" : "password"} autoComplete="off" spellCheck="false" placeholder={sessionHasKey ? "Clave disponible para esta herramienta" : "sk-…"} value={apiKey} disabled={readOnly} onChange={(event) => setApiKey(event.target.value)} /><button type="button" className="studio-button studio-button--secondary" onClick={() => setShowKey((value) => !value)}>{showKey ? "Ocultar" : "Mostrar"}</button></div></label><label>Modelo<select value={aiDraft.model} disabled={readOnly} onChange={(event) => update({ model: event.target.value })}><option value="gpt-5.6-luna">GPT-5.6 Luna · menor costo</option><option value="gpt-5.6-terra">GPT-5.6 Terra · equilibrado</option><option value="gpt-5.6-sol">GPT-5.6 Sol · máxima capacidad</option></select></label><label className="studio-checkbox-row"><input type="checkbox" checked={persistOnDevice} disabled={readOnly || !supportsDeviceCredentials()} onChange={(event) => setPersistOnDevice(event.target.checked)} /><span><strong>Recordar en este dispositivo</strong><small>Guarda la clave cifrada en el almacenamiento de este navegador para recuperarla al volver.</small></span></label><div className="studio-local-secret-warning"><strong>{persistOnDevice ? "Credencial cifrada en el dispositivo" : "Credencial temporal"}</strong><p>La clave nunca se escribe en <code>preferences.json</code>, <code>runtime/</code> ni en respaldos ZIP.{persistOnDevice ? " Sólo estará disponible para este sitio y navegador." : " Deberás introducirla de nuevo al cerrar o recargar."}</p></div></>}
+    {aiDraft.provider === "openai" && <><label>Clave API de OpenAI<div className="studio-secret-field"><input type={showKey ? "text" : "password"} autoComplete="off" spellCheck="false" placeholder={sessionHasKey ? "Clave guardada en preferences.json" : "sk-…"} value={apiKey} disabled={readOnly} onChange={(event) => setApiKey(event.target.value)} /><button type="button" className="studio-button studio-button--secondary" onClick={() => setShowKey((value) => !value)}>{showKey ? "Ocultar" : "Mostrar"}</button></div></label><label>Modelo<select value={aiDraft.model} disabled={readOnly} onChange={(event) => update({ model: event.target.value })}><option value="gpt-5.6-luna">GPT-5.6 Luna · menor costo</option><option value="gpt-5.6-terra">GPT-5.6 Terra · equilibrado</option><option value="gpt-5.6-sol">GPT-5.6 Sol · máxima capacidad</option></select></label><div className="studio-local-secret-warning"><strong>Credencial guardada sin cifrar</strong><p>Al guardar, la clave se escribirá como texto en <code>preferences.json</code>. Cualquier persona o programa con acceso a la carpeta podrá leerla y también se incluirá en los respaldos ZIP.</p></div></>}
     {aiDraft.provider === "chatgpt-manual" && <><label>URL de ChatGPT o del proyecto<input type="url" inputMode="url" autoComplete="url" spellCheck="false" placeholder="https://chatgpt.com/…" value={aiDraft.manualUrl || ""} disabled={readOnly} onChange={(event) => update({ manualUrl: event.target.value, enabled: false })} /><small>Puedes pegar la URL de un proyecto de ChatGPT. Se guarda solamente en el <code>preferences.json</code> de esta carpeta.</small></label>{manualUrlError && <p className="studio-ai-error" role="alert">{manualUrlError}</p>}<div className="studio-row"><button type="button" className="studio-button studio-button--secondary" disabled={readOnly} onClick={() => update({ manualUrl: "https://chatgpt.com/", enabled: false })}>Usar ChatGPT general</button></div><div className="studio-provider-info"><strong>Sin API y sin automatización de la cuenta</strong><p>Al usar IA se copiará una solicitud y se abrirá la dirección configurada. Tú iniciarás sesión, enviarás el texto y pegarás el resultado de vuelta en el estudio.</p></div></>}
     {aiDraft.provider === "ollama" && <div className="studio-ollama-settings"><label>Servidor local<input value={aiDraft.ollamaUrl} disabled={readOnly} onChange={(event) => update({ ollamaUrl: event.target.value, enabled: false })} /></label><div className={`studio-model-status is-${ollamaStatus}`}><strong>Modelo seleccionado: {aiDraft.ollamaModel || "ninguno"}</strong><span>{selectedModelInstalled ? "Instalado y detectado en este PC" : ollamaStatus === "checking" ? "Comprobando instalación…" : ollamaStatus === "missing" || ollamaStatus === "empty" ? "No está instalado" : "Estado todavía no comprobado"}</span></div>{ollamaModels.length > 0 && <label>Usar un modelo ya instalado<select value={selectedModelInstalled ? aiDraft.ollamaModel : ""} disabled={readOnly} onChange={(event) => update({ ollamaModel: event.target.value, enabled: false })}><option value="" disabled>Selecciona un modelo instalado</option>{ollamaModels.map((model) => <option key={model.name} value={model.name}>{model.name}{model.parameterSize ? ` · ${model.parameterSize}` : ""}{model.size ? ` · ${(model.size / 1e9).toFixed(1)} GB` : ""}</option>)}</select></label>}</div>}
-    <section className="studio-ai-action-center" aria-labelledby="studio-ai-actions-title"><div className="studio-ai-action-center__heading"><div><strong id="studio-ai-actions-title">Acciones de IA</strong><small>{aiDraft.provider === "ollama" ? "Comprueba o instala el modelo, prueba la conexión y guarda los cambios." : "Prueba la configuración y guarda los cambios cuando esté lista."}</small></div><span>{aiDraft.provider === "ollama" ? "Ollama local" : aiDraft.provider === "openai" ? "OpenAI API" : "ChatGPT manual"}</span></div><div className="studio-ai-action-center__buttons"><div className="studio-ai-action-center__tools">{aiDraft.provider === "ollama" && <><button type="button" className="studio-button studio-button--secondary" disabled={detecting} onClick={detectOllama}>{detecting ? "Detectando…" : "Comprobar instalación"}</button>{ollamaModels.length > 0 && <button type="button" className="studio-button studio-button--secondary" disabled={readOnly || detecting} aria-expanded={showModelInstaller} aria-controls="ollama-additional-models" onClick={() => setShowModelInstaller((value) => !value)}><Download size={17} /> {showModelInstaller ? "Cerrar instalador" : "Instalar otro modelo"}</button>}</>}<button type="button" className="studio-button studio-button--secondary" disabled={!providerReady || testing} onClick={testProvider}><Sparkles size={17} /> {testing ? "Probando…" : aiDraft.provider === "chatgpt-manual" ? "Abrir ChatGPT" : "Probar conexión"}</button>{sessionHasKey && aiDraft.provider === "openai" && <button type="button" className="studio-button studio-button--danger" disabled={readOnly} onClick={removeKey}>Eliminar clave guardada</button>}</div><button type="button" className="studio-button studio-ai-action-center__save" disabled={readOnly || !providerReady} onClick={() => onSave(aiDraft, apiKey, true, persistOnDevice)}><Save size={17} /> Guardar IA</button></div></section>
+    {aiDraft.provider !== "chatgpt-manual" && <section className="studio-ai-limits" aria-labelledby="studio-ai-limits-title"><div><strong id="studio-ai-limits-title">Longitud de las solicitudes</strong><p>Los tokens son fragmentos de texto. Una entrada menor usa menos memoria y evita sobrecargar modelos locales; una salida mayor permite respuestas más extensas.</p></div><div className="studio-form-grid"><label>Máximo de entrada <span>tokens</span><input type="number" min="512" max="131072" step="512" value={aiDraft.inputTokenLimit} disabled={readOnly} onChange={(event) => update({ inputTokenLimit: Number(event.target.value), enabled: false })} /><small>Aprox. {Math.round((Number(aiDraft.inputTokenLimit) || 0) * 3 / 1000)} mil caracteres. El contenido extenso se divide en partes.</small></label><label>Máximo de salida <span>tokens</span><input type="number" min="64" max="16384" step="64" value={aiDraft.outputTokenLimit} disabled={readOnly} onChange={(event) => update({ outputTokenLimit: Number(event.target.value), enabled: false })} /><small>Si se alcanza, se avisará en vez de mostrar una respuesta cortada.</small></label></div>{aiDraft.provider === "ollama" && <p className="studio-ai-limits__note">Ollama reservará aproximadamente {(Number(aiDraft.inputTokenLimit) || 0) + (Number(aiDraft.outputTokenLimit) || 0)} tokens de contexto y podrá trabajar hasta 10 minutos por generación. Si el modelo se cae o falta memoria, reduce primero la entrada.</p>}</section>}
+    <section className="studio-ai-action-center" aria-labelledby="studio-ai-actions-title"><div className="studio-ai-action-center__heading"><div><strong id="studio-ai-actions-title">Acciones de IA</strong><small>{aiDraft.provider === "ollama" ? "Comprueba o instala el modelo, prueba la conexión y guarda los cambios." : "Prueba la configuración y guarda los cambios cuando esté lista."}</small></div><span>{aiDraft.provider === "ollama" ? "Ollama local" : aiDraft.provider === "openai" ? "OpenAI API" : "ChatGPT manual"}</span></div><div className="studio-ai-action-center__buttons"><div className="studio-ai-action-center__tools">{aiDraft.provider === "ollama" && <><button type="button" className="studio-button studio-button--secondary" disabled={detecting} onClick={detectOllama}>{detecting ? "Detectando…" : "Comprobar instalación"}</button>{ollamaModels.length > 0 && <button type="button" className="studio-button studio-button--secondary" disabled={readOnly || detecting} aria-expanded={showModelInstaller} aria-controls="ollama-additional-models" onClick={() => setShowModelInstaller((value) => !value)}><Download size={17} /> {showModelInstaller ? "Cerrar instalador" : "Instalar otro modelo"}</button>}</>}<button type="button" className="studio-button studio-button--secondary" disabled={!providerReady || testing} onClick={testProvider}><Sparkles size={17} /> {testing ? "Probando…" : aiDraft.provider === "chatgpt-manual" ? "Abrir ChatGPT" : "Probar conexión"}</button>{sessionHasKey && aiDraft.provider === "openai" && <button type="button" className="studio-button studio-button--danger" disabled={readOnly} onClick={removeKey}>Eliminar clave guardada</button>}</div><button type="button" className="studio-button studio-ai-action-center__save" disabled={readOnly || !providerReady} onClick={() => onSave(aiDraft, apiKey, true, true)}><Save size={17} /> Guardar IA</button></div></section>
     {aiDraft.provider === "ollama" && showModelInstaller && ollamaModels.length > 0 && <section id="ollama-additional-models" className="studio-additional-models"><div><p className="studio-kicker">Biblioteca local</p><h3>Instalar otro modelo</h3><p>Elige un modelo adicional. Se descargará en Ollama sin cambiar el modelo que estás usando ahora.</p></div><div className="studio-model-grid">{OLLAMA_MODEL_PRESETS.map((model) => { const installed = ollamaModels.some((item) => item.name === model.id); return <button type="button" className={`${installTarget === model.id ? "active" : ""} ${installed ? "is-installed" : ""}`} disabled={installed} aria-pressed={installTarget === model.id} key={model.id} onClick={() => setInstallTarget(model.id)}><strong>{model.label} · {model.id}</strong><span>{installed ? "Ya instalado" : `${model.download} de descarga`}</span><span>{model.ram}</span><small>{model.detail}</small></button>; })}</div><div className="studio-row"><button type="button" className="studio-button" disabled={readOnly || ollamaModels.some((model) => model.name === installTarget)} onClick={() => installOllamaModel(installTarget, false)}><Download size={17} /> Instalar {installTarget}</button><button type="button" className="studio-button studio-button--secondary" onClick={() => setShowModelInstaller(false)}>Cancelar</button></div></section>}
     {aiDraft.provider === "ollama" && !selectedModelInstalled && <OllamaSetupWizard aiDraft={aiDraft} update={update} installMode={installMode} setInstallMode={setInstallMode} originCommand={originCommand} onCopy={copy} onInstall={installOllamaModel} />}
     {statusDialog && <AiStatusDialog dialog={statusDialog} onClose={() => setStatusDialog(null)} onCopy={copy} onCancel={statusDialog.kind === "install" && statusDialog.state === "working" ? () => installControllerRef.current?.abort() : null} />}
