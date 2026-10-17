@@ -1,19 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ExternalLink, RefreshCw, RotateCcw, Scale } from "lucide-react";
+import { AlertTriangle, Clipboard, ExternalLink, Mail, RefreshCw, RotateCcw, Scale } from "lucide-react";
 import { Breadcrumbs, PageShell } from "./LearningComponents";
 import { breadcrumbSchema, usePageMetadata } from "./seo";
 import { trackEvent } from "./analytics";
 import { formatNumericInput, parseDisplayedNumber } from "./chileanNumberInput";
 import { formatClp, parseChileanNumber } from "./mortgageEngine";
 import { AFP_OPTIONS, LEGAL_PARAMS_REVIEWED_ON, TERMINATION_TYPES } from "./labor-claim/legalParams";
-import { buildMonthlySeries, evaluateLaborClaim, isValidIsoDate, monthRange, validateAssumptions } from "./labor-claim/laborClaimEngine";
+import { addDaysIso, buildMonthlySeries, calendarDiff, evaluateLaborClaim, isValidIsoDate, monthRange, validateAssumptions } from "./labor-claim/laborClaimEngine";
+import { EVIDENCE_OPTIONS, buildEmployerEmail, suggestedProposal } from "./labor-claim/employerEmail";
 import "./labor-claim/laborClaim.css";
 
 const PATH = "/herramientas/evaluador-demanda-laboral";
 const TITLE = "Evaluador de demanda laboral por honorarios encubiertos";
 const n = (value) => { const parsed = parseChileanNumber(value); return Number.isFinite(parsed) ? parsed : 0; };
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
-const yearsAgo = (iso, years) => `${Number(iso.slice(0, 4)) - years}${iso.slice(4)}`;
 const dateLabel = (iso) => iso ? new Intl.DateTimeFormat("es-CL", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`)) : "sin fecha";
 const monthLabel = (key) => new Intl.DateTimeFormat("es-CL", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${key}-15T12:00:00Z`));
 const pct = (value) => `${new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(value * 100)}%`;
@@ -22,17 +22,20 @@ const SOURCE_LABELS = { cmf: "CMF (oficial)", "secondary-provider": "mindicador.
 const initialForm = () => {
   const end = today();
   return {
-    startDate: yearsAgo(end, 3), endDate: end, terminationType: "despido-injustificado", surchargeRate: "0.5",
+    startDate: "", endDate: end, terminationType: "despido-injustificado", surchargeRate: "0.5",
     inputMode: "average", averagePrevious: "", lastThree: ["", "", ""], monthly: {},
     pendingPeriods: "0", unpaidDaysTaken: "0", pregnant: false, dueDate: "",
     nullityEnabled: true, nullityMonths: "12", tutelaEnabled: false, tutelaMonths: "6",
     afp: "", healthSystem: "fonasa", isaprePlanUf: "", accidentAdditional: "0",
+    gratificationEnabled: false,
     winProbability: "75", settlementRate: "60", lawyerFeeRate: "25",
+    employeeName: "", employerName: "", proposalAmount: "", responseDays: "10",
+    evidence: ["boletas"], evidenceOther: "", rightsDescription: "",
   };
 };
 const exampleForm = () => ({
   ...initialForm(), startDate: "2023-07-01", endDate: "2026-06-30", averagePrevious: "950000", lastThree: ["1000000", "1100000", "900000"],
-  pendingPeriods: "2", nullityEnabled: true, nullityMonths: "18", tutelaEnabled: true, tutelaMonths: "6", afp: "habitat",
+  pendingPeriods: "2", gratificationEnabled: true, nullityEnabled: true, nullityMonths: "18", tutelaEnabled: true, tutelaMonths: "6", afp: "habitat",
 });
 
 function Field({ id, label, help, error, children }) {
@@ -44,10 +47,10 @@ function Field({ id, label, help, error, children }) {
   </div>;
 }
 
-function NumberInput({ id, value, onChange, unit, error, describedBy }) {
+function NumberInput({ id, value, onChange, unit, error, describedBy, placeholder }) {
   const integer = unit === "$";
   return <div className="claim-input-unit">
-    <input id={id} inputMode={integer ? "numeric" : "decimal"} value={formatNumericInput(value)} onChange={(event) => onChange(parseDisplayedNumber(event.target.value, integer))} aria-invalid={Boolean(error)} aria-describedby={describedBy} data-private="true" />
+    <input id={id} inputMode={integer ? "numeric" : "decimal"} value={formatNumericInput(value)} placeholder={placeholder} onChange={(event) => onChange(parseDisplayedNumber(event.target.value, integer))} aria-invalid={Boolean(error)} aria-describedby={describedBy} data-private="true" />
     {unit && <span aria-hidden="true">{unit}</span>}
   </div>;
 }
@@ -134,6 +137,12 @@ export default function LaborClaimEvaluatorPage() {
   const months = useMemo(() => monthsKey ? monthRange(form.startDate, form.endDate) : [], [monthsKey]);
   const effectiveUf = uf.mode === "manual" || uf.mode === "unavailable" ? n(manualUf) : uf.valueClp;
   const termination = TERMINATION_TYPES.find((type) => type.id === form.terminationType);
+  const tenure = useMemo(() => {
+    if (!monthsKey) return "";
+    const diff = calendarDiff(form.startDate, addDaysIso(form.endDate, 1));
+    const part = (value, one, many) => `${value} ${value === 1 ? one : many}`;
+    return `${part(diff.years, "año", "años")}, ${part(diff.months, "mes", "meses")} y ${part(diff.days, "día", "días")}`;
+  }, [monthsKey, form.startDate, form.endDate]);
 
   const input = useMemo(() => {
     const series = monthsKey ? buildMonthlySeries({
@@ -148,6 +157,7 @@ export default function LaborClaimEvaluatorPage() {
       maternity: { pregnant: form.pregnant, dueDate: form.dueDate },
       nullity: { enabled: form.nullityEnabled, months: n(form.nullityMonths) },
       tutela: { enabled: form.tutelaEnabled, months: n(form.tutelaMonths) },
+      gratification: { enabled: form.gratificationEnabled },
       afp: form.afp, health: { system: form.healthSystem, planUf: n(form.isaprePlanUf) }, accidentAdditionalRate: n(form.accidentAdditional) / 100,
       risk: { winProbability: n(form.winProbability) / 100, settlementRate: n(form.settlementRate) / 100, lawyerFeeRate: n(form.lawyerFeeRate) / 100 },
       ufValueClp: effectiveUf, ufByMonth, calcDate: isValidIsoDate(calcDate) ? calcDate : form.endDate, excludedComponents: excluded,
@@ -160,8 +170,32 @@ export default function LaborClaimEvaluatorPage() {
     try { return evaluateLaborClaim(input); } catch { return null; }
   }, [input, errors]);
   const sourceNumbers = useMemo(() => Object.fromEntries((result?.sources || []).map((source, index) => [source.id, index + 1])), [result]);
+  const email = useMemo(() => result ? buildEmployerEmail(result, {
+    employeeName: form.employeeName, employerName: form.employerName, startDate: form.startDate, endDate: form.endDate,
+    proposalAmount: n(form.proposalAmount) || suggestedProposal(result, n(form.lawyerFeeRate) / 100), responseDays: n(form.responseDays) || 10, healthLabel: form.healthSystem === "isapre" ? "Isapre" : "Fonasa",
+    lawyerFeeRate: n(form.lawyerFeeRate) / 100, evidence: form.evidence, evidenceOther: form.evidenceOther, rightsDescription: form.tutelaEnabled ? form.rightsDescription : "",
+  }) : null, [result, form.employeeName, form.employerName, form.startDate, form.endDate, form.proposalAmount, form.responseDays, form.healthSystem, form.lawyerFeeRate, form.evidence, form.evidenceOther, form.rightsDescription, form.tutelaEnabled]);
+  const [emailDraft, setEmailDraft] = useState(null);
+  const [copyStatus, setCopyStatus] = useState("");
+  useEffect(() => { setEmailDraft(null); }, [email?.body]);
+  const emailBody = emailDraft ?? email?.body ?? "";
+  const copyEmail = async () => {
+    try { await navigator.clipboard.writeText(`Asunto: ${email.subject}\n\n${emailBody}`); setCopyStatus("Correo copiado."); trackEvent("labor_claim_email_copied", { tool: "labor_claim" }); }
+    catch { setCopyStatus("No se pudo copiar automáticamente; seleccione el texto y cópielo."); }
+  };
   const toggleComponent = (id) => setExcluded((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]);
-  const maxDestination = Math.max(1, ...(result?.contributions.byDestination.map((item) => item.amount) || [1]));
+  // Waterfall horizontal: cada barra parte donde termina la anterior y su ancho es su % del total.
+  const waterfall = useMemo(() => {
+    if (!result) return [];
+    const total = result.contributions.total || 1;
+    let offset = 0;
+    return result.contributions.byDestination.map((destination) => {
+      const share = destination.amount / total;
+      const step = { ...destination, share, offset };
+      offset += share;
+      return step;
+    });
+  }, [result]);
 
   return <PageShell><main id="main-content" className="content-page mortgage-page labor-claim-page"><Breadcrumbs items={breadcrumbs} />
     <header className="mortgage-hero">
@@ -187,7 +221,7 @@ export default function LaborClaimEvaluatorPage() {
         <fieldset>
           <legend>1. Relación y término</legend>
           <div className="mortgage-grid">
-            <Field id="startDate" label="Fecha de inicio" error={errors.startDate}><input id="startDate" type="date" value={form.startDate} onChange={(event) => update("startDate", event.target.value)} /></Field>
+            <Field id="startDate" label="Fecha de inicio de la relación laboral" error={errors.startDate} help={tenure ? `Antigüedad: ${tenure}. Se usa para años de servicio, vacaciones, gratificación y cotizaciones mes a mes.` : "Primer día en que prestó servicios, aunque haya sido con boletas. Revise el contrato, la primera boleta o los correos."}><input id="startDate" type="date" value={form.startDate} onChange={(event) => update("startDate", event.target.value)} /></Field>
             <Field id="endDate" label="Fecha de término (real o hipotética)" error={errors.endDate}><input id="endDate" type="date" value={form.endDate} onChange={(event) => update("endDate", event.target.value)} /></Field>
             <Field id="terminationType" label="Causal de término o tipo de acción" error={errors.terminationType} help={termination?.nota}>
               <select id="terminationType" value={form.terminationType} onChange={(event) => { const next = TERMINATION_TYPES.find((type) => type.id === event.target.value); setForm((current) => ({ ...current, terminationType: next.id, surchargeRate: String(next.recargoPorDefecto) })); }}>
@@ -231,7 +265,7 @@ export default function LaborClaimEvaluatorPage() {
         </fieldset>
 
         <fieldset>
-          <legend>4. Fuero, nulidad y tutela</legend>
+          <legend>4. Fuero, nulidad, tutela y gratificación</legend>
           <div className="mortgage-grid">
             <label className="claim-check"><input type="checkbox" checked={form.pregnant} onChange={(event) => update("pregnant", event.target.checked)} /> Embarazo o fuero maternal al momento del término</label>
             {form.pregnant && <Field id="dueDate" label="Fecha probable de parto" error={errors.dueDate} help="El fuero dura hasta un año después del postnatal (12 semanas desde el parto)."><input id="dueDate" type="date" value={form.dueDate} onChange={(event) => update("dueDate", event.target.value)} /></Field>}
@@ -249,6 +283,13 @@ export default function LaborClaimEvaluatorPage() {
               <p>Haber trabajado a honorarios no basta por sí solo: se necesitan indicios concretos (correos, mensajes, testigos, fechas). Si el juez la acoge, suma entre 6 y 11 remuneraciones a las indemnizaciones normales. El plazo para presentarla es de 60 días hábiles desde el despido.</p>
             </details>
             {form.tutelaEnabled && <Field id="tutelaMonths" label="Remuneraciones a pedir (6 a 11)" error={errors.tutelaMonths}><select id="tutelaMonths" value={form.tutelaMonths} onChange={(event) => update("tutelaMonths", event.target.value)}>{[6, 7, 8, 9, 10, 11].map((value) => <option key={value} value={String(value)}>{value}</option>)}</select></Field>}
+            {form.tutelaEnabled && <Field id="rightsDescription" label="¿Qué derecho se vulneró? (opcional, se usa en el correo)" help="Por ejemplo: me despidieron días después de informar mi embarazo."><textarea id="rightsDescription" className="claim-textarea" rows={3} value={form.rightsDescription} onChange={(event) => update("rightsDescription", event.target.value)} data-private="true" /></Field>}
+            <label className="claim-check"><input type="checkbox" checked={form.gratificationEnabled} onChange={(event) => update("gratificationEnabled", event.target.checked)} /> Cobrar gratificación legal</label>
+            <details className="claim-explainer">
+              <summary>¿Cuándo corresponde la gratificación legal?</summary>
+              <p>La deben pagar las empresas con fines de lucro que llevan contabilidad y obtienen utilidades (arts. 47 a 50 del Código del Trabajo). Si nunca se la pagaron, puede cobrarla. El cálculo usa la modalidad más común (art. 50): 25% de lo ganado cada mes, con un tope anual de 4,75 ingresos mínimos.</p>
+              <p>Solo se cobran los últimos 2 años, porque lo anterior prescribe (art. 510). No aplica si el empleador es una fundación, una corporación sin fines de lucro o un organismo público, o si la empresa no tuvo utilidades.</p>
+            </details>
           </div>
           <p className="claim-hint">Fuero y nulidad no se suman sobre los mismos meses: el cálculo usa el período más largo.</p>
         </fieldset>
@@ -284,7 +325,7 @@ export default function LaborClaimEvaluatorPage() {
         <strong>{formatClp(result.claimTotal)}</strong>
         <small>en dinero, antes de honorarios del abogado.</small>
       </div>
-      <p className="claim-lead">Además, el empleador debería pagar <strong>{formatClp(result.contributions.total)}</strong> a sus instituciones previsionales y de salud (AFP, salud, seguro de cesantía y otras).</p>
+      <p className="claim-lead">Además, el empleador debería pagar <strong>{formatClp(result.contributions.total)}</strong> a sus instituciones previsionales y de salud (AFP, salud, seguro de cesantía y otras). Con reajustes, intereses y multas estimados ({formatClp(result.exposure.latePayment)}), el empleador arriesga en total <strong>{formatClp(result.exposure.total)}</strong> si pierde el juicio.</p>
       {result.warnings.length > 0 && <ul className="claim-warnings">{result.warnings.map((warning) => <li key={warning}><AlertTriangle size={15} /> {warning}</li>)}</ul>}
 
       <h3>Escenarios netos para usted</h3>
@@ -306,13 +347,14 @@ export default function LaborClaimEvaluatorPage() {
       <p className="claim-hint">Base de indemnizaciones: {formatClp(result.bases.indemnizationBase)} ({result.bases.isVariable ? "promedio de los últimos 3 meses calendario" : "última remuneración"}{result.bases.capApplied ? `, con tope de ${result.bases.capUf} UF` : ""}). Base de vacaciones: {formatClp(result.bases.vacationBase)} (promedio de los últimos 3 meses trabajados).</p>
 
       <h3>¿A dónde va el dinero de las cotizaciones?</h3>
-      <p className="claim-hint">Cálculo mes a mes durante {result.contributions.rows.length} meses, con el tope imponible y la UF de fin de cada mes{ufSeries.status === "loading" ? " (cargando UF históricas…)" : ""}.</p>
-      <div className="claim-destinations">{result.contributions.byDestination.map((destination) => <div className="claim-destination" key={destination.id}>
+      <p className="claim-hint">Cálculo mes a mes durante {result.contributions.rows.length} meses, con el tope imponible y la UF de fin de cada mes{ufSeries.status === "loading" ? " (cargando UF históricas…)" : ""}. Cada barra empieza donde termina la anterior y su ancho es su porcentaje del total.</p>
+      <div className="claim-destinations claim-waterfall">{waterfall.map((destination) => <div className="claim-destination" key={destination.id}>
         <div className="claim-destination__label"><span>{destination.id === "salud" ? `Salud: ${form.healthSystem === "isapre" ? "Isapre" : "Fonasa"} (7%)` : destination.label}</span><SourceRefs ids={destination.sourceIds} numbers={sourceNumbers} /></div>
-        <div className="claim-destination__bar" aria-hidden="true"><span style={{ width: `${(destination.amount / maxDestination) * 100}%` }} /></div>
+        <div className="claim-destination__bar" role="img" aria-label={`${pct(destination.share)} del total`}><span style={{ left: `${destination.offset * 100}%`, width: `${destination.share * 100}%` }} /></div>
+        <span className="claim-destination__share">{pct(destination.share)}</span>
         <strong>{formatClp(destination.amount)}</strong>
       </div>)}
-        <div className="claim-destination claim-destination--total"><div className="claim-destination__label"><span>Total cotizaciones adeudadas</span></div><div /><strong>{formatClp(result.contributions.total)}</strong></div>
+        <div className="claim-destination claim-destination--total"><div className="claim-destination__label"><span>Total cotizaciones adeudadas</span></div><div className="claim-destination__bar" aria-hidden="true"><span style={{ left: 0, width: "100%" }} /></div><span className="claim-destination__share">100%</span><strong>{formatClp(result.contributions.total)}</strong></div>
       </div>
       {form.healthSystem === "isapre" && result.contributions.isapreExtraTotal > 0 && <p className="disclosure">Dato informativo: el plan de Isapre pactado supera el 7% en {formatClp(result.contributions.isapreExtraTotal)} durante el período. Esa diferencia no se incluye en el total.</p>}
       <details className="assumption-summary"><summary>Estimación separada: reajustes, intereses y multas (Ley 17.322)</summary>
@@ -320,6 +362,31 @@ export default function LaborClaimEvaluatorPage() {
         <p className="claim-hint">Estimación gruesa: la tasa de interés corriente cambia cada mes y el reajuste legal usa el IPC. <SourceRefs ids={["ley-17322"]} numbers={sourceNumbers} /></p>
       </details>
       <p className="framework-note"><strong>Importante:</strong> lo que usted ya cotizó mediante la retención de honorarios (Ley 21.133) puede descontarse o compensarse y cambiar el resultado. Revíselo con un abogado. <SourceRefs ids={["ley-21133"]} numbers={sourceNumbers} /></p>
+
+      <section className="claim-email" aria-labelledby="claim-email-title">
+        <h3 id="claim-email-title"><Mail size={18} /> Propuesta de acuerdo para el empleador</h3>
+        <p className="claim-hint">Un borrador de correo que muestra al empleador cuánto arriesga si usted demanda y gana, y le propone un acuerdo. Revíselo con un abogado o con la Inspección del Trabajo antes de enviarlo, y guarde una copia.</p>
+        <div className="mortgage-grid claim-grid-4">
+          <Field id="employeeName" label="Su nombre"><input id="employeeName" value={form.employeeName} onChange={(event) => update("employeeName", event.target.value)} autoComplete="name" data-private="true" /></Field>
+          <Field id="employerName" label="Empleador o empresa"><input id="employerName" value={form.employerName} onChange={(event) => update("employerName", event.target.value)} data-private="true" /></Field>
+          <Field id="proposalAmount" label="Monto total propuesto" help={`Si lo deja vacío se usa el sugerido: ${formatClp(suggestedProposal(result, n(form.lawyerFeeRate) / 100))} (cotizaciones completas + lo que recibiría si gana el juicio, descontado el ${formatNumericInput(form.lawyerFeeRate)}% de honorario del abogado).`}><NumberInput id="proposalAmount" value={form.proposalAmount} placeholder={formatNumericInput(String(suggestedProposal(result, n(form.lawyerFeeRate) / 100)))} onChange={(value) => update("proposalAmount", value)} unit="$" /></Field>
+          <Field id="responseDays" label="Plazo para responder"><NumberInput id="responseDays" value={form.responseDays} onChange={(value) => update("responseDays", value)} unit="días hábiles" /></Field>
+        </div>
+        <fieldset className="claim-evidence">
+          <legend>¿Qué pruebas tiene de la relación laboral?</legend>
+          <div className="claim-evidence__grid">{EVIDENCE_OPTIONS.map((option) => <label className="claim-check" key={option.id}><input type="checkbox" checked={form.evidence.includes(option.id)} onChange={(event) => update("evidence", event.target.checked ? [...form.evidence, option.id] : form.evidence.filter((id) => id !== option.id))} /> {option.label}</label>)}</div>
+          <Field id="evidenceOther" label="Otras pruebas (opcional)"><input id="evidenceOther" value={form.evidenceOther} onChange={(event) => update("evidenceOther", event.target.value)} placeholder="Por ejemplo: grabaciones de reuniones, fotos del lugar de trabajo" data-private="true" /></Field>
+        </fieldset>
+        {email && email.proposal < result.exposure.contributions && <p className="claim-warning-text"><AlertTriangle size={15} /> El monto propuesto es menor que las cotizaciones adeudadas ({formatClp(result.exposure.contributions)}).</p>}
+        <Field id="emailSubject" label="Asunto"><input id="emailSubject" value={email?.subject || ""} readOnly /></Field>
+        <Field id="emailBody" label="Texto del correo (puede editarlo)"><textarea id="emailBody" className="claim-email__body" value={emailBody} onChange={(event) => setEmailDraft(event.target.value)} rows={18} data-private="true" /></Field>
+        <div className="result-actions">
+          <button type="button" className="button button--primary" onClick={copyEmail}><Clipboard size={16} /> Copiar correo</button>
+          <a className="button button--secondary" href={`mailto:?subject=${encodeURIComponent(email?.subject || "")}&body=${encodeURIComponent(emailBody)}`} onClick={() => trackEvent("labor_claim_email_opened", { tool: "labor_claim" })}><Mail size={16} /> Abrir en mi correo</a>
+          {emailDraft !== null && <button type="button" className="button button--secondary" onClick={() => setEmailDraft(null)}><RotateCcw size={16} /> Volver al texto generado</button>}
+        </div>
+        <p className="sr-status" aria-live="polite">{copyStatus}</p>
+      </section>
 
       <section className="claim-sources" aria-labelledby="claim-sources-title">
         <h3 id="claim-sources-title"><Scale size={18} /> Fuentes legales</h3>

@@ -162,6 +162,18 @@ export function computeMaternityProtection({ pregnant, dueDate }, endDate, read,
   return { applies: true, months: diff.totalMonths + diff.days / 30, prenatalStart, postnatalEnd, fueroEnd };
 }
 
+// Art. 50 CT: 25% de lo devengado en cada mes con tope de 4,75 ingresos mínimos al año (÷ 12 por mes),
+// solo para los meses no prescritos (art. 510: 2 años).
+export function computeGratification(series, read, endMonth) {
+  const window = read("mesesPrescripcionDerechos", endMonth);
+  const rows = series.slice(-window).map((item) => {
+    const rate = read("gratificacionTasa", item.month);
+    const monthlyCap = (read("gratificacionTopeImmAnual", item.month) * read("ingresoMinimoMensual", item.month)) / 12;
+    return { month: item.month, amount: Math.min(item.gross * rate, monthlyCap), capped: item.gross * rate > monthlyCap, monthlyCap };
+  });
+  return { rows, months: rows.length, window, amount: rows.reduce((sum, row) => sum + row.amount, 0), cappedMonths: rows.filter((row) => row.capped).length };
+}
+
 // ——— Cotizaciones mes a mes ———
 export const DESTINATIONS = [
   { id: "afp-cuenta", label: "AFP: cuenta individual", sourceIds: ["dl-3500", "ley-21735"] },
@@ -328,6 +340,13 @@ export function evaluateLaborClaim(input, params = legalParams) {
     id: "tutela", label: "Indemnización por tutela de derechos fundamentales", amount: tutelaMonths * bases.remunerationBase,
     formula: `${tutelaMonths} remuneraciones × ${clp(bases.remunerationBase)}`, sourceIds: ["ct-489"],
   });
+  const gratification = input.gratification?.enabled ? computeGratification(series, read, endMonth) : null;
+  if (gratification) components.push({
+    id: "gratificacion", label: "Gratificación legal", amount: gratification.amount,
+    formula: `${plural(gratification.months, "mes", "meses")} × mín(25% de la boleta; 4,75 ingresos mínimos ÷ 12)${gratification.cappedMonths ? ` · tope aplicado en ${gratification.cappedMonths} mes(es)` : ""}`,
+    sourceIds: ["ct-47-50", "ct-510"],
+    note: `Modalidad del art. 50. Solo los últimos ${gratification.window} meses: lo anterior está prescrito.`,
+  });
   components.forEach((component) => { component.enabled = !excluded.has(component.id); });
   const claimTotal = components.filter((component) => component.enabled).reduce((sum, component) => sum + component.amount, 0);
 
@@ -344,7 +363,9 @@ export function evaluateLaborClaim(input, params = legalParams) {
   const sourceIds = new Set([...components.flatMap((component) => component.sourceIds), ...DESTINATIONS.flatMap((destination) => destination.sourceIds), ...paramsUsed.map((param) => param.fuenteId), "ct-7-8", "ley-21133", "ley-17322", "ct-486", "ct-510"]);
   return {
     bases, service, vacation, maternity, nullityMonths, protectionMonths, protectionKind, tutelaMonths, surchargeRate, termination,
-    components, claimTotal, contributions, latePayment, scenarios, warnings,
+    components, claimTotal, contributions, latePayment, scenarios, warnings, gratification,
+    // Lo que el empleador arriesga si pierde: dinero al trabajador + cotizaciones + reajustes, intereses y multas.
+    exposure: { cash: claimTotal, contributions: contributions.total, latePayment: latePayment.total, total: claimTotal + contributions.total + latePayment.total },
     pendingParams: paramsUsed.filter((param) => !param.verificado),
     paramsUsed,
     sources: [...sourceIds].map(sourceById),

@@ -18,6 +18,7 @@ const ct = (articulo, titulo) => ({
 
 export const legalSources = [
   ct("7 y 8", "contrato de trabajo y presunción de relación laboral"),
+  ct("47 a 50", "gratificación legal"),
   ct("67", "feriado anual de 15 días hábiles"),
   ct("69", "el sábado se considera inhábil para el feriado"),
   ct("70", "acumulación del feriado (máximo 2 períodos)"),

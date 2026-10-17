@@ -150,6 +150,36 @@ export const legalParams = {
   tutelaRemuneracionesMax: [t(11, "1900-01", null, "ct-489")],
   diasHabilesPlazoDemanda: [t(60, "1900-01", null, "ct-168", { nota: "Mismo plazo para tutela (art. 486); se suspende al reclamar ante la Inspección del Trabajo, con máximo de 90 días hábiles." })],
 
+  // ——— Gratificación legal (art. 50 CT): 25% de lo devengado con tope anual de 4,75 ingresos mínimos ———
+  gratificacionTasa: [t(0.25, "1900-01", null, "ct-47-50")],
+  gratificacionTopeImmAnual: [t(4.75, "1900-01", null, "ct-47-50")],
+  mesesPrescripcionDerechos: [t(24, "1900-01", null, "ct-510", { nota: "Los derechos laborales prescriben en 2 años desde que se hicieron exigibles." })],
+  // Ingreso mínimo mensual por mes de remuneración (Previred, contrastado desde marzo 2020).
+  ingresoMinimoMensual: [
+    t(225000, "2015-01", "2015-06", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(241000, "2015-07", "2016-06", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(257500, "2016-07", "2016-12", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(264000, "2017-01", "2017-06", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(270000, "2017-07", "2018-02", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(276000, "2018-03", "2018-08", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(288000, "2018-09", "2019-02", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(301000, "2019-03", "2020-02", "previred-indicadores", pending("Valor anterior a 2020 no contrastado.")),
+    t(320500, "2020-03", "2020-08", "previred-indicadores"),
+    t(326500, "2020-09", "2021-04", "previred-indicadores", { nota: "Confirmado desde octubre 2020; septiembre 2020 no contrastado." }),
+    t(337000, "2021-05", "2021-12", "previred-indicadores"),
+    t(350000, "2022-01", "2022-06", "previred-indicadores", { nota: "Confirmado desde febrero 2022." }),
+    t(380000, "2022-07", "2022-07", "previred-indicadores"),
+    t(400000, "2022-08", "2022-12", "previred-indicadores"),
+    t(410000, "2023-01", "2023-05", "previred-indicadores"),
+    t(440000, "2023-06", "2023-08", "previred-indicadores"),
+    t(460000, "2023-09", "2024-06", "previred-indicadores"),
+    t(500000, "2024-07", "2025-01", "previred-indicadores"),
+    t(510636, "2025-02", "2025-06", "previred-indicadores"),
+    t(529000, "2025-07", "2025-12", "previred-indicadores"),
+    t(539000, "2026-01", "2026-06", "previred-indicadores"),
+    t(553553, "2026-07", null, "previred-indicadores"),
+  ],
+
   // ——— Ley 17.322: cotizaciones impagas ———
   factorInteresPenal: [t(1.5, "1900-01", null, "ley-17322", { nota: "Interés corriente para operaciones reajustables, aumentado en 50%, capitalizado mensualmente." })],
   tasaInteresCorrienteReajustableAnual: [t(0.045, "1900-01", null, "ley-17322", pending("Estimación de la tasa de interés corriente para operaciones reajustables; la CMF la fija mes a mes."))],

@@ -6,6 +6,7 @@ import {
 import { businessToCalendarDays, chileanHolidays, easterSunday, isoDate } from "../src/labor-claim/holidays.js";
 import { legalParams } from "../src/labor-claim/legalParams.js";
 import { legalSources } from "../src/labor-claim/legalSources.js";
+import { buildEmployerEmail, suggestedProposal } from "../src/labor-claim/employerEmail.js";
 
 const close = (actual, expected, tolerance = 1e-6) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} ≈ ${expected}`);
 const component = (result, id) => result.components.find((item) => item.id === id);
@@ -233,4 +234,54 @@ test("diferencia calendario y parámetros versionados", () => {
       if (index > 0) assert.ok(list[index - 1].vigenteHasta < entry.vigenteDesde, `${name}: tramos superpuestos en ${entry.vigenteDesde}`);
     }));
   });
+});
+
+test("gratificación legal: 25% con tope de 4,75 ingresos mínimos al año, solo los últimos 24 meses", () => {
+  const result = evaluateLaborClaim(baseInput({ gratification: { enabled: true } }));
+  const grat = component(result, "gratificacion");
+  assert.equal(result.gratification.months, 24);
+  assert.equal(result.gratification.rows[0].month, "2024-07");
+  // Con boletas de ~$1.000.000 el 25% supera el tope todos los meses.
+  close(grat.amount, (4.75 / 12) * (7 * 500000 + 5 * 510636 + 6 * 529000 + 6 * 539000));
+  assert.deepEqual(grat.sourceIds, ["ct-47-50", "ct-510"]);
+  const low = evaluateLaborClaim(baseInput({ gratification: { enabled: true }, series: buildMonthlySeries({ startDate: "2023-07-01", endDate: "2026-06-30", mode: "average", averagePrevious: 400000, lastThree: [400000, 400000, 400000] }) }));
+  close(component(low, "gratificacion").amount, 24 * 100000);
+  assert.equal(component(evaluateLaborClaim(baseInput()), "gratificacion"), undefined);
+});
+
+test("exposición del empleador y correo de propuesta de acuerdo", () => {
+  const result = evaluateLaborClaim(baseInput({ gratification: { enabled: true } }));
+  close(result.exposure.total, result.claimTotal + result.contributions.total + result.latePayment.total);
+  // Sugerido: cotizaciones completas + lo que recibiría si gana el juicio, descontado el honorario del abogado.
+  const suggested = suggestedProposal(result, 0.25);
+  assert.equal(suggested % 1000, 0);
+  close(suggested, result.contributions.total + result.claimTotal * 0.75, 500);
+
+  const email = buildEmployerEmail(result, {
+    employeeName: "Ana Pérez", employerName: "Empresa Demo SpA", startDate: "2023-07-01", endDate: "2026-06-30", responseDays: 7,
+    lawyerFeeRate: 0.25, evidence: ["boletas", "mensajes"], evidenceOther: "grabaciones de reuniones", rightsDescription: "me despidieron tras reclamar por mi contrato.",
+  });
+  assert.equal(email.proposal, suggested);
+  close(email.toEmployee, suggested - result.contributions.total);
+  assert.match(email.subject, /Ana Pérez/);
+  assert.match(email.body, /^Estimado\(a\) Empresa Demo SpA:/);
+  result.components.forEach((item) => assert.ok(email.body.includes(item.label), item.label));
+  assert.ok(email.body.includes("Ley 17.322"));
+  assert.match(email.body, /boletas de honorarios emitidas mes a mes/);
+  assert.match(email.body, /WhatsApp/);
+  assert.match(email.body, / {3}- Grabaciones de reuniones\./);
+  assert.match(email.body, /afectó mis derechos fundamentales: me despidieron tras reclamar por mi contrato\. Por eso/);
+  assert.match(email.body, /Todos estos montos son estimaciones/);
+  assert.match(email.body, /dentro de 7 días hábiles/);
+  assert.match(email.body, /artículo 162/);
+  assert.doesNotMatch(email.body, /evaluaré presentar la demanda/);
+  assert.match(email.body, /Fundamentos legales\n/);
+  assert.ok(email.body.includes("https://www.bcn.cl/leychile/navegar?idNorma=207436"));
+  email.sources.forEach((source) => { assert.notEqual(source.estado, "pendiente"); assert.ok(email.body.includes(source.url)); });
+  assert.ok(email.sources.some((source) => source.id === "ct-489"));
+
+  const withoutTutela = buildEmployerEmail(evaluateLaborClaim(baseInput({ tutela: { enabled: false } })), {});
+  assert.match(withoutTutela.body, /no estoy reclamando una vulneración de derechos fundamentales/);
+  assert.match(withoutTutela.body, /\[nombre del empleador o empresa\]/);
+  assert.doesNotMatch(withoutTutela.body, /Cuento con antecedentes/);
 });
