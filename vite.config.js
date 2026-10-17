@@ -1,7 +1,7 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
-import { resolveUf } from "./api/indicadores/uf.js";
+import { handleUfQuery } from "./api/indicadores/uf.js";
 import { resolveOpportunityIndicators } from "./api/indicadores/oportunidades.js";
 import { executeAiRequest, AiExecuteError } from "./api/ai/execute.js";
 
@@ -50,7 +50,8 @@ function ufLocalEndpoint(apiKey) {
       }
       try {
         response.statusCode = 200;
-        response.end(JSON.stringify(await resolveUf({ apiKey })));
+        const query = Object.fromEntries(new URL(request.url, "http://localhost").searchParams);
+        response.end(JSON.stringify(await handleUfQuery(query, { apiKey })));
       } catch {
         response.statusCode = 200;
         response.end(JSON.stringify({ valueClp: null, effectiveDate: null, retrievedAt: new Date().toISOString(), sourceCategory: "unavailable", status: "unavailable", stale: true }));

@@ -38,6 +38,21 @@ BCCH_API_PASSWORD=clave_bde
 
 La interfaz no recibe ni expone esas credenciales. `CMF_API_KEY` sigue siendo opcional para la fuente primaria de UF.
 
+### UF (`/api/indicadores/uf`)
+
+- `GET /api/indicadores/uf` → UF de hoy. `?fecha=YYYY-MM-DD` → UF de esa fecha. `?serie=fin-de-mes&desde=YYYY-MM&hasta=YYYY-MM` → UF del último día de cada mes (máx. 15 años).
+- Fuente primaria: API de la CMF (requiere `CMF_API_KEY`, gratuita en https://api.cmfchile.cl/). Respaldo: mindicador.cl. Si ambas fallan se devuelve el último valor cacheado con `status: "cached"`.
+- Configura `CMF_API_KEY` en `.env.local` para desarrollo y en *Vercel → Settings → Environment Variables* para producción. Nunca la expongas con prefijo `VITE_`.
+
+## Evaluador de demanda laboral
+
+Ruta `/herramientas/evaluador-demanda-laboral`. Código en `src/labor-claim/`:
+
+- `laborClaimEngine.js`: motor puro (sin UI). Tests en `tests/laborClaimEngine.test.js`.
+- `legalParams.js`: tasas y topes versionados (`valor`, `vigenteDesde`, `vigenteHasta`, `fuenteId`, `verificado`). Para actualizar una tasa o tope, cierra el tramo vigente con `vigenteHasta` y agrega uno nuevo; marca `verificado: false` con una `nota` si aún no lo contrastaste con la fuente oficial (la UI lo mostrará como "pendiente de verificar").
+- `legalSources.js`: registro de fuentes (`id`, `titulo`, `articulo`, `url`, `fechaVerificacion`, `estado`).
+- `holidays.js`: feriados legales para convertir días hábiles de vacaciones en días corridos.
+
 ## IA opcional del estudio de novela
 
 Los botones **Sugerir título** y **Generar resumen** llaman a OpenAI únicamente cuando el usuario los pulsa. La configuración principal se realiza desde **Configuración → Inteligencia artificial** dentro del estudio. La clave y el modelo se guardan en `preferences.json` dentro de la carpeta local del workspace.

@@ -55,6 +55,6 @@ test("Vite ejecuta el endpoint UF durante desarrollo y preview local", async () 
   const vite = await source("../vite.config.js");
   assert.match(vite, /configureServer: install/);
   assert.match(vite, /configurePreviewServer: install/);
-  assert.match(vite, /resolveUf\(\{ apiKey \}\)/);
+  assert.match(vite, /handleUfQuery\(query, \{ apiKey \}\)/);
   assert.match(vite, /loadEnv\(mode, process\.cwd\(\), ""\)/);
 });

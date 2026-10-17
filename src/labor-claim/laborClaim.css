@@ -1,0 +1,90 @@
+/* Evaluador de demanda laboral. Reutiliza los tokens del sitio (index.css) y las clases de la calculadora hipotecaria. */
+
+.labor-claim-page .claim-uf-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; margin-top: 28px; border: 1px solid var(--line); }
+.claim-uf-controls { display: grid; gap: 12px; min-width: 0; }
+.claim-warning-text { display: flex; align-items: flex-start; gap: 6px; color: var(--burgundy) !important; font-weight: 700; }
+.claim-warning-text svg { flex: none; margin-top: 3px; }
+
+.claim-form { display: grid; gap: 22px; }
+.claim-input-unit { display: flex; align-items: stretch; min-width: 0; }
+.claim-input-unit input { flex: 1; min-width: 0; }
+.claim-input-unit span { display: flex; align-items: center; padding: 0 12px; border: 1px solid var(--line-strong); border-left: 0; background: var(--paper); color: var(--muted); font-weight: 700; }
+.claim-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.claim-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.claim-check { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); background: var(--paper); font-weight: 700; line-height: 1.4; cursor: pointer; }
+.claim-check input { flex: none; width: 18px; height: 18px; margin-top: 1px; accent-color: var(--burgundy); }
+.claim-monthly__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; max-height: 420px; margin-top: 14px; padding: 4px 4px 4px 0; overflow-y: auto; }
+.claim-hint { color: var(--muted); font-size: .92rem; line-height: 1.55; }
+.claim-empty { padding: 18px 22px; border: 1px dashed var(--line-strong); background: var(--white); }
+
+.claim-results h3 { margin: 34px 0 10px; font-family: Georgia, serif; font-size: 1.45rem; }
+.claim-headline span { color: var(--ink-soft); font-weight: 700; }
+.claim-headline small { color: var(--muted); }
+.claim-lead { font-size: 1.12rem; line-height: 1.6; }
+.claim-warnings { display: grid; gap: 8px; margin: 18px 0 0; padding: 0; list-style: none; }
+.claim-warnings li { display: flex; gap: 8px; padding: 12px 14px; border-left: 4px solid var(--gold); background: #f5ede0; line-height: 1.5; }
+.claim-warnings svg { flex: none; margin-top: 3px; color: var(--gold); }
+.claim-scenarios { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.claim-scenarios small { display: block; line-height: 1.45; }
+
+.claim-table { border: 1px solid var(--line); background: var(--white); font-size: .93rem; }
+.claim-table__head,
+.claim-table__row { display: grid; grid-template-columns: 64px minmax(160px, 1.2fr) minmax(200px, 2fr) minmax(110px, auto) minmax(64px, auto); gap: 12px; align-items: start; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.claim-table__head { background: var(--ink); color: var(--white); font-size: .8rem; font-weight: 800; letter-spacing: .03em; text-transform: uppercase; }
+.claim-table__row input { width: 18px; height: 18px; accent-color: var(--burgundy); }
+.claim-table__row.is-off { color: var(--muted); }
+.claim-table__row.is-off .claim-table__amount { text-decoration: line-through; }
+.claim-table__concept { font-weight: 750; }
+.claim-table__concept small { display: block; margin-top: 4px; color: var(--muted); font-weight: 400; line-height: 1.4; }
+.claim-table__formula { color: var(--ink-soft); line-height: 1.45; overflow-wrap: anywhere; }
+.claim-table__amount { font-weight: 800; text-align: right; white-space: nowrap; }
+.claim-table__total { border-bottom: 0; background: var(--mortgage-soft); font-weight: 800; }
+.claim-source-refs { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+.claim-source-refs a { color: var(--teal); font-size: .82rem; font-weight: 800; text-decoration: underline; }
+
+.claim-destinations { display: grid; gap: 1px; border: 1px solid var(--line); background: var(--line); }
+.claim-destination { display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(80px, 2fr) minmax(110px, auto); gap: 14px; align-items: center; padding: 12px 14px; background: var(--white); }
+.claim-destination__label { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.claim-destination__bar { height: 10px; background: var(--paper-deep); }
+.claim-destination__bar span { display: block; height: 100%; background: var(--teal); }
+.claim-destination strong { text-align: right; white-space: nowrap; }
+.claim-destination--total { background: var(--mortgage-soft); font-weight: 800; }
+.claim-results .framework-note,
+.claim-results .disclosure { margin: 22px 0; }
+
+.claim-sources { margin-top: 34px; padding-top: 8px; border-top: 1px solid var(--line); }
+.claim-sources h3 { display: flex; align-items: center; gap: 8px; }
+.claim-sources ol { display: grid; gap: 10px; margin: 0; padding-left: 26px; line-height: 1.5; }
+.claim-sources li { scroll-margin-top: 96px; overflow-wrap: anywhere; }
+.claim-sources li:target { background: var(--mortgage-soft); }
+.claim-sources a { display: inline-flex; align-items: center; gap: 3px; color: var(--teal); font-weight: 700; text-decoration: underline; }
+.claim-sources small { color: var(--muted); }
+.claim-sources details { margin-top: 16px; }
+.claim-sources summary { font-weight: 750; cursor: pointer; }
+.claim-badge { display: inline-block; margin-left: 6px; padding: 2px 8px; border: 1px solid var(--gold); background: #f5ede0; color: var(--ink-soft); font-size: .78rem; font-weight: 800; }
+.claim-disclaimer p { line-height: 1.65; }
+
+@media (max-width: 960px) {
+  .claim-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .labor-claim-page .claim-uf-panel { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 720px) {
+  .claim-grid-4, .claim-grid-3, .claim-scenarios { grid-template-columns: 1fr; }
+  .claim-monthly__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .claim-table__head { display: none; }
+  .claim-table__row { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 6px 10px; }
+  .claim-table__row > :nth-child(3) { grid-column: 2 / -1; grid-row: 2; font-size: .86rem; }
+  .claim-table__row > :nth-child(5) { grid-column: 2 / -1; grid-row: 3; }
+  .claim-table__total > :nth-child(3), .claim-table__total > :nth-child(5) { display: none; }
+  .claim-destination { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .claim-destination__bar { grid-column: 1 / -1; grid-row: 2; }
+}
+
+@media (max-width: 420px) {
+  .claim-monthly__grid { grid-template-columns: 1fr; }
+}
+
+@media print {
+  .claim-form, .claim-uf-controls, .labor-claim-page .result-actions { display: none; }
+}
