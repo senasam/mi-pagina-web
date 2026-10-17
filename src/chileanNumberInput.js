@@ -33,3 +33,13 @@ export function formatNumericInput(value) {
   const grouped = (integer || "0").replace(/\B(?=(\d{3})+(?!\d))/g, ".");
   return `${negative ? "-" : ""}${grouped}${decimals !== undefined ? `,${decimals}` : ""}`;
 }
+
+// Lee lo que el usuario escribe sobre un valor ya formateado por formatNumericInput (punto de miles, coma decimal).
+// A diferencia de normalizeNumericInput, nunca trata el punto como decimal: al teclear el cuarto cero
+// de "1.000" el campo muestra "1.0000", que debe leerse como 10000 y no como 1,0000.
+export function parseDisplayedNumber(rawValue, integer = false) {
+  const text = String(rawValue ?? "").replace(/[^\d,]/g, "");
+  const [whole, ...rest] = text.split(",");
+  if (integer || !rest.length) return whole;
+  return `${whole || "0"}.${rest.join("")}`;
+}

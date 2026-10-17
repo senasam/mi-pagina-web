@@ -3,7 +3,7 @@ import { AlertTriangle, ExternalLink, RefreshCw, RotateCcw, Scale } from "lucide
 import { Breadcrumbs, PageShell } from "./LearningComponents";
 import { breadcrumbSchema, usePageMetadata } from "./seo";
 import { trackEvent } from "./analytics";
-import { formatNumericInput, normalizeNumericInput } from "./chileanNumberInput";
+import { formatNumericInput, parseDisplayedNumber } from "./chileanNumberInput";
 import { formatClp, parseChileanNumber } from "./mortgageEngine";
 import { AFP_OPTIONS, LEGAL_PARAMS_REVIEWED_ON, TERMINATION_TYPES } from "./labor-claim/legalParams";
 import { buildMonthlySeries, evaluateLaborClaim, isValidIsoDate, monthRange, validateAssumptions } from "./labor-claim/laborClaimEngine";
@@ -45,8 +45,9 @@ function Field({ id, label, help, error, children }) {
 }
 
 function NumberInput({ id, value, onChange, unit, error, describedBy }) {
+  const integer = unit === "$";
   return <div className="claim-input-unit">
-    <input id={id} inputMode="decimal" value={formatNumericInput(value)} onChange={(event) => onChange(normalizeNumericInput(event.target.value))} aria-invalid={Boolean(error)} aria-describedby={describedBy} data-private="true" />
+    <input id={id} inputMode={integer ? "numeric" : "decimal"} value={formatNumericInput(value)} onChange={(event) => onChange(parseDisplayedNumber(event.target.value, integer))} aria-invalid={Boolean(error)} aria-describedby={describedBy} data-private="true" />
     {unit && <span aria-hidden="true">{unit}</span>}
   </div>;
 }
