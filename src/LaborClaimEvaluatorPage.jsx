@@ -19,15 +19,18 @@ const monthLabel = (key) => new Intl.DateTimeFormat("es-CL", { month: "short", y
 const pct = (value) => `${new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(value * 100)}%`;
 const SOURCE_LABELS = { cmf: "CMF (oficial)", "secondary-provider": "mindicador.cl (respaldo)", cache: "último valor guardado", unavailable: "no disponible" };
 
+const yearsBefore = (iso, years) => `${Number(iso.slice(0, 4)) - years}${iso.slice(4) === "-02-29" ? "-02-28" : iso.slice(4)}`;
+
+// Valores por defecto: un caso típico editable (3 años, $1.000.000 mensuales, embarazo, tutela y gratificación).
 const initialForm = () => {
   const end = today();
   return {
-    startDate: "", endDate: end, terminationType: "despido-injustificado", surchargeRate: "0.5",
-    inputMode: "average", averagePrevious: "", lastThree: ["", "", ""], monthly: {},
-    pendingPeriods: "0", unpaidDaysTaken: "0", pregnant: false, dueDate: "",
-    nullityEnabled: true, nullityMonths: "12", tutelaEnabled: false, tutelaMonths: "6",
-    afp: "", healthSystem: "fonasa", isaprePlanUf: "", accidentAdditional: "0",
-    gratificationEnabled: false,
+    startDate: yearsBefore(end, 3), endDate: end, terminationType: "despido-injustificado", surchargeRate: "0.5",
+    inputMode: "average", averagePrevious: "1000000", lastThree: ["1000000", "1000000", "1000000"], monthly: {},
+    pendingPeriods: "2", unpaidDaysTaken: "0", pregnant: true, dueDate: addDaysIso(end, 120),
+    nullityEnabled: true, nullityMonths: "12", tutelaEnabled: true, tutelaMonths: "6",
+    afp: "habitat", healthSystem: "isapre", isaprePlanUf: "4", accidentAdditional: "0",
+    gratificationEnabled: true,
     winProbability: "75", settlementRate: "60", lawyerFeeRate: "25",
     employeeName: "", employerName: "", proposalAmount: "", responseDays: "10",
     evidence: ["boletas"], evidenceOther: "", rightsDescription: "",
