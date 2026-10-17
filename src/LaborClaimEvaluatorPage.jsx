@@ -39,7 +39,7 @@ const initialForm = () => {
     gratificationEnabled: true,
     employerType: "privada", winProbabilityAuto: true, winProbability: "75", settlementRate: "60", lawyerFeeRate: "25",
     employeeName: "", employerName: "", proposalAmount: "", responseDays: "10",
-    evidence: ["boletas"], evidenceOther: "", rightsDescription: "",
+    evidence: ["boletas"], evidenceOther: "", rightsDescription: "", employerDefenseCost: "", confidentiality: true,
   };
 };
 const exampleForm = () => ({
@@ -183,8 +183,8 @@ export default function LaborClaimEvaluatorPage() {
   const email = useMemo(() => result ? buildEmployerEmail(result, {
     employeeName: form.employeeName, employerName: form.employerName, startDate: form.startDate, endDate: form.endDate,
     proposalAmount: n(form.proposalAmount) || suggestedProposal(result, n(form.lawyerFeeRate) / 100), responseDays: n(form.responseDays) || 10, healthLabel: form.healthSystem === "isapre" ? "Isapre" : "Fonasa",
-    lawyerFeeRate: n(form.lawyerFeeRate) / 100, evidence: form.evidence, evidenceOther: form.evidenceOther, rightsDescription: form.tutelaEnabled ? form.rightsDescription : "",
-  }) : null, [result, form.employeeName, form.employerName, form.startDate, form.endDate, form.proposalAmount, form.responseDays, form.healthSystem, form.lawyerFeeRate, form.evidence, form.evidenceOther, form.rightsDescription, form.tutelaEnabled]);
+    lawyerFeeRate: n(form.lawyerFeeRate) / 100, employerType: form.employerType, employerDefenseCost: n(form.employerDefenseCost), confidentiality: form.confidentiality, evidence: form.evidence, evidenceOther: form.evidenceOther, rightsDescription: form.tutelaEnabled ? form.rightsDescription : "",
+  }) : null, [result, form.employeeName, form.employerName, form.startDate, form.endDate, form.proposalAmount, form.responseDays, form.healthSystem, form.lawyerFeeRate, form.employerType, form.employerDefenseCost, form.confidentiality, form.evidence, form.evidenceOther, form.rightsDescription, form.tutelaEnabled]);
   const [emailDraft, setEmailDraft] = useState(null);
   const [copyStatus, setCopyStatus] = useState("");
   useEffect(() => { setEmailDraft(null); }, [email?.body]);
@@ -355,7 +355,7 @@ export default function LaborClaimEvaluatorPage() {
               <li>Su caso: {winSuggestion.causeLabel} = {pct(winSuggestion.base)}, ajustado por {winSuggestion.employer.label.toLowerCase()} ({pct(winSuggestion.employer.rate)} frente al 70,2% general) → <strong>{pct(winSuggestion.probability)}</strong>.</li>
             </ul>
             <p><strong>Ojo con los honorarios:</strong> no hay estadísticas publicadas específicas para honorarios encubiertos ni para el autodespido. En estos casos usted debe probar primero que existió relación laboral, así que si su prueba es débil conviene bajar la probabilidad.</p>
-            <p><strong>Cuánto demora:</strong> el {Math.round(resolutionShares.acuerdoTotal * 100)}% de los juicios por despido termina antes de la sentencia, por conciliación ({Math.round(resolutionShares.conciliacion * 100)}%) o avenimiento ({Math.round(resolutionShares.avenimiento * 100)}%). Según el Poder Judicial, las conciliaciones tardaron en promedio {durations.conciliationDays[2020]} días en 2020 y {durations.conciliationDays[2021]} en 2021 (unos 5 a 6 meses). La tramitación en primera instancia subió de {durations.firstInstanceDays[2017]} días en 2017 a {durations.firstInstanceDays[2021]} en 2021 (unos 7 meses). Si hay recursos ante la Corte de Apelaciones y la Corte Suprema, se pueden sumar de {durations.appealsExtraMonths[0]} a {durations.appealsExtraMonths[1]} meses. No hay cifras oficiales más recientes publicadas y las causas laborales se triplicaron entre 2021 y 2025, por lo que hoy los plazos podrían ser mayores.</p>
+            <p><strong>Cuánto demora:</strong> el {Math.round(resolutionShares.acuerdoTotal * 100)}% de los juicios por despido termina antes de la sentencia, por conciliación ({Math.round(resolutionShares.conciliacion * 100)}%) o avenimiento ({Math.round(resolutionShares.avenimiento * 100)}%). Según el Poder Judicial, las conciliaciones tardaron en promedio {durations.conciliationDays[2020]} días en 2020 y {durations.conciliationDays[2021]} en 2021 (unos 5 a 6 meses). La tramitación en primera instancia subió de {durations.firstInstanceDays[2017]} días en 2017 a {durations.firstInstanceDays[2021]} en 2021 (unos 7 meses). Si hay recursos ante la Corte de Apelaciones y la Corte Suprema, se pueden sumar de {durations.appealsExtraMonths[0]} a {durations.appealsExtraMonths[1]} meses. Cuando hay condena en costas, el 88,4% de las veces la paga el empleador (mediana de $450.000). No hay cifras oficiales más recientes publicadas y las causas laborales se triplicaron entre 2021 y 2025, por lo que hoy los plazos podrían ser mayores.</p>
             <p className="claim-hint">Fuentes <SourceRefs ids={["lyd-sij-34", "observatorio-judicial-despido", "df-duracion-2021", "df-duracion-2020", "pjud-numeros-cs"]} numbers={sourceNumbers} /> · revisadas el {dateLabel(STATS_REVIEWED_ON)}.</p>
           </details>
         </fieldset>
@@ -418,7 +418,10 @@ export default function LaborClaimEvaluatorPage() {
           <Field id="employerName" label="Empleador o empresa"><input id="employerName" value={form.employerName} onChange={(event) => update("employerName", event.target.value)} data-private="true" /></Field>
           <Field id="proposalAmount" label="Monto total propuesto" help={`Si lo deja vacío se usa el sugerido: ${formatClp(suggestedProposal(result, n(form.lawyerFeeRate) / 100))} (cotizaciones completas con sus reajustes e intereses legales + lo que recibiría si gana el juicio, descontado el ${formatNumericInput(form.lawyerFeeRate)}% de honorario del abogado).`}><NumberInput id="proposalAmount" value={form.proposalAmount} placeholder={formatNumericInput(String(suggestedProposal(result, n(form.lawyerFeeRate) / 100)))} onChange={(value) => update("proposalAmount", value)} unit="$" /></Field>
           <Field id="responseDays" label="Plazo para responder"><NumberInput id="responseDays" value={form.responseDays} onChange={(value) => update("responseDays", value)} unit="días hábiles" /></Field>
+          <Field id="employerDefenseCost" label="Costo estimado de la defensa de la empresa (opcional)" help="Honorarios del abogado de la empresa en un juicio. No hay estadísticas públicas confiables: si lo deja vacío, el correo menciona el costo sin dar un monto."><NumberInput id="employerDefenseCost" value={form.employerDefenseCost} onChange={(value) => update("employerDefenseCost", value)} unit="$" /></Field>
         </div>
+        <label className="claim-check"><input type="checkbox" checked={form.confidentiality} onChange={(event) => update("confidentiality", event.target.checked)} /> Proponer un acuerdo de confidencialidad y no difamación recíproco, firmado al momento del pago</label>
+        <p className="claim-hint">La confidencialidad no puede impedir declarar ante un tribunal ni denunciar ante la Inspección del Trabajo u otra autoridad, ni hacer renunciar derechos irrenunciables; una cláusula así podría ser nula. Pida que la redacte o revise un abogado.</p>
         <fieldset className="claim-evidence">
           <legend>¿Qué pruebas tiene de la relación laboral?</legend>
           <div className="claim-evidence__grid">{EVIDENCE_OPTIONS.map((option) => <label className="claim-check" key={option.id}><input type="checkbox" checked={form.evidence.includes(option.id)} onChange={(event) => update("evidence", event.target.checked ? [...form.evidence, option.id] : form.evidence.filter((id) => id !== option.id))} /> {option.label}</label>)}</div>

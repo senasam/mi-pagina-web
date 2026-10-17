@@ -36,6 +36,15 @@ export const EMPLOYER_TYPES = [
 // Cómo terminan las causas por despido injustificado (2015–2025).
 export const resolutionShares = { conciliacion: 0.36, avenimiento: 0.21, acuerdoTotal: 0.57, sourceIds: ["lyd-sij-34"] };
 
+// Condena en costas en sentencias por despido injustificado (2015–2025).
+export const costsAwards = {
+  sentencesWithCosts: 0.33, // 33% de las sentencias condena en costas
+  againstEmployerShare: 0.884, // de esas condenas, 88,4% recae en el empleador
+  employerCondemnedShare: 0.296, // 29,6% del total de sentencias
+  medianAgainstEmployer: 450000, // mediana de costas personales contra el empleador (CLP)
+  sourceIds: ["lyd-sij-34"],
+};
+
 // Duración: no hay una cifra oficial reciente publicada. La serie disponible es de tramitación en primera instancia
 // (Poder Judicial, vía Diario Financiero) y los ingresos se triplicaron entre 2021 y 2025, por lo que hoy podría ser mayor.
 export const durations = {
