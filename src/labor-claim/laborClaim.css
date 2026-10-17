@@ -14,10 +14,15 @@
 .claim-check { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid var(--line); background: var(--paper); font-weight: 700; line-height: 1.4; cursor: pointer; }
 .claim-check input { flex: none; width: 18px; height: 18px; margin-top: 1px; accent-color: var(--burgundy); }
 .claim-monthly__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; max-height: 420px; margin-top: 14px; padding: 4px 4px 4px 0; overflow-y: auto; }
+.claim-vacation-summary { margin-top: 14px; padding: 14px 16px; border-left: 4px solid var(--teal); background: var(--mortgage-soft); line-height: 1.55; }
+.claim-vacation-summary ul { margin: 8px 0 0; padding-left: 20px; }
 .claim-explainer { grid-column: 1 / -1; padding: 12px 14px; border-left: 4px solid var(--teal); background: var(--white); line-height: 1.55; }
 .claim-explainer summary { color: var(--teal); font-weight: 750; cursor: pointer; }
 .claim-explainer p, .claim-explainer ul { margin: 10px 0 0; }
 .claim-explainer ul { padding-left: 20px; }
+.claim-causal-list { display: grid; gap: 10px; }
+.claim-causal-list li.is-selected { margin-left: -8px; padding: 8px; background: var(--mortgage-soft); }
+.claim-causal-list__surcharge { color: var(--muted); }
 .claim-hint { color: var(--muted); font-size: .92rem; line-height: 1.55; }
 .claim-empty { padding: 18px 22px; border: 1px dashed var(--line-strong); background: var(--white); }
 

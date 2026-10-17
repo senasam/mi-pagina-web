@@ -252,29 +252,37 @@ test("gratificación legal: 25% con tope de 4,75 ingresos mínimos al año, solo
 test("exposición del empleador y correo de propuesta de acuerdo", () => {
   const result = evaluateLaborClaim(baseInput({ gratification: { enabled: true } }));
   close(result.exposure.total, result.claimTotal + result.contributions.total + result.latePayment.total);
-  // Sugerido: cotizaciones completas + lo que recibiría si gana el juicio, descontado el honorario del abogado.
+  // Sugerido: cotizaciones completas con reajustes e intereses + lo que recibiría si gana el juicio, descontado el honorario del abogado.
   const suggested = suggestedProposal(result, 0.25);
   assert.equal(suggested % 1000, 0);
-  close(suggested, result.contributions.total + result.claimTotal * 0.75, 500);
+  const charges = result.latePayment.reajuste + result.latePayment.interes;
+  close(suggested, result.contributions.total + charges + result.claimTotal * 0.75, 500);
 
   const email = buildEmployerEmail(result, {
     employeeName: "Ana Pérez", employerName: "Empresa Demo SpA", startDate: "2023-07-01", endDate: "2026-06-30", responseDays: 7,
-    lawyerFeeRate: 0.25, evidence: ["boletas", "mensajes"], evidenceOther: "grabaciones de reuniones", rightsDescription: "me despidieron tras reclamar por mi contrato.",
+    lawyerFeeRate: 0.25, evidence: ["boletas", "mensajes", "clientes"], evidenceOther: "grabaciones de reuniones", rightsDescription: "me despidieron tras reclamar por mi contrato.",
   });
   assert.equal(email.proposal, suggested);
-  close(email.toEmployee, suggested - result.contributions.total);
+  close(email.toEmployee, suggested - result.contributions.total - charges);
+  close(email.contributionsWithCharges, result.contributions.total + charges);
   assert.match(email.subject, /Ana Pérez/);
   assert.match(email.body, /^Estimado\(a\) Empresa Demo SpA:/);
   result.components.forEach((item) => assert.ok(email.body.includes(item.label), item.label));
   assert.ok(email.body.includes("Ley 17.322"));
   assert.match(email.body, /boletas de honorarios emitidas mes a mes/);
   assert.match(email.body, /WhatsApp/);
+  assert.match(email.body, /Clientes o proveedores que pueden declarar que les atendí en nombre de la empresa\./);
   assert.match(email.body, / {3}- Grabaciones de reuniones\./);
   assert.match(email.body, /afectó mis derechos fundamentales: me despidieron tras reclamar por mi contrato\. Por eso/);
   assert.match(email.body, /Todos estos montos son estimaciones/);
   assert.match(email.body, /dentro de 7 días hábiles/);
   assert.match(email.body, /artículo 162/);
   assert.doesNotMatch(email.body, /evaluaré presentar la demanda/);
+  assert.match(email.body, /^Te escribo con el ánimo/m);
+  assert.doesNotMatch(email.body, /(Le escribo|Le propongo|Le menciono|le acomode|Le agradecería)/);
+  assert.doesNotMatch(email.body, /evitaría los reajustes/);
+  assert.match(email.body, /un acuerdo entre nosotros no los elimina/);
+  assert.match(email.body, /artículo 19 del DL 3\.500/);
   assert.match(email.body, /Fundamentos legales\n/);
   assert.ok(email.body.includes("https://www.bcn.cl/leychile/navegar?idNorma=207436"));
   email.sources.forEach((source) => { assert.notEqual(source.estado, "pendiente"); assert.ok(email.body.includes(source.url)); });
@@ -284,4 +292,26 @@ test("exposición del empleador y correo de propuesta de acuerdo", () => {
   assert.match(withoutTutela.body, /no estoy reclamando una vulneración de derechos fundamentales/);
   assert.match(withoutTutela.body, /\[nombre del empleador o empresa\]/);
   assert.doesNotMatch(withoutTutela.body, /Cuento con antecedentes/);
+});
+
+test("las vacaciones proporcionales del período en curso se suman al total demandado", () => {
+  // Inicio 1-jul-2023, término 15-oct-2026: período en curso desde el 1-jul-2026 = 3 meses y 14 días.
+  const startDate = "2023-07-01";
+  const endDate = "2026-10-15";
+  const series = buildMonthlySeries({ startDate, endDate, mode: "average", averagePrevious: 1000000, lastThree: [1000000, 1000000, 1000000] });
+  const withoutPending = evaluateLaborClaim(baseInput({ startDate, endDate, series, vacation: { pendingPeriods: 0 } }));
+  const vacation = withoutPending.vacation;
+  assert.equal(vacation.currentPeriodStart, "2026-07-01");
+  assert.equal(vacation.completedYears, 3);
+  close(vacation.proportionalDays, 3 * 1.25 + 14 * (1.25 / 30));
+  close(vacation.businessDays, vacation.proportionalDays);
+  const row = component(withoutPending, "feriado");
+  assert.ok(row.amount > 0 && row.enabled);
+  close(withoutPending.claimTotal, withoutPending.components.filter((item) => item.enabled).reduce((sum, item) => sum + item.amount, 0));
+  const excluded = evaluateLaborClaim(baseInput({ startDate, endDate, series, vacation: { pendingPeriods: 0 }, excludedComponents: ["feriado"] }));
+  close(withoutPending.claimTotal - excluded.claimTotal, row.amount);
+  // Con 2 períodos pendientes se suman 30 días hábiles al mismo proporcional.
+  const withPending = evaluateLaborClaim(baseInput({ startDate, endDate, series, vacation: { pendingPeriods: 2 } }));
+  close(withPending.vacation.businessDays, 30 + vacation.proportionalDays);
+  assert.ok(buildEmployerEmail(withoutPending, {}).body.includes(`${row.label}: `));
 });

@@ -35,7 +35,7 @@ export const legalSources = [
   ct("486", "plazo para denunciar vulneración de derechos fundamentales"),
   ct("489", "tutela laboral con ocasión del despido"),
   ct("510", "prescripción de acciones laborales"),
-  { id: "dl-3500", titulo: "DL 3.500: sistema de pensiones (cotización 10%, comisión, SIS, salud 7% art. 84)", articulo: "Arts. 17, 29, 59 y 84", url: leyChile(7147), fechaVerificacion: VERIFIED_ON, estado: "verificada" },
+  { id: "dl-3500", titulo: "DL 3.500: sistema de pensiones (cotización 10%, comisión, SIS, salud 7% art. 84, reajustes e intereses por pago atrasado art. 19)", articulo: "Arts. 17, 19, 29, 59 y 84", url: leyChile(7147), fechaVerificacion: VERIFIED_ON, estado: "verificada" },
   { id: "ley-19728", titulo: "Ley 19.728: seguro de cesantía", articulo: "Arts. 5, 6 y 10 (0,6% trabajador; 2,4% empleador = 1,6% CIC + 0,8% FCS; CIC máx. 11 años)", url: leyChile(184979), fechaVerificacion: VERIFIED_ON, estado: "verificada" },
   { id: "ley-16744", titulo: "Ley 16.744: seguro de accidentes del trabajo y enfermedades profesionales", articulo: "Art. 15 (cotización básica 0,90% y adicional diferenciada)", url: leyChile(28650), fechaVerificacion: VERIFIED_ON, estado: "verificada" },
   { id: "ley-19578", titulo: "Ley 19.578: cotización extraordinaria del seguro de accidentes (art. 6° transitorio)", articulo: "Art. 6° transitorio, modificado por Ley 21.010", url: leyChile(122103), fechaVerificacion: VERIFIED_ON, estado: "verificada" },

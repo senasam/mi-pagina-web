@@ -233,6 +233,13 @@ export default function LaborClaimEvaluatorPage() {
                 {termination?.recargos.map((rate) => <option key={rate} value={String(rate)}>{pct(rate)}</option>)}
               </select>
             </Field>
+            <details className="claim-explainer">
+              <summary>¿Qué causal elegir? Explicación de cada una</summary>
+              <ul className="claim-causal-list">{TERMINATION_TYPES.map((type) => <li key={type.id} className={type.id === form.terminationType ? "is-selected" : ""}>
+                <strong>{type.label}{type.id === form.terminationType ? " (elegida)" : ""}.</strong> {type.explicacion} <span className="claim-causal-list__surcharge">Recargo: {type.recargos.map(pct).join(" o ")} sobre los años de servicio.</span>
+              </li>)}</ul>
+              <p>Si tiene dudas, elija <strong>Despido sin causa legal</strong> cuando simplemente dejaron de contratarle. Revise la causal con un abogado o en la Inspección del Trabajo: el tribunal decide cuál corresponde según las pruebas.</p>
+            </details>
           </div>
         </fieldset>
 
@@ -262,6 +269,14 @@ export default function LaborClaimEvaluatorPage() {
             <Field id="unpaidDaysTaken" label="Días de vacaciones tomados sin pago" help="Días corridos en que descansó y no le pagaron."><NumberInput id="unpaidDaysTaken" value={form.unpaidDaysTaken} onChange={(value) => update("unpaidDaysTaken", value)} unit="días" /></Field>
           </div>
           <p className="claim-hint">Cómo se calcula: cada año da 15 días hábiles (lunes a viernes). Al terminar la relación, esos días se cuentan en el calendario desde el día siguiente al término, y se suman los sábados, domingos y feriados legales que caen en medio. Se pagan esos días corridos, a 1/30 del sueldo promedio cada uno (criterio de la Dirección del Trabajo).</p>
+          {result && <div className="claim-vacation-summary" aria-live="polite">
+            <strong>Vacaciones que se están cobrando</strong>
+            <ul>
+              <li>Períodos completos pendientes: {result.vacation.periods} × {result.vacation.annualDays} = {formatNumericInput(String(result.vacation.pendingDays))} días hábiles.{result.vacation.periods < Math.min(result.vacation.maxPeriods, result.vacation.completedYears) && ` Cumplió ${result.vacation.completedYears} año(s) completo(s): si no tomó esas vacaciones, puede indicar hasta ${Math.min(result.vacation.maxPeriods, result.vacation.completedYears)}.`}</li>
+              <li><strong>Sí se incluyen</strong> las vacaciones proporcionales del período en curso (del {dateLabel(result.vacation.currentPeriodStart)} al {dateLabel(form.endDate)}): {result.vacation.proportionalDays.toLocaleString("es-CL", { maximumFractionDigits: 2 })} días hábiles.</li>
+              <li>Total: {result.vacation.businessDays.toLocaleString("es-CL", { maximumFractionDigits: 2 })} días hábiles = {result.vacation.calendarDays.toLocaleString("es-CL", { maximumFractionDigits: 2 })} días corridos → <strong>{formatClp(result.vacation.amount)}</strong>{excluded.includes("feriado") ? ", pero la fila está desmarcada y no se suma al total." : ", incluido en el total que se demanda."}</li>
+            </ul>
+          </div>}
         </fieldset>
 
         <fieldset>
@@ -270,14 +285,20 @@ export default function LaborClaimEvaluatorPage() {
             <label className="claim-check"><input type="checkbox" checked={form.pregnant} onChange={(event) => update("pregnant", event.target.checked)} /> Embarazo o fuero maternal al momento del término</label>
             {form.pregnant && <Field id="dueDate" label="Fecha probable de parto" error={errors.dueDate} help="El fuero dura hasta un año después del postnatal (12 semanas desde el parto)."><input id="dueDate" type="date" value={form.dueDate} onChange={(event) => update("dueDate", event.target.value)} /></Field>}
             <label className="claim-check"><input type="checkbox" checked={form.nullityEnabled} onChange={(event) => update("nullityEnabled", event.target.checked)} /> Pedir nulidad del despido (Ley Bustos) por cotizaciones impagas</label>
-            {form.nullityEnabled && <Field id="nullityMonths" label="Meses estimados hasta la convalidación" help="Desde el despido hasta que el empleador pague las cotizaciones."><NumberInput id="nullityMonths" value={form.nullityMonths} onChange={(value) => update("nullityMonths", value)} unit="meses" /></Field>}
+            <details className="claim-explainer">
+              <summary>¿Qué es la Ley Bustos y cuándo aplica?</summary>
+              <p>La Ley Bustos (art. 162, incisos 5 a 7, del Código del Trabajo) establece que si al momento del despido el empleador <strong>no tenía pagadas todas las cotizaciones</strong> (AFP, salud, cesantía), el despido no pone término al contrato. El empleador debe seguir pagando las remuneraciones desde el despido hasta que lo "convalide": que pague todas las cotizaciones adeudadas y se lo informe por carta certificada con los comprobantes.</p>
+              <p>En los casos de honorarios encubiertos suele aplicar, porque si el tribunal declara que hubo relación laboral, ninguna cotización de ese período se pagó como trabajador dependiente. La Corte Suprema la ha aplicado a empleadores privados en estos casos; con organismos públicos el criterio ha sido distinto.</p>
+              <p><strong>¿Qué son los meses?</strong> No es un plazo fijado por la ley: es su estimación de cuánto tardará el empleador en pagar las cotizaciones desde el despido. Si se llega a un acuerdo pronto, serán pocos meses; si hay juicio, la sanción sigue corriendo mientras no pague. Los 12 meses que vienen por defecto son solo un supuesto para la estimación.</p>
+            </details>
+            {form.nullityEnabled && <Field id="nullityMonths" label="Meses estimados hasta que pague las cotizaciones" help="Estimación suya, no un plazo legal. Cada mes suma una remuneración."><NumberInput id="nullityMonths" value={form.nullityMonths} onChange={(value) => update("nullityMonths", value)} unit="meses" /></Field>}
             <label className="claim-check"><input type="checkbox" checked={form.tutelaEnabled} onChange={(event) => update("tutelaEnabled", event.target.checked)} /> Tutela de derechos fundamentales</label>
             <details className="claim-explainer">
               <summary>¿Qué es la tutela y cuándo aplica?</summary>
               <p>Es una acción especial (arts. 485 a 489 del Código del Trabajo) para cuando el empleador vulnera sus derechos fundamentales. Aplica a este cálculo si <strong>el despido mismo fue la vulneración</strong>, por ejemplo:</p>
               <ul>
-                <li>la despidieron por estar embarazada, por su edad, sexo, orientación sexual, religión u otra forma de discriminación;</li>
-                <li>la despidieron como represalia por reclamar, pedir contrato o denunciar ante la Inspección del Trabajo;</li>
+                <li>le despidieron por estar embarazada, por su edad, sexo, orientación sexual, religión u otra forma de discriminación;</li>
+                <li>le despidieron como represalia por reclamar, pedir contrato o denunciar ante la Inspección del Trabajo;</li>
                 <li>hubo acoso laboral o sexual, o se afectó su integridad física o psíquica, su honra o su privacidad.</li>
               </ul>
               <p>Haber trabajado a honorarios no basta por sí solo: se necesitan indicios concretos (correos, mensajes, testigos, fechas). Si el juez la acoge, suma entre 6 y 11 remuneraciones a las indemnizaciones normales. El plazo para presentarla es de 60 días hábiles desde el despido.</p>
@@ -359,7 +380,7 @@ export default function LaborClaimEvaluatorPage() {
       {form.healthSystem === "isapre" && result.contributions.isapreExtraTotal > 0 && <p className="disclosure">Dato informativo: el plan de Isapre pactado supera el 7% en {formatClp(result.contributions.isapreExtraTotal)} durante el período. Esa diferencia no se incluye en el total.</p>}
       <details className="assumption-summary"><summary>Estimación separada: reajustes, intereses y multas (Ley 17.322)</summary>
         <dl className="metrics-grid"><div className="mortgage-metric"><dt>Reajuste</dt><dd>{formatClp(result.latePayment.reajuste)}</dd><small>Aproximado por la variación de la UF</small></div><div className="mortgage-metric"><dt>Interés penal</dt><dd>{formatClp(result.latePayment.interes)}</dd><small>{pct(result.latePayment.annualRate)} anual, capitalizado mensualmente</small></div><div className="mortgage-metric"><dt>Multas por no declarar</dt><dd>{formatClp(result.latePayment.multa)}</dd><small>{result.latePayment.fineUf} UF por mes</small></div><div className="mortgage-metric"><dt>Total estimado</dt><dd>{formatClp(result.latePayment.total)}</dd><small>No incluido en los totales</small></div></dl>
-        <p className="claim-hint">Estimación gruesa: la tasa de interés corriente cambia cada mes y el reajuste legal usa el IPC. <SourceRefs ids={["ley-17322"]} numbers={sourceNumbers} /></p>
+        <p className="claim-hint">Estimación gruesa: cada institución calcula el reajuste y el interés exacto al momento del pago. Son obligaciones legales (art. 19 del DL 3.500 y Ley 17.322) que un acuerdo entre las partes no elimina, aunque pagar antes evita que sigan creciendo. Si el empleador es un organismo público, la Corte Suprema ha excluido los intereses penales (Rol 53.045-2022). <SourceRefs ids={["dl-3500", "ley-17322"]} numbers={sourceNumbers} /></p>
       </details>
       <p className="framework-note"><strong>Importante:</strong> lo que usted ya cotizó mediante la retención de honorarios (Ley 21.133) puede descontarse o compensarse y cambiar el resultado. Revíselo con un abogado. <SourceRefs ids={["ley-21133"]} numbers={sourceNumbers} /></p>
 
@@ -369,7 +390,7 @@ export default function LaborClaimEvaluatorPage() {
         <div className="mortgage-grid claim-grid-4">
           <Field id="employeeName" label="Su nombre"><input id="employeeName" value={form.employeeName} onChange={(event) => update("employeeName", event.target.value)} autoComplete="name" data-private="true" /></Field>
           <Field id="employerName" label="Empleador o empresa"><input id="employerName" value={form.employerName} onChange={(event) => update("employerName", event.target.value)} data-private="true" /></Field>
-          <Field id="proposalAmount" label="Monto total propuesto" help={`Si lo deja vacío se usa el sugerido: ${formatClp(suggestedProposal(result, n(form.lawyerFeeRate) / 100))} (cotizaciones completas + lo que recibiría si gana el juicio, descontado el ${formatNumericInput(form.lawyerFeeRate)}% de honorario del abogado).`}><NumberInput id="proposalAmount" value={form.proposalAmount} placeholder={formatNumericInput(String(suggestedProposal(result, n(form.lawyerFeeRate) / 100)))} onChange={(value) => update("proposalAmount", value)} unit="$" /></Field>
+          <Field id="proposalAmount" label="Monto total propuesto" help={`Si lo deja vacío se usa el sugerido: ${formatClp(suggestedProposal(result, n(form.lawyerFeeRate) / 100))} (cotizaciones completas con sus reajustes e intereses legales + lo que recibiría si gana el juicio, descontado el ${formatNumericInput(form.lawyerFeeRate)}% de honorario del abogado).`}><NumberInput id="proposalAmount" value={form.proposalAmount} placeholder={formatNumericInput(String(suggestedProposal(result, n(form.lawyerFeeRate) / 100)))} onChange={(value) => update("proposalAmount", value)} unit="$" /></Field>
           <Field id="responseDays" label="Plazo para responder"><NumberInput id="responseDays" value={form.responseDays} onChange={(value) => update("responseDays", value)} unit="días hábiles" /></Field>
         </div>
         <fieldset className="claim-evidence">
@@ -377,7 +398,7 @@ export default function LaborClaimEvaluatorPage() {
           <div className="claim-evidence__grid">{EVIDENCE_OPTIONS.map((option) => <label className="claim-check" key={option.id}><input type="checkbox" checked={form.evidence.includes(option.id)} onChange={(event) => update("evidence", event.target.checked ? [...form.evidence, option.id] : form.evidence.filter((id) => id !== option.id))} /> {option.label}</label>)}</div>
           <Field id="evidenceOther" label="Otras pruebas (opcional)"><input id="evidenceOther" value={form.evidenceOther} onChange={(event) => update("evidenceOther", event.target.value)} placeholder="Por ejemplo: grabaciones de reuniones, fotos del lugar de trabajo" data-private="true" /></Field>
         </fieldset>
-        {email && email.proposal < result.exposure.contributions && <p className="claim-warning-text"><AlertTriangle size={15} /> El monto propuesto es menor que las cotizaciones adeudadas ({formatClp(result.exposure.contributions)}).</p>}
+        {email && email.proposal < email.contributionsWithCharges && <p className="claim-warning-text"><AlertTriangle size={15} /> El monto propuesto es menor que las cotizaciones adeudadas con sus reajustes e intereses ({formatClp(email.contributionsWithCharges)}).</p>}
         <Field id="emailSubject" label="Asunto"><input id="emailSubject" value={email?.subject || ""} readOnly /></Field>
         <Field id="emailBody" label="Texto del correo (puede editarlo)"><textarea id="emailBody" className="claim-email__body" value={emailBody} onChange={(event) => setEmailDraft(event.target.value)} rows={18} data-private="true" /></Field>
         <div className="result-actions">

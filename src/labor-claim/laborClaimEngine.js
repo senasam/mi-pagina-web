@@ -132,6 +132,10 @@ export function computeVacation({ startDate, endDate, pendingPeriods = 0, unpaid
   const maxPeriods = read("maxPeriodosFeriadoAcumulados", endMonth);
   const divisor = read("divisorValorDia", endMonth);
   const sinceStart = calendarDiff(startDate, endDate);
+  // Inicio del período de vacaciones en curso: último aniversario de la fecha de inicio (29-feb → 28-feb).
+  const start = parseDate(startDate);
+  const anniversaryYear = start.y + sinceStart.years;
+  const currentPeriodStart = isoOf({ y: anniversaryYear, m: start.m, d: Math.min(start.d, daysInMonth(anniversaryYear, start.m)) });
   const periods = Math.max(0, Math.min(maxPeriods, Math.floor(Number(pendingPeriods) || 0), sinceStart.years));
   const perMonth = annualDays / 12;
   const proportionalDays = sinceStart.months * perMonth + sinceStart.days * (perMonth / 30);
@@ -140,7 +144,7 @@ export function computeVacation({ startDate, endDate, pendingPeriods = 0, unpaid
   const conversion = businessToCalendarDays(endDate, businessDays);
   const dayValue = vacationBase / divisor;
   return {
-    annualDays, maxPeriods, periods, pendingDays, proportionalDays, proportionalMonths: sinceStart.months, proportionalExtraDays: sinceStart.days,
+    annualDays, maxPeriods, periods, pendingDays, proportionalDays, currentPeriodStart, completedYears: sinceStart.years, proportionalMonths: sinceStart.months, proportionalExtraDays: sinceStart.days,
     businessDays, calendarDays: conversion.calendarDays, inhabilDays: conversion.inhabilDays, lastDate: conversion.lastDate,
     dayValue, divisor, amount: conversion.calendarDays * dayValue, unpaidDaysTaken: Math.max(0, Number(unpaidDaysTaken) || 0),
     unpaidAmount: Math.max(0, Number(unpaidDaysTaken) || 0) * dayValue,
@@ -250,7 +254,7 @@ export function computeScenarios(claimTotal, { winProbability = 0, settlementRat
   };
   return [
     { id: "renunciar", label: "Renunciar a demandar", gross: 0, fee: 0, net: 0, formula: "No recibe dinero ni paga honorarios." },
-    build("acuerdo", "Acuerdo", claimTotal * settlementRate, `${clp(claimTotal)} × ${pct(settlementRate, 0)} acuerdo − ${pct(lawyerFeeRate, 0)} honorario`),
+    build("acuerdo", "Acuerdo negociado con abogado", claimTotal * settlementRate, `${clp(claimTotal)} × ${pct(settlementRate, 0)} acuerdo − ${pct(lawyerFeeRate, 0)} honorario`),
     build("juicio", "Juicio (valor esperado)", claimTotal * winProbability, `${clp(claimTotal)} × ${pct(winProbability, 0)} probabilidad − ${pct(lawyerFeeRate, 0)} honorario`),
   ];
 }
@@ -319,7 +323,7 @@ export function evaluateLaborClaim(input, params = legalParams) {
       formula: `${clp(yearsAmount)} × ${pct(surchargeRate, 0)}`, sourceIds: [termination.fuenteId], note: termination.nota,
     },
     {
-      id: "feriado", label: "Feriado pendiente y proporcional", amount: vacation.amount,
+      id: "feriado", label: "Vacaciones pendientes y proporcionales (incluye el período en curso)", amount: vacation.amount,
       formula: `(${plural(vacation.periods, "período", "períodos")} × ${vacation.annualDays} + ${num(vacation.proportionalDays)} proporcionales) = ${num(vacation.businessDays)} días hábiles + ${vacation.inhabilDays} sábados, domingos y festivos (contados del ${dmy(addDaysIso(input.endDate, 1))} al ${dmy(vacation.lastDate)}) = ${num(vacation.calendarDays)} días corridos × ${clp(vacation.dayValue)}`,
       sourceIds: ["ct-67", "ct-69", "ct-70", "ct-71", "ct-73", "dt-feriado-proporcional"],
     },
