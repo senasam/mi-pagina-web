@@ -23,6 +23,9 @@
 .claim-causal-list { display: grid; gap: 10px; }
 .claim-causal-list li.is-selected { margin-left: -8px; padding: 8px; background: var(--mortgage-soft); }
 .claim-causal-list__surcharge { color: var(--muted); }
+.claim-link-button { justify-self: start; padding: 0; border: 0; background: none; color: var(--teal); font: inherit; font-size: .88rem; font-weight: 750; text-decoration: underline; cursor: pointer; }
+.claim-scenario-duration { display: block; margin-top: 6px; color: var(--ink-soft); }
+.claim-stats { margin-top: 18px; }
 .claim-hint { color: var(--muted); font-size: .92rem; line-height: 1.55; }
 .claim-empty { padding: 18px 22px; border: 1px dashed var(--line-strong); background: var(--white); }
 

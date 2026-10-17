@@ -8,6 +8,7 @@ import { formatClp, parseChileanNumber } from "./mortgageEngine";
 import { AFP_OPTIONS, LEGAL_PARAMS_REVIEWED_ON, TERMINATION_TYPES } from "./labor-claim/legalParams";
 import { addDaysIso, buildMonthlySeries, calendarDiff, evaluateLaborClaim, isValidIsoDate, monthRange, validateAssumptions } from "./labor-claim/laborClaimEngine";
 import { EVIDENCE_OPTIONS, buildEmployerEmail, suggestedProposal } from "./labor-claim/employerEmail";
+import { EMPLOYER_TYPES, STATS_REVIEWED_ON, durations, resolutionShares, suggestWinProbability } from "./labor-claim/litigationStats";
 import "./labor-claim/laborClaim.css";
 
 const PATH = "/herramientas/evaluador-demanda-laboral";
@@ -17,6 +18,11 @@ const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santia
 const dateLabel = (iso) => iso ? new Intl.DateTimeFormat("es-CL", { dateStyle: "long", timeZone: "UTC" }).format(new Date(`${iso}T12:00:00Z`)) : "sin fecha";
 const monthLabel = (key) => new Intl.DateTimeFormat("es-CL", { month: "short", year: "numeric", timeZone: "UTC" }).format(new Date(`${key}-15T12:00:00Z`));
 const pct = (value) => `${new Intl.NumberFormat("es-CL", { maximumFractionDigits: 2 }).format(value * 100)}%`;
+const SCENARIO_DURATION = {
+  renunciar: "inmediata.",
+  acuerdo: "unos 5 a 6 meses (las conciliaciones tardaron en promedio 143 a 180 días en 2020–2021).",
+  juicio: "unos 7 meses en primera instancia (218 días promedio en 2021); con recursos, de 1 a más de 2 años.",
+};
 const SOURCE_LABELS = { cmf: "CMF (oficial)", "secondary-provider": "mindicador.cl (respaldo)", cache: "último valor guardado", unavailable: "no disponible" };
 
 const yearsBefore = (iso, years) => `${Number(iso.slice(0, 4)) - years}${iso.slice(4) === "-02-29" ? "-02-28" : iso.slice(4)}`;
@@ -31,7 +37,7 @@ const initialForm = () => {
     nullityEnabled: true, nullityMonths: "12", tutelaEnabled: true, tutelaMonths: "6",
     afp: "habitat", healthSystem: "isapre", isaprePlanUf: "4", accidentAdditional: "0",
     gratificationEnabled: true,
-    winProbability: "75", settlementRate: "60", lawyerFeeRate: "25",
+    employerType: "privada", winProbabilityAuto: true, winProbability: "75", settlementRate: "60", lawyerFeeRate: "25",
     employeeName: "", employerName: "", proposalAmount: "", responseDays: "10",
     evidence: ["boletas"], evidenceOther: "", rightsDescription: "",
   };
@@ -140,6 +146,7 @@ export default function LaborClaimEvaluatorPage() {
   const months = useMemo(() => monthsKey ? monthRange(form.startDate, form.endDate) : [], [monthsKey]);
   const effectiveUf = uf.mode === "manual" || uf.mode === "unavailable" ? n(manualUf) : uf.valueClp;
   const termination = TERMINATION_TYPES.find((type) => type.id === form.terminationType);
+  const winSuggestion = useMemo(() => suggestWinProbability({ terminationType: form.terminationType, surchargeRate: form.surchargeRate, employerType: form.employerType }), [form.terminationType, form.surchargeRate, form.employerType]);
   const tenure = useMemo(() => {
     if (!monthsKey) return "";
     const diff = calendarDiff(form.startDate, addDaysIso(form.endDate, 1));
@@ -162,10 +169,10 @@ export default function LaborClaimEvaluatorPage() {
       tutela: { enabled: form.tutelaEnabled, months: n(form.tutelaMonths) },
       gratification: { enabled: form.gratificationEnabled },
       afp: form.afp, health: { system: form.healthSystem, planUf: n(form.isaprePlanUf) }, accidentAdditionalRate: n(form.accidentAdditional) / 100,
-      risk: { winProbability: n(form.winProbability) / 100, settlementRate: n(form.settlementRate) / 100, lawyerFeeRate: n(form.lawyerFeeRate) / 100 },
+      risk: { winProbability: form.winProbabilityAuto ? winSuggestion.probability : n(form.winProbability) / 100, settlementRate: n(form.settlementRate) / 100, lawyerFeeRate: n(form.lawyerFeeRate) / 100 },
       ufValueClp: effectiveUf, ufByMonth, calcDate: isValidIsoDate(calcDate) ? calcDate : form.endDate, excludedComponents: excluded,
     };
-  }, [form, monthsKey, ufSeries, effectiveUf, calcDate, excluded]);
+  }, [form, monthsKey, ufSeries, effectiveUf, calcDate, excluded, winSuggestion]);
 
   const errors = useMemo(() => validateAssumptions(input), [input]);
   const result = useMemo(() => {
@@ -330,11 +337,27 @@ export default function LaborClaimEvaluatorPage() {
 
         <fieldset>
           <legend>6. Riesgo y honorarios</legend>
-          <div className="mortgage-grid claim-grid-3">
-            <Field id="winProbability" label="Probabilidad de ganar" error={errors.winProbability}><NumberInput id="winProbability" value={form.winProbability} onChange={(value) => update("winProbability", value)} unit="%" /></Field>
+          <div className="mortgage-grid claim-grid-4">
+            <Field id="employerType" label="Tipo de empleador" help="Influye en la probabilidad sugerida: a los organismos públicos se les gana menos."><select id="employerType" value={form.employerType} onChange={(event) => update("employerType", event.target.value)}>{EMPLOYER_TYPES.map((type) => <option key={type.id} value={type.id}>{type.label}</option>)}</select></Field>
+            <Field id="winProbability" label="Probabilidad de ganar" error={errors.winProbability} help={form.winProbabilityAuto ? "Sugerida según estadísticas de sentencias (ver detalle abajo). Puede cambiarla." : `Valor ingresado por usted. La sugerida es ${pct(winSuggestion.probability)}.`}>
+              <NumberInput id="winProbability" value={form.winProbabilityAuto ? String(Math.round(winSuggestion.probability * 100)) : form.winProbability} onChange={(value) => setForm((current) => ({ ...current, winProbability: value, winProbabilityAuto: false }))} unit="%" />
+              {!form.winProbabilityAuto && <button type="button" className="claim-link-button" onClick={() => update("winProbabilityAuto", true)}>Usar la probabilidad sugerida</button>}
+            </Field>
             <Field id="settlementRate" label="Acuerdo esperado (% del reclamo)" error={errors.settlementRate}><NumberInput id="settlementRate" value={form.settlementRate} onChange={(value) => update("settlementRate", value)} unit="%" /></Field>
             <Field id="lawyerFeeRate" label="Honorario del abogado" error={errors.lawyerFeeRate}><NumberInput id="lawyerFeeRate" value={form.lawyerFeeRate} onChange={(value) => update("lawyerFeeRate", value)} unit="%" /></Field>
           </div>
+          <details className="claim-explainer claim-stats">
+            <summary>¿De dónde sale la probabilidad sugerida y cuánto dura un juicio?</summary>
+            <p>Un estudio de <strong>43.565 sentencias por despido injustificado</strong> dictadas entre 2015 y 2025 en 145 tribunales encontró que, cuando el juicio llega a sentencia, el <strong>70,2%</strong> de las demandas se acoge a favor del trabajador. La tasa ha sido estable (entre 67% y 73% cada año).</p>
+            <ul>
+              <li>Por causal: necesidades de la empresa 83,4%; despidos sin causal 70,2%; conclusión de la obra 73,0%; vencimiento del plazo 52,0%; causales del art. 160 (faltas del trabajador) 60,6%.</li>
+              <li>Por empleador: empresas privadas 73,7%; personas naturales 67,1%; municipalidades 56,0%; otros organismos públicos 45,7%.</li>
+              <li>Su caso: {winSuggestion.causeLabel} = {pct(winSuggestion.base)}, ajustado por {winSuggestion.employer.label.toLowerCase()} ({pct(winSuggestion.employer.rate)} frente al 70,2% general) → <strong>{pct(winSuggestion.probability)}</strong>.</li>
+            </ul>
+            <p><strong>Ojo con los honorarios:</strong> no hay estadísticas publicadas específicas para honorarios encubiertos ni para el autodespido. En estos casos usted debe probar primero que existió relación laboral, así que si su prueba es débil conviene bajar la probabilidad.</p>
+            <p><strong>Cuánto demora:</strong> el {Math.round(resolutionShares.acuerdoTotal * 100)}% de los juicios por despido termina antes de la sentencia, por conciliación ({Math.round(resolutionShares.conciliacion * 100)}%) o avenimiento ({Math.round(resolutionShares.avenimiento * 100)}%). Según el Poder Judicial, las conciliaciones tardaron en promedio {durations.conciliationDays[2020]} días en 2020 y {durations.conciliationDays[2021]} en 2021 (unos 5 a 6 meses). La tramitación en primera instancia subió de {durations.firstInstanceDays[2017]} días en 2017 a {durations.firstInstanceDays[2021]} en 2021 (unos 7 meses). Si hay recursos ante la Corte de Apelaciones y la Corte Suprema, se pueden sumar de {durations.appealsExtraMonths[0]} a {durations.appealsExtraMonths[1]} meses. No hay cifras oficiales más recientes publicadas y las causas laborales se triplicaron entre 2021 y 2025, por lo que hoy los plazos podrían ser mayores.</p>
+            <p className="claim-hint">Fuentes <SourceRefs ids={["lyd-sij-34", "observatorio-judicial-despido", "df-duracion-2021", "df-duracion-2020", "pjud-numeros-cs"]} numbers={sourceNumbers} /> · revisadas el {dateLabel(STATS_REVIEWED_ON)}.</p>
+          </details>
         </fieldset>
       </form>
     </section>
@@ -353,7 +376,7 @@ export default function LaborClaimEvaluatorPage() {
       {result.warnings.length > 0 && <ul className="claim-warnings">{result.warnings.map((warning) => <li key={warning}><AlertTriangle size={15} /> {warning}</li>)}</ul>}
 
       <h3>Escenarios netos para usted</h3>
-      <dl className="metrics-grid claim-scenarios">{result.scenarios.map((scenario) => <div className="mortgage-metric" key={scenario.id}><dt>{scenario.label}</dt><dd>{formatClp(scenario.net)}</dd><small>{scenario.formula}{scenario.fee > 0 ? ` (${formatClp(scenario.fee)})` : ""}</small></div>)}</dl>
+      <dl className="metrics-grid claim-scenarios">{result.scenarios.map((scenario) => <div className="mortgage-metric" key={scenario.id}><dt>{scenario.label}</dt><dd>{formatClp(scenario.net)}</dd><small>{scenario.formula}{scenario.fee > 0 ? ` (${formatClp(scenario.fee)})` : ""}</small>{SCENARIO_DURATION[scenario.id] && <small className="claim-scenario-duration">Duración: {SCENARIO_DURATION[scenario.id]}</small>}</div>)}</dl>
 
       <h3>Dinero para usted, por concepto</h3>
       <p className="claim-hint">Desmarque una fila para excluirla del total y de los escenarios.</p>

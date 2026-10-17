@@ -315,3 +315,19 @@ test("las vacaciones proporcionales del período en curso se suman al total dema
   close(withPending.vacation.businessDays, 30 + vacation.proportionalDays);
   assert.ok(buildEmployerEmail(withoutPending, {}).body.includes(`${row.label}: `));
 });
+
+test("probabilidad sugerida según estadísticas de sentencias por causal y tipo de empleador", async () => {
+  const { suggestWinProbability, acceptanceRates } = await import("../src/labor-claim/litigationStats.js");
+  assert.equal(acceptanceRates.overall, 0.702);
+  const sinCausa = suggestWinProbability({ terminationType: "despido-sin-causa", employerType: "privada" });
+  assert.equal(sinCausa.probability, 0.74); // 70,2% × 73,7/70,2
+  assert.equal(suggestWinProbability({ terminationType: "despido-injustificado", surchargeRate: 0.3, employerType: "privada" }).probability, 0.88); // necesidades de la empresa 83,4%
+  assert.equal(suggestWinProbability({ terminationType: "despido-injustificado", surchargeRate: 0.5, employerType: "privada" }).probability, 0.66); // art. 159: (73,0 + 52,0) / 2
+  assert.equal(suggestWinProbability({ terminationType: "falta-grave-inventada", surchargeRate: 0.8, employerType: "municipalidad" }).probability, 0.48); // 60,6% × 56,0/70,2
+  assert.equal(suggestWinProbability({ terminationType: "despido-sin-causa", employerType: "otroPublico" }).probability, 0.46);
+  const auto = suggestWinProbability({ terminationType: "autodespido", employerType: "privada" });
+  assert.equal(auto.specific, false);
+  assert.deepEqual(auto.sourceIds, ["lyd-sij-34", "observatorio-judicial-despido"]);
+  const ids = new Set(legalSources.map((source) => source.id));
+  ["lyd-sij-34", "observatorio-judicial-despido", "df-duracion-2021", "df-duracion-2020", "pjud-numeros-cs"].forEach((id) => assert.ok(ids.has(id), id));
+});

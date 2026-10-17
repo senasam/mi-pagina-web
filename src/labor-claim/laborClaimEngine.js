@@ -364,7 +364,7 @@ export function evaluateLaborClaim(input, params = legalParams) {
   const scenarios = computeScenarios(claimTotal, input.risk || {});
 
   const paramsUsed = [...used.values()];
-  const sourceIds = new Set([...components.flatMap((component) => component.sourceIds), ...DESTINATIONS.flatMap((destination) => destination.sourceIds), ...paramsUsed.map((param) => param.fuenteId), "ct-7-8", "ley-21133", "ley-17322", "ct-486", "ct-510"]);
+  const sourceIds = new Set([...components.flatMap((component) => component.sourceIds), ...DESTINATIONS.flatMap((destination) => destination.sourceIds), ...paramsUsed.map((param) => param.fuenteId), "ct-7-8", "ley-21133", "ley-17322", "ct-486", "ct-510", "lyd-sij-34", "observatorio-judicial-despido", "df-duracion-2021", "df-duracion-2020", "pjud-numeros-cs"]);
   return {
     bases, service, vacation, maternity, nullityMonths, protectionMonths, protectionKind, tutelaMonths, surchargeRate, termination,
     components, claimTotal, contributions, latePayment, scenarios, warnings, gratification,
