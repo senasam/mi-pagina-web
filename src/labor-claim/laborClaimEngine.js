@@ -81,6 +81,7 @@ function createParamReader(params) {
 const clp = (value) => new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Math.round(value || 0));
 const num = (value, digits = 2) => new Intl.NumberFormat("es-CL", { maximumFractionDigits: digits }).format(value || 0);
 const pct = (value, digits = 2) => `${num(value * 100, digits)}%`;
+const dmy = (iso) => iso.split("-").reverse().join("-");
 const plural = (n, one, many) => `${num(n)} ${Math.abs(n - 1) < 1e-9 ? one : many}`;
 
 // ——— Serie mensual de boletas ———
@@ -307,7 +308,7 @@ export function evaluateLaborClaim(input, params = legalParams) {
     },
     {
       id: "feriado", label: "Feriado pendiente y proporcional", amount: vacation.amount,
-      formula: `(${plural(vacation.periods, "período", "períodos")} × ${vacation.annualDays} + ${num(vacation.proportionalDays)} proporcionales) = ${num(vacation.businessDays)} días hábiles → ${num(vacation.calendarDays)} días corridos × ${clp(vacation.dayValue)}`,
+      formula: `(${plural(vacation.periods, "período", "períodos")} × ${vacation.annualDays} + ${num(vacation.proportionalDays)} proporcionales) = ${num(vacation.businessDays)} días hábiles + ${vacation.inhabilDays} sábados, domingos y festivos (contados del ${dmy(addDaysIso(input.endDate, 1))} al ${dmy(vacation.lastDate)}) = ${num(vacation.calendarDays)} días corridos × ${clp(vacation.dayValue)}`,
       sourceIds: ["ct-67", "ct-69", "ct-70", "ct-71", "ct-73", "dt-feriado-proporcional"],
     },
   ];

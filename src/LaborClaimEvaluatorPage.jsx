@@ -227,6 +227,7 @@ export default function LaborClaimEvaluatorPage() {
             </Field>
             <Field id="unpaidDaysTaken" label="Días de vacaciones tomados sin pago" help="Días corridos en que descansó y no le pagaron."><NumberInput id="unpaidDaysTaken" value={form.unpaidDaysTaken} onChange={(value) => update("unpaidDaysTaken", value)} unit="días" /></Field>
           </div>
+          <p className="claim-hint">Cómo se calcula: cada año da 15 días hábiles (lunes a viernes). Al terminar la relación, esos días se cuentan en el calendario desde el día siguiente al término, y se suman los sábados, domingos y feriados legales que caen en medio. Se pagan esos días corridos, a 1/30 del sueldo promedio cada uno (criterio de la Dirección del Trabajo).</p>
         </fieldset>
 
         <fieldset>
@@ -237,6 +238,16 @@ export default function LaborClaimEvaluatorPage() {
             <label className="claim-check"><input type="checkbox" checked={form.nullityEnabled} onChange={(event) => update("nullityEnabled", event.target.checked)} /> Pedir nulidad del despido (Ley Bustos) por cotizaciones impagas</label>
             {form.nullityEnabled && <Field id="nullityMonths" label="Meses estimados hasta la convalidación" help="Desde el despido hasta que el empleador pague las cotizaciones."><NumberInput id="nullityMonths" value={form.nullityMonths} onChange={(value) => update("nullityMonths", value)} unit="meses" /></Field>}
             <label className="claim-check"><input type="checkbox" checked={form.tutelaEnabled} onChange={(event) => update("tutelaEnabled", event.target.checked)} /> Tutela de derechos fundamentales</label>
+            <details className="claim-explainer">
+              <summary>¿Qué es la tutela y cuándo aplica?</summary>
+              <p>Es una acción especial (arts. 485 a 489 del Código del Trabajo) para cuando el empleador vulnera sus derechos fundamentales. Aplica a este cálculo si <strong>el despido mismo fue la vulneración</strong>, por ejemplo:</p>
+              <ul>
+                <li>la despidieron por estar embarazada, por su edad, sexo, orientación sexual, religión u otra forma de discriminación;</li>
+                <li>la despidieron como represalia por reclamar, pedir contrato o denunciar ante la Inspección del Trabajo;</li>
+                <li>hubo acoso laboral o sexual, o se afectó su integridad física o psíquica, su honra o su privacidad.</li>
+              </ul>
+              <p>Haber trabajado a honorarios no basta por sí solo: se necesitan indicios concretos (correos, mensajes, testigos, fechas). Si el juez la acoge, suma entre 6 y 11 remuneraciones a las indemnizaciones normales. El plazo para presentarla es de 60 días hábiles desde el despido.</p>
+            </details>
             {form.tutelaEnabled && <Field id="tutelaMonths" label="Remuneraciones a pedir (6 a 11)" error={errors.tutelaMonths}><select id="tutelaMonths" value={form.tutelaMonths} onChange={(event) => update("tutelaMonths", event.target.value)}>{[6, 7, 8, 9, 10, 11].map((value) => <option key={value} value={String(value)}>{value}</option>)}</select></Field>}
           </div>
           <p className="claim-hint">Fuero y nulidad no se suman sobre los mismos meses: el cálculo usa el período más largo.</p>

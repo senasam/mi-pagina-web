@@ -53,6 +53,8 @@ test("caso de referencia: base, indemnizaciones, recargo, nulidad, tutela y esce
   assert.equal(vacation.lastDate, "2026-09-01");
   close(vacation.calendarDays, 63 + (vacation.businessDays - 44));
   close(component(result, "feriado").amount, vacation.calendarDays * (1000000 / 30));
+  assert.equal(vacation.inhabilDays, 19);
+  assert.match(component(result, "feriado").formula, /\+ 19 sábados, domingos y festivos \(contados del 01-07-2026 al 01-09-2026\)/);
 
   const total = 1000000 + 3000000 + 1500000 + vacation.amount + 18000000 + 6000000;
   close(result.claimTotal, total);
